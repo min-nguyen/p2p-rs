@@ -79,7 +79,7 @@ pub struct RecipeBehaviour {
     //    We will use the mDNS protocol for discovering other peers on the local network.
     mdns: Mdns,
 
-    // ** Relevant only to us -- the specific peer that we are setting up:
+    // ** Relevant only to a specific peer that we are setting up:
     // 1. How to forward responses *from* the network *back to* the main part of our application
     //    We will use `response_sender` to send responses from the network to `response_rcv` elsewhere in our program.
     #[behaviour(ignore)]
