@@ -34,7 +34,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc};
 //   to only listen to a subset of the traffic on a pub/sub network.
 
 // Topic for subscribing and sending recipes
-pub static TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
+pub static RECIPE_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
 
 // Core data being transmitted in the network.
 type Recipes = Vec<Recipe>;
@@ -46,11 +46,11 @@ struct Recipe {
 
 // Messages are either (1) requests for data, or (2) responses to a request.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Request {
+pub struct RecipeRequest {
     mode : TransmitMode
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Response {
+pub struct RecipeResponse {
     mode : TransmitMode,
     data : Recipes,
     receiver : String
@@ -66,7 +66,7 @@ enum TransmitMode {
 // Events (new messages) in the network are either (1) inputs from ourselves (2) responses from peers
 enum EventType {
     Input(String),
-    Response(Response)
+    Response(RecipeResponse)
 }
 
 #[derive(NetworkBehaviour)]
@@ -83,14 +83,14 @@ pub struct RecipeBehaviour {
     // 1. How to forward responses *from* the network *back to* the main part of our application
     //    We will use `response_sender` to send responses from the network to `response_rcv` elsewhere in our program.
     #[behaviour(ignore)]
-    local_response_sender: mpsc::UnboundedSender<Response>,
+    local_response_sender: mpsc::UnboundedSender<RecipeResponse>,
 }
 
 pub async fn set_up_recipe_behaviour
         (   local_peer_id : Lazy<libp2p::PeerId>
-          , local_response_sender : mpsc::UnboundedSender<Response>)
+          , local_response_sender : mpsc::UnboundedSender<RecipeResponse>)
 {
-    let mut behaviour = RecipeBehaviour {
+  let mut behaviour = RecipeBehaviour {
       floodsub: Floodsub::new(local_peer_id.clone()),
       mdns: Mdns::new(Default::default())
           .await
@@ -99,5 +99,5 @@ pub async fn set_up_recipe_behaviour
   };
 
   // Subscribe our specific network behaviour to be subscribed to the "recipes" topic.
-  behaviour.floodsub.subscribe(TOPIC.clone());
+  behaviour.floodsub.subscribe(RECIPE_TOPIC.clone());
 }

@@ -25,10 +25,10 @@ use super::behaviour;
 // Below initialises these as global values that identify the current application (i.e. client) running.
 //
 // * A Key Pair enables us to communicate securely with the rest of the network, ensuring no one can impersonate us.
-pub static KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
+pub static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
 // * A PeerId is simply a unique identifier for a specific peer within the whole peer to peer network.
 //   It is derived from a key pair to ensure uniqueness.
-pub static PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(KEYS.public()));
+pub static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 async fn set_up_peer() {
     // Set up an Asynchronous channel to communicate between different parts of our application.
@@ -41,7 +41,7 @@ async fn set_up_peer() {
     // Authentication keys for the `Noise` crypto-protocol
     // -- will be used to secure traffic within the p2p network
     let auth_keys = Keypair::<X25519Spec>::new()
-        .into_authentic(&KEYS)
+        .into_authentic(&LOCAL_KEYS)
         .expect("can create auth keys");
 
     // Set up a *Transport* (a core concept in p2p):
@@ -59,17 +59,14 @@ async fn set_up_peer() {
 
     // Set up a *NetworkBehaviour* (a core concept in p2p):
     // -- Defines the logic of the p2p network and all its peers
-    let mut behaviour = behaviour::set_up_recipe_behaviour(PEER_ID, local_response_sender);
-
-    // Subscribe our specific network behaviour to be subscribed to the "recipes" topic.
-    behaviour.floodsub.subscribe(TOPIC.clone());
+    let mut behaviour = behaviour::set_up_recipe_behaviour(LOCAL_PEER_ID, local_response_sender);
 
     // Set up a *Swarm* (a core concept in p2p):
     // -- Manages connections created with the Transport and executes our NetworkBehaviour
     // -- used to trigger and receive events from the network
     let mut swarm
         =   // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
-            SwarmBuilder::new(transp, behaviour, PEER_ID.clone())
+            SwarmBuilder::new(transp, behaviour, LOCAL_PEER_ID.clone())
             .executor(Box::new(|fut| {
                 tokio::spawn(fut);
             }))
