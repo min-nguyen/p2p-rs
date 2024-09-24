@@ -16,27 +16,50 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tokio::{io::AsyncBufReadExt, sync::mpsc};
 
-
 // # *NetworkBehavior* (key concept in p2p): Defines the logic of the p2p network and all its peers.
 //
-// Consists of at least:
-//   1. Communication protocol between peers
-//   2. Discovery protocol for peers to find each other
-
-// ## Communication protocol: *FloodSub* is a publish-subscribe protocol:
+// We need to specify at least 2 Protocols:
+//   1. Communication Protocol between peers
+//   2. Discovery Protocol for peers to find each other
+// We need to define 2 concrete network sub-behaviours:
+//   1. Handling network events regarding the Communication Protocol
+//   2. Handling network events regarding the Discovery Protocol
 //
+// We will use the FloodSub Communication Protocol.
+// This is a publish-subscribe protocol:
 // - Publishers send messages to all peers they are directly connected to, without any filtering.
 // - Subscribers receive messages by subscribing to specific topics.
 // - When a message is published, it is flooded to all peers in the network, and
 //   each peer forwards the message to their connected peers until the message reaches all interested nodes.
 //
-//  *Topic* (concept of FloodSub) is a named channel that we can subscribe to and send messages on, in order
-//   to only listen to a subset of the traffic on a pub/sub network.
+// We will use the mDNS Discovery Protocol.
+//
 
-// Topic for subscribing and sending recipes
+#[derive(NetworkBehaviour)]
+pub struct RecipeBehaviour {
+    // ** Relevant to the global P2P Network Behaviour that all peers must share:
+    // 1. A Communication Protocol between peers on the network.
+    //    We will use the FloodSub protocol to deal with events in the network.
+    floodsub: Floodsub,
+    // 2. A Discovery Protocol for discovering new peers
+    //    We will use the mDNS protocol for discovering other peers on the local network.
+    mdns: Mdns,
+
+    // ** Relevant only to a specific peer that we are setting up, and Irrelevant to the NetworkBehaviour:
+    // 1. A channel to receive responses *from* the network, and forward these *to* the main part of our application elsewhere.
+    //    We will use `response_sender` to send responses from the network to some paired `response_rcv` elsewhere in our program.
+    #[behaviour(ignore)]
+    local_response_sender: mpsc::UnboundedSender<RecipeResponse>,
+}
+// Concrete Sub-Behaviour for the Discovery Protocol.
+
+// Concrete Sub-Behaviour for the Communication Protocol.
+
+
+// FloodSub Topic for subscribing and sending recipes
 pub static RECIPE_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
 
-// Core data being transmitted in the network.
+// Core message payload being transmitted in the network.
 type Recipes = Vec<Recipe>;
 #[derive(Debug, Serialize, Deserialize)]
 struct Recipe {
@@ -69,23 +92,7 @@ enum EventType {
     Response(RecipeResponse)
 }
 
-#[derive(NetworkBehaviour)]
-pub struct RecipeBehaviour {
-    // ** Relevant to the global P2P network logic that all peers must share:
-    // 1. A Communication Protocol between peers on the network.
-    //    We will use the FloodSub protocol to deal with events in the network.
-    floodsub: Floodsub,
-    // 2. A Discovery Protocol for discovering new peers
-    //    We will use the mDNS protocol for discovering other peers on the local network.
-    mdns: Mdns,
-
-    // ** Relevant only to a specific peer that we are setting up:
-    // 1. How to forward responses *from* the network *back to* the main part of our application
-    //    We will use `response_sender` to send responses from the network to `response_rcv` elsewhere in our program.
-    #[behaviour(ignore)]
-    local_response_sender: mpsc::UnboundedSender<RecipeResponse>,
-}
-
+// Helper for setting up a Recipe NetworkBehaviour that subscribes to the Recipe topic.
 pub async fn set_up_recipe_behaviour
         (   local_peer_id : Lazy<libp2p::PeerId>
           , local_response_sender : mpsc::UnboundedSender<RecipeResponse>)
