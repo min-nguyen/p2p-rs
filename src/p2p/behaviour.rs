@@ -38,19 +38,6 @@ use super::recipes;
 // FloodSub Topic for subscribing and sending recipes
 pub static RECIPE_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
 
-// Messages are either (1) requests for data, or (2) responses to a request.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecipeRequest {
-    mode : TransmitMode
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct RecipeResponse {
-    mode : TransmitMode,
-    data : Recipes,
-    // Core message payload being transmitted in the network.
-    receiver : String
-}
-
 // Messages can be intended for all peers or a specific peer.
 #[derive(Debug, Serialize, Deserialize)]
 enum TransmitMode {
@@ -58,10 +45,20 @@ enum TransmitMode {
     ToOne(String)   // contains intended peer id
 }
 
-// Events (new messages) in the network are either (1) inputs from ourselves (2) responses from peers
-enum EventType {
-    Input(String),
-    Response(RecipeResponse)
+// Messages are either (1) requests for data, or (2) responses to a request.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecipeRequest {
+    // Requests for recipes can be either ToAll or ToOne
+    mode : TransmitMode
+}
+#[derive(Debug, Serialize, Deserialize)]
+pub struct RecipeResponse {
+    // Responding with our recipes will always to be ToAll
+    mode : TransmitMode,
+    // Core message payload being transmitted in the network.
+    data : recipes::Recipes,
+    // The PeerID to recieve the response.
+    receiver : String
 }
 
 // Represents the base NetworkBehaviour, specifying the 2 Protocol types
@@ -70,7 +67,7 @@ pub struct RecipeBehaviour {
     // ** Relevant to the global P2P Network Behaviour that all peers must share:
     // 1. A Communication Protocol Type between peers on the network.
     //    We will use the FloodSub protocol to deal with events in the network.
-    floodsub: Floodsub,
+    pub floodsub: Floodsub,
     // 2. A Discovery Protocol Type for discovering new peers
     //    We will use the mDNS protocol for discovering other peers on the local network.
     mdns: Mdns,
@@ -82,27 +79,8 @@ pub struct RecipeBehaviour {
     local_response_sender: mpsc::UnboundedSender<RecipeResponse>,
     // 2. Our own PeerId
     #[behaviour(ignore)]
-    local_peer_id: Lazy<PeerId>
+    local_peer_id: PeerId
 }
-
-// Helper for setting up a Recipe NetworkBehaviour that subscribes to the Recipe topic.
-pub async fn set_up_recipe_behaviour
-        (   local_peer_id : Lazy<libp2p::PeerId>
-          , local_response_sender : mpsc::UnboundedSender<RecipeResponse>)
-{
-  let mut behaviour = RecipeBehaviour {
-      floodsub: Floodsub::new(local_peer_id.clone()),
-      mdns: Mdns::new(Default::default())
-          .await
-          .expect("can create mdns"),
-      local_response_sender,
-      local_peer_id
-  };
-
-  // Subscribe our specific network behaviour to be subscribed to the "recipes" topic.
-  behaviour.floodsub.subscribe(RECIPE_TOPIC.clone());
-}
-
 // Defining the Sub-Behaviours for handling events, `inject_event()`, from each Protocol Type.
 // 1. Sub-Behaviour for the mDNS Discovery Protocol.
 impl NetworkBehaviourEventProcess<MdnsEvent> for RecipeBehaviour {
@@ -174,17 +152,18 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
     }
 }
 
+// Read local recipes and send back to the local channel that communicates with the p2p network
 fn respond_with_recipes(local_response_sender: mpsc::UnboundedSender<RecipeResponse>, remote_peer_id: String) {
-    // Use tokio to spawn an async function that is executed (awaited),
+    // Spawn an awaited async function that will, when done, will send a recipe response.
     tokio::spawn(async move {
         match recipes::read_local_recipes().await {
             Ok(recipes) => {
                 let resp = RecipeResponse {
-                    mode: ListMode::ALL,
+                    mode: TransmitMode::ToAll,
                     receiver: remote_peer_id,
                     data: recipes.into_iter().collect(),
                 };
-                if let Err(e) = sender.send(resp) {
+                if let Err(e) = local_response_sender.send(resp) {
                     error!("error sending response via channel, {}", e);
                 }
             }
@@ -193,42 +172,29 @@ fn respond_with_recipes(local_response_sender: mpsc::UnboundedSender<RecipeRespo
     });
 }
 
-// ## Commands from StdIN
+// ## Commands from StdIn
 //
-// create r {recipeName} creates a new recipe with the given data and an incrementing ID
-async fn handle_create_recipe(cmd: &str) {
+// 1. `create r {recipeName}` creates a new recipe with the given name (and an incrementing id)
+pub async fn handle_create_recipe(cmd: &str) {
     if let Some(rest) = cmd.strip_prefix("create r") {
         let elements: Vec<&str> = rest.split("|").collect();
         if elements.len() < 1 {
             info!("too few arguments - Format: recipe_name");
         } else {
             let name = elements.get(0).expect("name is there");
-            if let Err(e) = write_new_local_recipe(name).await {
+            if let Err(e) = recipes::write_new_local_recipe(name).await {
                 error!("error creating recipe: {}", e);
             };
         }
     }
-  }
-  //
-  async fn handle_list_recipes(cmd: &str, swarm: &mut Swarm<RecipeBehaviour>) {
+}
+// 2. `ls r ...` lists recipes
+pub async fn handle_list_recipes(cmd: &str, swarm: &mut Swarm<RecipeBehaviour>) {
     let rest = cmd.strip_prefix("ls r ");
     match rest {
-        Some("all") => {
-            let req = ListRequest {
-                mode: ListMode::ALL,
-            };
-            let json = serde_json::to_string(&req).expect("can jsonify request");
-            swarm.floodsub.publish(TOPIC.clone(), json.as_bytes());
-        }
-        Some(recipes_peer_id) => {
-            let req = ListRequest {
-                mode: ListMode::One(recipes_peer_id.to_owned()),
-            };
-            let json = serde_json::to_string(&req).expect("can jsonify request");
-            swarm.floodsub.publish(TOPIC.clone(), json.as_bytes());
-        }
+        // `ls r` read all local recipes
         None => {
-            match read_local_recipes().await {
+            match recipes::read_local_recipes().await {
                 Ok(v) => {
                     info!("Local Recipes ({})", v.len());
                     v.iter().for_each(|r| info!("{:?}", r));
@@ -236,5 +202,48 @@ async fn handle_create_recipe(cmd: &str) {
                 Err(e) => error!("error fetching local recipes: {}", e),
             };
         }
+        // `ls r all` send a request for all recipes from all known peers
+        Some("all") => {
+            let req = RecipeRequest {
+                mode: TransmitMode::ToAll,
+            };
+            let json = serde_json::to_string(&req).expect("can jsonify request");
+            swarm
+                .behaviour_mut()
+                .floodsub
+                .publish(RECIPE_TOPIC.clone(), json.as_bytes());
+        }
+        // `ls r {peerId}` sends a request for all recipes from a certain peer
+        Some(recipes_peer_id) => {
+            let req = RecipeRequest {
+                mode: TransmitMode::ToOne(recipes_peer_id.to_owned()),
+            };
+            let json = serde_json::to_string(&req).expect("can jsonify request");
+            swarm
+                .behaviour_mut()
+                .floodsub
+                .publish(RECIPE_TOPIC.clone(), json.as_bytes());
+        }
     };
+}
+
+
+
+// Helper for setting up a Recipe NetworkBehaviour that subscribes to the Recipe topic.
+pub async fn set_up_recipe_behaviour
+        (   local_peer_id : libp2p::PeerId
+          , local_response_sender : mpsc::UnboundedSender<RecipeResponse>) -> RecipeBehaviour
+{
+  let mut behaviour = RecipeBehaviour {
+      floodsub: Floodsub::new(local_peer_id.clone()),
+      mdns: Mdns::new(Default::default())
+          .await
+          .expect("can create mdns"),
+      local_response_sender,
+      local_peer_id
+  };
+
+  // Subscribe our specific network behaviour to be subscribed to the "recipes" topic.
+  behaviour.floodsub.subscribe(RECIPE_TOPIC.clone());
+  behaviour
 }
