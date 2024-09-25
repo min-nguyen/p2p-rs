@@ -1,8 +1,3 @@
-mod p2p {
-  pub mod peer;
-  pub mod local_io;
-  pub mod network;
-}
 
 /*************************************************************************************************************
                                                                   LOCAL_IO
@@ -12,8 +7,7 @@ mod p2p {
 
 **************************************************************************************************************/
 
-#[tokio::main]
-async fn main() {
-  let mut peer = p2p::peer::set_up_peer().await;
-  peer.handle_local_events().await
-}
+
+```sh
+RUST_LOG=info cargo run
+```
