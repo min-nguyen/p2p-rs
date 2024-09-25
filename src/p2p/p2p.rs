@@ -18,7 +18,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tokio::{io::AsyncBufReadExt, sync::mpsc};
-use super::behaviour;
+use super::{recipes, behaviour};
 // use tokio::fs
 
 // * (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
@@ -81,29 +81,3 @@ async fn set_up_peer() {
     )
     .expect("swarm can be started");
 }
-
-// The core of the P2P functionality is implementing a NetworkBehaviour,
-//   this defines the logic of the network and all peers, e.g. what to do with incoming events, which events to send.
-// #[derive(NetworkBehaviour)]
-// pub struct ... {
-//     // what to do with incoming events
-//     // a flood publish/subscribe protocol for communications between nodes.
-//     //  this means every node must broadcast its data to all connnected nodes (not efficient)
-//     pub floodsub: Floodsub,
-//     // how to discover node peers
-//     //    mdns is a protocol for discovering other peers on the network
-//     pub mdns: Mdns,
-//     #[behaviour(ignore)]
-//     // a channel to send responses across to the main part of the application
-//     pub response_sender: mpsc::UnboundedSender<ChainResponse>,
-// }
-
-// Defines how nodes in the network discover over nodes
-// impl NetworkBehaviourEventProcess<MdnsEvent> for ... {
-
-// }
-
-// // Defines how nodes in the network handle incoming events
-// impl NetworkBehaviourEventProcess<FloodsubEvent> for ... {
-
-// }
