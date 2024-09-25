@@ -4,5 +4,7 @@ mod p2p {
   pub mod behaviour;
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
+  p2p::p2p::set_up_peer().await
 }

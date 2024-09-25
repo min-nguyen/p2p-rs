@@ -97,11 +97,14 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for RecipeBehaviour {
             MdnsEvent::Expired(expired_list) => {
                 for (peer, _addr) in expired_list {
                     // Remove from our list of peers
+                    info!("Removed Peer");
                     if !self.mdns.has_node(&peer) {
                         self.floodsub.remove_node_from_partial_view(&peer);
                     }
                 }
             }
+            //
+            // MdnsEvent
         }
     }
 }

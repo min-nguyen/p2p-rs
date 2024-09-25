@@ -37,7 +37,11 @@ enum EventType {
     Response(behaviour::RecipeResponse)
 }
 
-async fn set_up_peer() {
+pub async fn set_up_peer() {
+    pretty_env_logger::init();
+
+    info!("Peer Id: {}", LOCAL_PEER_ID.clone());
+
     // Set up an Asynchronous channel to communicate between different parts of our application.
     // 1. local_response_sender is an output channel that we provide directly to behaviour.rs.
     //      After our behaviour receieves network events and handles them locally (e.g. by reading a file),
