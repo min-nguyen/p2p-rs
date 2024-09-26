@@ -13,7 +13,7 @@ use libp2p::{
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use super::network::{self, RecipeResponse};
+use super::local_network::{self, RecipeResponse};
 
 
 // * (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
@@ -29,13 +29,13 @@ pub static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL
 // Events (new messages) in the network are either (1) inputs from ourselves (2) responses from peers
 enum EventType {
     StdInput(String),
-    LocalResponse(network::RecipeResponse)
+    LocalResponse(local_network::RecipeResponse)
 }
 
 pub struct Peer {
     local_receiver : UnboundedReceiver<RecipeResponse>,
     stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    swarm : Swarm<network::RecipeBehaviour>
+    swarm : Swarm<local_network::RecipeBehaviour>
 }
 
 impl Peer {
@@ -51,10 +51,7 @@ impl Peer {
                     //  StdIn Event, for a local user command.
                     stdin_event = self.stdin.next_line()
                         => Some(EventType::StdInput(stdin_event.expect("can get line").expect("can read line from stdin"))),
-                    // local_receiver Event;
-                    //     this is from the channel that we originally forwarded network messages to,
-                    //     handles those messages by interacts with the local file system,
-                    //      and then responds with the appropriate data.
+                    // LocalResponse Event;
                     local_response_event = self.local_receiver.recv()
                         => Some(EventType::LocalResponse(local_response_event.expect("response exists"))),
                     // Swarm Event, which we don't need to do anything with; these are handled within our RecipeBehaviour.
@@ -66,7 +63,7 @@ impl Peer {
                 }
             };
 
-            // If there is an event, we match on it and see if it’s a local_receiver or a StdIn event.
+            // If there is an event, we match on it and see if it’s a LocalResponse (to publish) or a StdIn event (to handle).
             if let Some(event) = evt {
                 match event {
                     EventType::LocalResponse(resp) => {
@@ -74,13 +71,15 @@ impl Peer {
                         self.swarm
                             .behaviour_mut()
                             .floodsub
-                            .publish(network::RECIPE_TOPIC.clone(), json.as_bytes());
+                            .publish(local_network::RECIPE_TOPIC.clone(), json.as_bytes());
                     }
                     EventType::StdInput(line) => match line.as_str() {
-                        cmd if cmd.starts_with("ls r")
-                            => network::handle_list_recipes(cmd, &mut self.swarm).await,
-                        cmd if cmd.starts_with("create r")
-                            => network::handle_create_recipe(cmd).await,
+                        cmd if cmd.starts_with("ls")
+                            => local_network::handle_list_recipes().await,
+                        cmd if cmd.starts_with("create")
+                            => local_network::handle_create_recipe(cmd).await,
+                        cmd if cmd.starts_with("req")
+                            => local_network::handle_req_recipes(cmd, &mut self.swarm).await,
                         _ => error!("unknown command"),
                     },
                 }
@@ -128,7 +127,7 @@ pub async fn set_up_peer() -> Peer {
     // Set up a *NetworkBehaviour* (a core concept in p2p):
     // -- Defines the logic for how the peer interacts with the p2p network
     let behaviour
-        = network::set_up_recipe_behaviour(local_peer_id, local_sender).await;
+        = local_network::set_up_recipe_behaviour(local_peer_id, local_sender).await;
 
     // Set up a *Swarm* (a core concept in p2p):
     // -- Manages connections created with the Transport and executes our NetworkBehaviour
