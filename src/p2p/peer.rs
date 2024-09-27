@@ -1,9 +1,3 @@
-/*
-A peer-to-peer (P2P) network in which interconnected nodes ("peers") share resources
-amongst each other without the use of a centralized administrative system.
-// [https://blog.logrocket.com/libp2p-tutorial-build-a-peer-to-peer-app-in-rust/]
-*/
-
 use libp2p::{
     core::upgrade,
     futures::StreamExt,
