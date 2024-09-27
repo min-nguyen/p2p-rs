@@ -5,16 +5,10 @@ mod p2p {
   pub mod local_swarm;
 }
 
-/*************************************************************************************************************
-                                                                  LOCAL_IO
-                                                                      ↑
- STDIN ==>         PEER    ===========>   SWARM   =========> LOCAL_NETWORKBEHAVIOUR <==>  P2P NETWORK
-           { LOCAL_RECEIVER } <================================  { LOCAL_SENDER }
-
-**************************************************************************************************************/
-
 #[tokio::main]
 async fn main() {
+  pretty_env_logger::init();
+
   let mut peer = p2p::peer::set_up_peer().await;
   peer.handle_local_events().await
 }
