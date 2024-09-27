@@ -12,6 +12,7 @@
 
 **************************************************************************************************************/
 
+- local_network: receives messages from remote peers
 
 ```sh
 RUST_LOG=info cargo run

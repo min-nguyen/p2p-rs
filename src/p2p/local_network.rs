@@ -40,7 +40,7 @@ pub static RECIPE_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
 
 // Messages can be intended for all peers or a specific peer.
 #[derive(Debug, Serialize, Deserialize)]
-enum TransmitType {
+pub enum TransmitType {
     ToAll,
     ToOne(String)   // contains intended peer id
 }
@@ -48,7 +48,7 @@ enum TransmitType {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecipeRequest {
     // Requests for recipes can be either ToAll or ToOne
-    transmit_type : TransmitType
+    pub transmit_type : TransmitType
 }
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RecipeResponse {
@@ -117,7 +117,8 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
                 //      msg.data   : Vec<u8, Global> -- message payload
                 //      msg.source : PeerId          -- source peer id
                 // }
-                // 1. Pattern match on the payload as (successfully deserializing into) a RecipeResponse
+                // 1. Pattern match on the payload as (successfully deserializing into) a RecipeResponse,
+                //    which we print to console.
                 if let Ok(resp) = serde_json::from_slice::<RecipeResponse>(&msg.data) {
                     if resp.receiver == self.local_peer_id.to_string() {
                         info!("Response from {}:", msg.source);
@@ -191,66 +192,4 @@ fn respond_with_recipes(local_sender: mpsc::UnboundedSender<RecipeResponse>, rem
             Err(e) => error!("error fetching local recipes to answer request, {}", e),
         }
     });
-}
-
-// ## Commands from StdIn
-// 1. `ls` lists recipes
-pub async fn handle_list_recipes() {
-    match local_data::read_local_recipes().await {
-        Ok(v) => {
-            info!("Local Recipes ({})", v.len());
-            v.iter().for_each(|r| info!("{:?}", r));
-        }
-        Err(e) => error!("error fetching local recipes: {}", e),
-    };
-}
-// 2. `create {recipeName}` creates a new recipe with the given name (and an incrementing id)
-pub async fn handle_create_recipe(cmd: &str) {
-    let args: Option<&str>
-        = cmd.strip_prefix("create")
-             .map(|rest: &str| rest.trim());
-    match args {
-        Some("") | None => {
-            info!("Command error: [create] missing an argument (name)")
-        }
-        // `req r all` send a request for all recipes from all known peers
-        Some(name) => {
-            if let Err(e) = local_data::write_new_local_recipe(name).await {
-                error!("error creating recipe: {}", e);
-            };
-        }
-    }
-}
-// 3. `req <all | peer_id>` broadcasts a request for recipes
-pub async fn handle_req_recipes(cmd: &str, swarm: &mut Swarm<RecipeBehaviour>) {
-    let args: Option<&str>
-        = cmd.strip_prefix("req")
-             .map(|rest: &str| rest.trim());
-    match args {
-        Some("") | None => {
-            info!("Command error: [req] missing an argument, specify \"all\" or \"<peer_id>\"")
-        }
-        // `req r all` send a request for all recipes from all known peers
-        Some("all") => {
-            let req = RecipeRequest {
-                transmit_type: TransmitType::ToAll,
-            };
-            let json = serde_json::to_string(&req).expect("can jsonify request");
-            swarm
-                .behaviour_mut()
-                .floodsub
-                .publish(RECIPE_TOPIC.clone(), json.as_bytes());
-        }
-        // `req r <peerId>` sends a request for all recipes from a certain peer
-        Some(peer_id) => {
-            let req = RecipeRequest {
-                transmit_type: TransmitType::ToOne(peer_id.to_owned()),
-            };
-            let json = serde_json::to_string(&req).expect("can jsonify request");
-            swarm
-                .behaviour_mut()
-                .floodsub
-                .publish(RECIPE_TOPIC.clone(), json.as_bytes());
-        }
-    };
 }

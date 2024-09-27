@@ -13,7 +13,7 @@ use libp2p::{
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use super::local_network::{self, RecipeResponse};
+use super::{local_data, local_network::{self, RecipeResponse}, local_swarm};
 
 
 // * (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
@@ -67,19 +67,18 @@ impl Peer {
             if let Some(event) = evt {
                 match event {
                     EventType::LocalResponse(resp) => {
-                        let json = serde_json::to_string(&resp).expect("can jsonify response");
-                        self.swarm
-                            .behaviour_mut()
-                            .floodsub
-                            .publish(local_network::RECIPE_TOPIC.clone(), json.as_bytes());
+                        local_swarm::publish_response(resp, &mut  self.swarm).await
                     }
                     EventType::StdInput(line) => match line.as_str() {
+                        // 1. `ls` lists recipes
                         cmd if cmd.starts_with("ls")
-                            => local_network::handle_list_recipes().await,
+                            => local_data::handle_list_recipes().await,
+                        // 2. `create {recipeName}` creates a new recipe with the given name (and an incrementing id)
                         cmd if cmd.starts_with("create")
-                            => local_network::handle_create_recipe(cmd).await,
+                            => local_data::handle_create_recipe(cmd).await,
+                        // 3. `req <all | peer_id>` broadcasts a request for recipes
                         cmd if cmd.starts_with("req")
-                            => local_network::handle_req_recipes(cmd, &mut self.swarm).await,
+                            => local_swarm::handle_req_recipes(cmd, &mut self.swarm).await,
                         _ => error!("unknown command"),
                     },
                 }

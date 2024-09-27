@@ -2,6 +2,7 @@ mod p2p {
   pub mod peer;
   pub mod local_data;
   pub mod local_network;
+  pub mod local_swarm;
 }
 
 /*************************************************************************************************************
