@@ -25,6 +25,8 @@
 
 #### Running
 
+Run the following (on multiple terminals) to initialise new peers on the same p2p network.
+
 ```sh
 RUST_LOG=info cargo run
 ```
