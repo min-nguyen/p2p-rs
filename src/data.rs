@@ -1,4 +1,4 @@
-use log::{error, info};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 

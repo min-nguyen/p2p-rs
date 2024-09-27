@@ -1,6 +1,7 @@
-use libp2p::{core::transport::Boxed, swarm::{NetworkBehaviour, SwarmBuilder}, PeerId, Swarm};
+use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
 use log::info;
-use super::network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeRequest, TransmitType};
+
+use super::network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeRequest};
 
 
 /*

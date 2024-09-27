@@ -4,14 +4,16 @@ use libp2p::{
     identity,
     mplex,
     noise::{Keypair, NoiseConfig, X25519Spec},
-    swarm::{Swarm},
+    swarm::Swarm,
     tcp::TokioTcpConfig, PeerId, Transport,
 };
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use super::{data::{self, read_local_recipes, write_new_local_recipe}, network::{self, RecipeRequest, RecipeResponse, TransmitType}, swarm};
 
+use super::data::{self, read_local_recipes, write_new_local_recipe};
+use super::network::{self, RecipeRequest, RecipeResponse, TransmitType};
+use super::swarm;
 
 /*
     *Peer*:

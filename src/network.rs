@@ -1,20 +1,14 @@
 use libp2p::{
-  core::upgrade,
   floodsub::{Floodsub, FloodsubEvent, Topic},
-  futures::StreamExt,
-  identity,
   mdns::{Mdns, MdnsEvent},
-  mplex,
-  noise::{Keypair, NoiseConfig, X25519Spec},
-  swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
-  tcp::TokioTcpConfig,
-  NetworkBehaviour, PeerId, Transport,
+  swarm::NetworkBehaviourEventProcess,
+  NetworkBehaviour,
 };
 use log::{error, info};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
-use tokio::{io::AsyncBufReadExt, sync::mpsc};
+use tokio::sync::mpsc;
+
 use super::data;
 
 /*
