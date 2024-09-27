@@ -1,10 +1,12 @@
 use libp2p::{core::transport::Boxed, swarm::{NetworkBehaviour, SwarmBuilder}, PeerId, Swarm};
 use log::info;
-use super::local_network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeRequest, TransmitType};
+use super::network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeRequest, TransmitType};
 
 
 /*
-    *Swarm*: Used to broadcast messages to the P2P Network. Configured to a specific Network Behaviour.
+    *Swarm*:
+    -- Configured to a specific NetworkBehaviour, and used to broadcast messages to other peers' NetworkBehaviours.
+    -- Each peer has a local Swarm.
 
     More generally,
     -- Manages connections created with the Transport and executes our NetworkBehaviour

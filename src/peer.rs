@@ -10,14 +10,14 @@ use libp2p::{
 use log::{error, info};
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use super::{local_data::{self, read_local_recipes, write_new_local_recipe}, local_network::{self, RecipeRequest, RecipeResponse, TransmitType}, local_swarm};
+use super::{data::{self, read_local_recipes, write_new_local_recipe}, network::{self, RecipeRequest, RecipeResponse, TransmitType}, swarm};
 
 
 /*
     *Peer*:
-
-
-
+    ---
+    ---
+    ---
 */
 
 
@@ -34,7 +34,7 @@ static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEY
        (2) requests from peers in the network */
 enum EventType {
     StdInput(String),
-    NetworkRequest(local_network::RecipeRequest)
+    NetworkRequest(network::RecipeRequest)
 }
 
 /* A Peer consists of:
@@ -44,7 +44,7 @@ enum EventType {
 pub struct Peer {
     stdin_buff : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     local_network_receiver : UnboundedReceiver<RecipeRequest>,
-    swarm : Swarm<local_network::RecipeBehaviour>
+    swarm : Swarm<network::RecipeBehaviour>
 }
 
 impl Peer {
@@ -75,14 +75,14 @@ impl Peer {
                 match event {
                     // Network Request from a remote user, requiring us to publish a Response to the network.
                     EventType::NetworkRequest(req) => {
-                        match local_data::read_local_recipes().await {
+                        match data::read_local_recipes().await {
                             Ok(recipes) => {
                                 let resp = RecipeResponse {
                                     transmit_type: TransmitType::ToAll,
                                     receiver_peer_id: req.sender_peer_id,
                                     data: recipes.into_iter().collect(),
                                 };
-                                local_swarm::publish_response(resp, &mut  self.swarm).await
+                                swarm::publish_response(resp, &mut  self.swarm).await
                             }
                             Err(e) => error!("error fetching local recipes to answer request, {}", e),
                         }
@@ -105,7 +105,7 @@ impl Peer {
                                             transmit_type: TransmitType::ToAll,
                                             sender_peer_id: LOCAL_PEER_ID.to_string()
                                         };
-                                        local_swarm::publish_request(req, &mut self.swarm).await
+                                        swarm::publish_request(req, &mut self.swarm).await
                                     }
                                     // `req r <peerId>` sends a request for all recipes from a certain peer
                                     Some(peer_id) => {
@@ -113,7 +113,7 @@ impl Peer {
                                             transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                                             sender_peer_id: LOCAL_PEER_ID.to_string()
                                         };
-                                        local_swarm::publish_request(req, &mut self.swarm).await
+                                        swarm::publish_request(req, &mut self.swarm).await
                                     }
                                 };
                             }
@@ -175,7 +175,7 @@ pub async fn set_up_peer() -> Peer {
 
     // Network Behaviour,
     let behaviour
-        = local_network::set_up_recipe_behaviour(local_peer_id, local_network_sender).await;
+        = network::set_up_recipe_behaviour(local_peer_id, local_network_sender).await;
 
     // Transport, which we multiplex to enable multiple streams of data over one communication link.
     let transp = TokioTcpConfig::new()
@@ -185,7 +185,7 @@ pub async fn set_up_peer() -> Peer {
         .boxed();
 
     // Swarm,
-    let swarm = local_swarm::set_up_swarm(transp, behaviour, local_peer_id);
+    let swarm = swarm::set_up_swarm(transp, behaviour, local_peer_id);
 
     // Async Reader for StdIn, which reads the stream line by line.
     let stdin_buff = tokio::io::BufReader::new(tokio::io::stdin()).lines();

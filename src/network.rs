@@ -15,10 +15,12 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tokio::{io::AsyncBufReadExt, sync::mpsc};
-use super::local_data;
+use super::data;
 
 /*
-    *NetworkBehavior*: Defines the logic of the p2p network and all its peers.
+    *NetworkBehavior*:
+    -- Defines the logic of the p2p network and all its peers.
+    -- Each peer owns a local NetworkBehaviour that receives events/messages from other peers.
 
     We need to specify at least 2 Protocol Types:
         1. Communication Protocol between peers
@@ -52,7 +54,7 @@ pub struct RecipeResponse {
     // Responding with our recipes will always to be ToAll
     pub transmit_type : TransmitType,
     // Core message payload being transmitted in the network.
-    pub data : local_data::Recipes,
+    pub data : data::Recipes,
     // The PeerID to recieve the response.
     pub receiver_peer_id : String
 }
