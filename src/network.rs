@@ -1,6 +1,6 @@
 /*
-    *NetworkBehavior*:
-    -- Defines the logic of the p2p network and all its peers.
+    *NetworkBehavior*: High-level abstraction that defines how a peer *should* behave on the network.
+    -- Configures the protocols and messages of the p2p network used by all peers.
     -- Each peer owns a local NetworkBehaviour that receives events/messages from other peers.
 
     We need to specify at least 2 Protocol Types:

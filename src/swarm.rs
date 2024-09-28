@@ -1,7 +1,7 @@
 /*
-    *Swarm*:
-    -- Configured to a specific NetworkBehaviour, and used to broadcast messages to other peers' NetworkBehaviours.
-    -- Each peer has a local Swarm.
+    *Swarm*:  Wraps around a specific NetworkBehaviour and drives the execution of the network's defined behaviours.
+    -- Used to broadcast messages to other peers' NetworkBehaviours.
+    -- Each peer has a local Swarm object.
 
     More generally,
     -- Manages connections created with the Transport and executes our NetworkBehaviour
