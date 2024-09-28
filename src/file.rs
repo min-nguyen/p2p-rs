@@ -1,12 +1,12 @@
+/*
+    *File*:
+    --- Defines the types of core data
+    --- IO for read and writing with it
+*/
+
 use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
-
-/*
-    *Local Data*:
-    --- Defines the local data types
-    --- IO for read and writing with it
-*/
 
 const LOCAL_STORAGE_FILE_PATH: &str = "./blocks.json";
 

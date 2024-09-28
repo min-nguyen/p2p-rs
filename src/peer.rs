@@ -1,3 +1,10 @@
+/*
+    *Peer*:
+    ---
+    ---
+    ---
+*/
+
 use libp2p::{
     core::upgrade,
     futures::StreamExt,
@@ -14,15 +21,6 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use super::file;
 use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm;
-
-/*
-    *Peer*:
-    ---
-    ---
-    ---
-*/
-
-
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 

@@ -50,15 +50,16 @@ Auxiliary data and functions relevant to the local machine.
 
 
 #### Architecture
-
-                   ------------------------------> SWARM ----------------------------->
-                   ↑                                                                  |
-                   |                                                                  |
-                reqt/resp                                                          req/resp
-                   |                                                                  |
-                   |                                                                  ↓
- STDIN ----->     PEER                           NETWORK BEHAVIOUR  <-- event <--- P2P NETWORK
-              { chan_out } <===== request =====   { chan_in }
-                   |
-                   ↓
-                 FILE
+```rs
+                    ------------------------------> SWARM ---------------------------->
+                    ↑                                                                 |
+                    |                                                                 |
+                 req/resp                                                          req/resp
+                    |                                                                 |
+                    |                                                                 ↓
+  STDIN ----->     PEER                          NETWORK BEHAVIOUR  <-- event <--- P2P NETWORK
+                { chan_out } <==== request =====   { chan_in }
+                    |
+                    ↓
+                  FILE
+```
