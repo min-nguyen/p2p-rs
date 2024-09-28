@@ -26,8 +26,8 @@ The peer's logic on the local machine, which the entire application is architect
   - how to handle commands from the console
 
 #### `network.rs`:
-The global configuration of protocols and messages supported by the network, necessary to all peers that access it.
-The local behaviour of how network events are handled, common to all peers using this specific implementation.
+Describes global configuration of protocols and messages supported by the network, necessary to all peers that access it.
+Describes local behaviour of how network events are handled, common to all peers using this specific implementation.
 
 - Defines the types of messages transmitted in the network: responses and requests (for blocks).
 - Defines the type of our network which derives a `NetworkBehaviour`, which is used by all its peers.
@@ -38,7 +38,7 @@ The local behaviour of how network events are handled, common to all peers using
       - Forwards all relevant requests to the local peer implementation.
 
 #### `swarm.rs`:
-The entity that runs our network stack.
+Drives the entire network stack, and executes the defined network behaviour.
 
 - Defines interface for publishing request and response messages to the remote network
 
@@ -51,15 +51,20 @@ Auxiliary data and functions relevant to the local machine.
 
 #### Architecture
 ```rs
-                    ------------------------------> SWARM ---------------------------->
+                    ------------------------------> SWARM.rs -------------------------->
                     ↑                                                                 |
                     |                                                                 |
                  req/resp                                                          req/resp
                     |                                                                 |
                     |                                                                 ↓
-  STDIN ----->     PEER                          NETWORK BEHAVIOUR  <-- event <--- P2P NETWORK
+  STDIN ----->     PEER.rs                          NETWORK.rs  <-- event <---   P2P_NETWORK
                 { chan_out } <==== request =====   { chan_in }
                     |
                     ↓
-                  FILE
+                  FILE.rs
 ```
+
+<!--
+  Note:
+  The Peer and NetworkBehaviour object never directly communicate. The Swarm is the intermediary that executes the one-way communication (the NetworkBehaviour sending messages to it the Peer via the local channel) describes in the code, when responding to events.
+-->

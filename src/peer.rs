@@ -1,5 +1,5 @@
 /*
-    *Peer*:
+    *Peer*: The peer's logic on the local machine, which the entire application is architected around.
     ---
     ---
     ---
@@ -11,16 +11,17 @@ use libp2p::{
     identity,
     mplex,
     noise::{Keypair, NoiseConfig, X25519Spec},
-    swarm::Swarm,
+    swarm::{Swarm, SwarmEvent},
     tcp::TokioTcpConfig, PeerId, Transport,
 };
-use log::{error, info};
+use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
 use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm;
+
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 
@@ -48,13 +49,13 @@ pub struct Peer {
 }
 
 impl Peer {
-    pub async fn handle_local_events(&mut self){
+    pub async fn run(&mut self){
         /* Main loop -- Defines the logic for how the peer:
             1. Handles remote requests from the network
             2. Handles local commands from the standard input   */
         loop {
             // The select macro waits for several async processes, handling the first one that finishes.
-            let evt = {
+            let evt: Option<EventType> = {
                 tokio::select! {
                     // StdIn Event for a local user command.
                     stdin_event = self.stdin_buff.next_line()
@@ -64,90 +65,131 @@ impl Peer {
                         => Some(EventType::NetworkRequest(network_request.expect("response exists"))),
                     // Swarm Event, which we don't need to do anything with; these are handled within our BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
-                        => {
-                            info!("Unhandled Swarm Event: {:?}", swarm_event);
-                            None
-                    },
+                        => { Peer::handle_swarm_event(swarm_event); None }
                 }
             };
-
             if let Some(event) = evt {
                 match event {
                     // Network Request from a remote user, requiring us to publish a Response to the network.
-                    EventType::NetworkRequest(req) => {
-                        match file::read_local_blocks().await {
-                            Ok(blocks) => {
-                                let resp = BlockResponse {
-                                    transmit_type: TransmitType::ToAll,
-                                    receiver_peer_id: req.sender_peer_id,
-                                    data: blocks.into_iter().collect(),
-                                };
-                                swarm::publish_response(resp, &mut  self.swarm).await
-                            }
-                            Err(e) => error!("error fetching local blocks to answer request, {}", e),
-                        }
-                    }
+                    EventType::NetworkRequest(req)
+                        => self.handle_network_event(&req).await,
                     // StdIn Event for a local user command.
-                    EventType::StdInput(line) => match line.as_str() {
-                        // 1. `req <all | peer_id>`, requiring us to publish a Request to the network.
-                        cmd if cmd.starts_with("req")
-                            => {
-                                let args: Option<&str>
-                                    = cmd.strip_prefix("req")
-                                            .map(|rest: &str| rest.trim());
-                                match args {
-                                    Some("") | None => {
-                                        info!("Command error: [req] missing an argument, specify \"all\" or \"<peer_id>\"")
-                                    }
-                                    // `req r all` send a request for all blocks from all known peers
-                                    Some("all") => {
-                                        let req = BlockRequest {
-                                            transmit_type: TransmitType::ToAll,
-                                            sender_peer_id: LOCAL_PEER_ID.to_string()
-                                        };
-                                        swarm::publish_request(req, &mut self.swarm).await
-                                    }
-                                    // `req r <peerId>` sends a request for all blocks from a certain peer
-                                    Some(peer_id) => {
-                                        let req = BlockRequest {
-                                            transmit_type: TransmitType::ToOne(peer_id.to_owned()),
-                                            sender_peer_id: LOCAL_PEER_ID.to_string()
-                                        };
-                                        swarm::publish_request(req, &mut self.swarm).await
-                                    }
-                                };
-                            }
-                        // 2. `create {blockName}` creates a new block with the given name (and an incrementing id)
-                        cmd if cmd.starts_with("create")
-                            => {
-                                let args: Option<&str>
-                                    = cmd.strip_prefix("create")
-                                        .map(|rest: &str| rest.trim());
-                                match args {
-                                    Some("") | None => {
-                                        info!("Command error: [create] missing an argument (name)")
-                                    }
-                                    Some(name) => {
-                                        if let Err(e) = file::write_new_local_block(name).await {
-                                            error!("error creating block: {}", e);
-                                        };
-                                    }
-                                }
-                            }
-                        // 3. `ls` lists blocks
-                        cmd if cmd.starts_with("ls")
-                            => {
-                                match file::read_local_blocks().await {
-                                    Ok(v) => {
-                                        info!("Local Blocks ({})", v.len());
-                                        v.iter().for_each(|r| info!("{:?}", r));
-                                    }
-                                    Err(e) => error!("error fetching local blocks: {}", e),
-                                };
-                            }
-                        _ => error!("unknown command"),
-                    },
+                    EventType::StdInput(cmd)
+                        => self.handle_stdin_event(&cmd).await
                 }
+            }
+        }
+    }
+
+    // (Predefined) Swarm Event. For debugging purposes.
+    fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
+        match swarm_event {
+            SwarmEvent::ConnectionEstablished { peer_id, .. }
+                => info!("Connection established with peer: {:?}", peer_id),
+            SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
+                => info!("Connection closed with peer: {:?}, cause: {:?}", peer_id, err),
+            SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
+                => info!("Connection closed with peer: {:?}", peer_id),
+            _
+                => info!("Unhandled swarm event: {:?}", swarm_event)
+        }
+    }
+    // NetworkBehaviour Event for a local user command.
+    async fn handle_stdin_event(&mut self, cmd: &str) {
+        match cmd {
+             // 1. `req <all | peer_id>`, requiring us to publish a Request to the network.
+            cmd if cmd.starts_with("req") => {
+                self.handle_request_command(cmd).await;
+            }
+            // 2. `create {string data}` creates a new block with the given data (and an incrementing id)
+            cmd if cmd.starts_with("create") => {
+                self.handle_create_command(cmd).await;
+            }
+              // 3. `ls <blocks | peers>` lists the local blocks or the discovered peers
+            cmd if cmd.starts_with("ls") => {
+                self.handle_ls_command(cmd).await;
+            }
+            _ => {
+                error!("unknown command");
+            }
+        }
+    }
+    // StdIn Event for a local user command.
+    async fn handle_network_event(&mut self, req: &BlockRequest) {
+        {
+            match file::read_local_blocks().await {
+                Ok(blocks) => {
+                    let resp = BlockResponse {
+                        transmit_type: TransmitType::ToAll,
+                        receiver_peer_id: req.sender_peer_id.clone(),
+                        data: blocks.into_iter().collect(),
+                    };
+                    swarm::publish_response(resp, &mut  self.swarm).await
+                }
+                Err(e) => error!("error fetching local blocks to answer request, {}", e),
+            }
+        }
+    }
+    async fn handle_request_command(&mut self, cmd: &str) {
+        let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
+        match args {
+            _ if args.is_empty() => {
+                info!("Command error: [req] missing an argument, specify \"all\" or \"<peer_id>\"");
+            }
+            "all" => {
+                let req = BlockRequest {
+                    transmit_type: TransmitType::ToAll,
+                    sender_peer_id: LOCAL_PEER_ID.to_string(),
+                };
+                swarm::publish_request(req, &mut self.swarm).await;
+            }
+            peer_id => {
+                let req = BlockRequest {
+                    transmit_type: TransmitType::ToOne(peer_id.to_owned()),
+                    sender_peer_id: LOCAL_PEER_ID.to_string(),
+                };
+                swarm::publish_request(req, &mut self.swarm).await;
+            }
+        }
+    }
+    async fn handle_create_command(&self, cmd: &str) {
+        let args = cmd.strip_prefix("create").expect("can strip `create`").trim();
+        match args {
+            _ if args.is_empty() => {
+                info!("Command error: [create] missing an argument (name)");
+            }
+            name => {
+                if let Err(e) = file::write_new_local_block(name).await {
+                    error!("error creating block: {}", e);
+                }
+            }
+        }
+    }
+    async fn handle_ls_command(&mut self, cmd: &str) {
+        let args: &str = cmd.strip_prefix("ls").expect("can strip `create`").trim();
+        match args {
+            _ if args.is_empty() => {
+                info!("Command error: [ls] missing an argument `blocks` or `peers")
+            }
+            "blocks"   => {
+                match file::read_local_blocks().await {
+                    Ok(blocks) => {
+                        info!("Local Blocks ({})", blocks.len());
+                        blocks.iter().for_each(|r| info!("{:?}", r));
+                    }
+                    Err(e) => error!("error fetching local blocks: {}", e),
+                };
+            }
+            "peers"   => {
+                let (dscv_peers, conn_peers): (Vec<String>, Vec<String>)
+                    = swarm::get_peers(&mut self.swarm);
+                info!("Discovered Peers ({})", dscv_peers.len());
+                dscv_peers.iter().for_each(|p| info!("{}", p));
+                info!("Connected Peers ({})", conn_peers.len());
+                conn_peers.iter().for_each(|p| info!("{}", p));
+            }
+            _ => {
+                info!("Command error: [ls] missing an argument `blocks` or `peers")
             }
         }
     }

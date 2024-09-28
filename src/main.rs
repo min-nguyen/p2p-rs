@@ -8,5 +8,5 @@ async fn main() {
   pretty_env_logger::init();
 
   let mut peer = peer::set_up_peer().await;
-  peer.handle_local_events().await
+  peer.run().await
 }

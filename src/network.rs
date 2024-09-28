@@ -1,6 +1,6 @@
 /*
-    *NetworkBehavior*:
-    -- Defines the logic of the p2p network and all its peers.
+    *NetworkBehavior*: High-level abstraction that defines how a peer *should* behave on the network.
+    -- Configures the protocols and messages of the p2p network used by all peers.
     -- Each peer owns a local NetworkBehaviour that receives events/messages from other peers.
 
     We need to specify at least 2 Protocol Types:
@@ -65,7 +65,7 @@ pub enum TransmitType {
 pub struct BlockchainBehaviour {
     // ** Relevant to the global P2P Network Behaviour that all peers must share:
     pub floodsub: Floodsub,
-    mdns: Mdns,
+    pub mdns: Mdns,
 
     // ** Relevant only to a specific peer that we are setting up
     #[behaviour(ignore)]

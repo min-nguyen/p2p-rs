@@ -1,15 +1,17 @@
 /*
-    *Swarm*:
-    -- Configured to a specific NetworkBehaviour, and used to broadcast messages to other peers' NetworkBehaviours.
-    -- Each peer has a local Swarm.
+    *Swarm*:  Wraps around a specific NetworkBehaviour and drives the execution of the network's defined behaviours.
+    -- Used to broadcast messages to other peers' NetworkBehaviours.
+    -- Each peer has a local Swarm object.
 
     More generally,
     -- Manages connections created with the Transport and executes our NetworkBehaviour
     -- Used to trigger and receive events from the network
 */
 
+use std::collections::HashSet;
+
 use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
-use log::info;
+use log::{debug, info};
 
 use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockRequest};
 
@@ -40,16 +42,34 @@ pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox
 pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  info!("local_swarm: Published response.")
+  debug!("local_swarm: Published response.")
 }
 pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  info!("local_swarm: Published request.")
+  debug!("local_swarm: Published request")
 }
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
       .behaviour_mut()
       .floodsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
+}
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
+  debug!("local_swarm: Getting peers");
+  let nodes = swarm.behaviour().mdns.discovered_nodes();
+  let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
+  let mut connected_peers: HashSet<&PeerId> = HashSet::new();
+
+  for peer in nodes {
+      discovered_peers.insert(peer);
+      if swarm.is_connected(peer) {
+        connected_peers.insert(peer);
+      }
+  }
+
+  let peers_to_strs
+     = |peer_id : HashSet<&PeerId>| peer_id.iter().map(|p: &&PeerId| p.to_string()).collect();
+
+  (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
 }
