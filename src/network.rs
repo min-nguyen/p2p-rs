@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 
-use super::data;
+use super::file;
 
 /*
     *NetworkBehavior*:
@@ -32,23 +32,23 @@ use super::data;
     We will use the mDNS Discovery Protocol.
 */
 
-// FloodSub Topic for subscribing and sending recipes
-pub static RECIPE_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("recipes"));
+// FloodSub Topic for subscribing and sending blocks
+pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
 
 // Messages are either (1) requests for data or (2) responses to some arbitrary peer's request.
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RecipeRequest {
-    // Requests for recipes can be either ToAll or ToOne
+pub struct BlockRequest {
+    // Requests for blocks can be either ToAll or ToOne
     pub transmit_type : TransmitType,
     // The PeerID the request came from.
     pub sender_peer_id : String
 }
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RecipeResponse {
-    // Responding with our recipes will always to be ToAll
+pub struct BlockResponse {
+    // Responding with our blocks will always to be ToAll
     pub transmit_type : TransmitType,
     // Core message payload being transmitted in the network.
-    pub data : data::Recipes,
+    pub data : file::Blocks,
     // The PeerID to recieve the response.
     pub receiver_peer_id : String
 }
@@ -62,14 +62,14 @@ pub enum TransmitType {
 
 // Base NetworkBehaviour, simply specifying the 2 Protocol types
 #[derive(NetworkBehaviour)]
-pub struct RecipeBehaviour {
+pub struct BlockchainBehaviour {
     // ** Relevant to the global P2P Network Behaviour that all peers must share:
     pub floodsub: Floodsub,
     mdns: Mdns,
 
     // ** Relevant only to a specific peer that we are setting up
     #[behaviour(ignore)]
-    local_network_sender: mpsc::UnboundedSender<RecipeRequest>,
+    local_network_sender: mpsc::UnboundedSender<BlockRequest>,
     #[behaviour(ignore)]
     local_peer_id: libp2p::PeerId
 }
@@ -79,7 +79,7 @@ Defining the Sub-Behaviours for handling events, `inject_event()`, from each Pro
     1. Sub-Behaviour for the mDNS Discovery Protocol.
     2. Concrete Sub-Behaviour for the FloodSub Communication Protocol.
 */
-impl NetworkBehaviourEventProcess<MdnsEvent> for RecipeBehaviour {
+impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
     fn inject_event(&mut self, event: MdnsEvent) {
         match event {
             // Event for discovering (a list of) new peers
@@ -104,20 +104,20 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for RecipeBehaviour {
         }
     }
 }
-impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
+impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
     fn inject_event(&mut self, event: FloodsubEvent) {
         match event {
             // Event for a new message from a peer
             FloodsubEvent::Message(msg) => {
-                // Match on the deserialized payload as a RecipeResponse, which we print to console.
-                if let Ok(resp) = serde_json::from_slice::<RecipeResponse>(&msg.data) {
+                // Match on the deserialized payload as a BlockResponse, which we print to console.
+                if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&msg.data) {
                     if resp.receiver_peer_id == self.local_peer_id.to_string() {
                         info!("local_network: Response from {}:", msg.source);
                         resp.data.iter().for_each(|r| info!("{:?}", r));
                     }
                 }
-                // Match on the deserialized payload as a RecipeRequest, which we may forward to our local peer
-                else if let Ok(req) = serde_json::from_slice::<RecipeRequest>(&msg.data) {
+                // Match on the deserialized payload as a BlockRequest, which we may forward to our local peer
+                else if let Ok(req) = serde_json::from_slice::<BlockRequest>(&msg.data) {
                     match req.transmit_type {
                         // Forward any ToAll requests to local peer
                         TransmitType::ToAll => {
@@ -145,12 +145,12 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for RecipeBehaviour {
     }
 }
 
-// Sets up a NetworkBehaviour that subscribes to the Recipe topic.
-pub async fn set_up_recipe_behaviour
+// Sets up a NetworkBehaviour that subscribes to the Blocks topic.
+pub async fn set_up_block_behaviour
         (   local_peer_id : libp2p::PeerId
-          , local_network_sender : mpsc::UnboundedSender<RecipeRequest>) -> RecipeBehaviour
+          , local_network_sender : mpsc::UnboundedSender<BlockRequest>) -> BlockchainBehaviour
 {
-  let mut behaviour = RecipeBehaviour {
+  let mut behaviour = BlockchainBehaviour {
       floodsub: Floodsub::new(local_peer_id.clone()),
       mdns: Mdns::new(Default::default())
           .await
@@ -159,6 +159,6 @@ pub async fn set_up_recipe_behaviour
       local_peer_id
   };
 
-  behaviour.floodsub.subscribe(RECIPE_TOPIC.clone());
+  behaviour.floodsub.subscribe(BLOCK_TOPIC.clone());
   behaviour
 }

@@ -1,6 +1,6 @@
 
 pub mod peer;
-pub mod data;
+pub mod file;
 pub mod network;
 pub mod swarm;
 

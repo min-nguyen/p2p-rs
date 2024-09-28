@@ -1,7 +1,7 @@
 use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
 use log::info;
 
-use super::network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeRequest};
+use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockRequest};
 
 
 /*
@@ -16,8 +16,8 @@ use super::network::{RECIPE_TOPIC, RecipeBehaviour, RecipeResponse, RecipeReques
 
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */
-pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox)>, behaviour : RecipeBehaviour, local_peer_id : PeerId)
-  -> Swarm<RecipeBehaviour> {
+pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox)>, behaviour : BlockchainBehaviour, local_peer_id : PeerId)
+  -> Swarm<BlockchainBehaviour> {
 
   let mut swarm
   =   // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
@@ -38,19 +38,19 @@ pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox
   swarm
 }
 
-pub async fn publish_response(resp: RecipeResponse, swarm: &mut Swarm<RecipeBehaviour>){
+pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
   info!("local_swarm: Published response.")
 }
-pub async fn publish_request(resp: RecipeRequest, swarm: &mut Swarm<RecipeBehaviour>){
+pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
   info!("local_swarm: Published request.")
 }
-async fn publish(json : String,  swarm: &mut Swarm<RecipeBehaviour> ) {
+async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
       .behaviour_mut()
       .floodsub
-      .publish(RECIPE_TOPIC.clone(), json.as_bytes());
+      .publish(BLOCK_TOPIC.clone(), json.as_bytes());
 }
