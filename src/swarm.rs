@@ -8,8 +8,10 @@
     -- Used to trigger and receive events from the network
 */
 
+use std::collections::HashSet;
+
 use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
-use log::info;
+use log::{debug, info};
 
 use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockRequest};
 
@@ -40,16 +42,26 @@ pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox
 pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  info!("local_swarm: Published response.")
+  debug!("local_swarm: Published response.")
 }
 pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  info!("local_swarm: Published request.")
+  debug!("local_swarm: Published request.")
 }
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
       .behaviour_mut()
       .floodsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
+}
+
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> Vec<String> {
+  let nodes = swarm.behaviour().mdns.discovered_nodes();
+  let mut unique_peers: HashSet<&PeerId> = HashSet::new();
+  for peer in nodes {
+      unique_peers.insert(peer);
+  }
+  debug!("local_swarm: get_peers()");
+  unique_peers.iter().map(|p: &&PeerId| p.to_string()).collect()
 }

@@ -65,7 +65,7 @@ pub enum TransmitType {
 pub struct BlockchainBehaviour {
     // ** Relevant to the global P2P Network Behaviour that all peers must share:
     pub floodsub: Floodsub,
-    mdns: Mdns,
+    pub mdns: Mdns,
 
     // ** Relevant only to a specific peer that we are setting up
     #[behaviour(ignore)]
