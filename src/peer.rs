@@ -25,14 +25,15 @@ use super::swarm;
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 
-    (1) Key Pair enables us to communicate securely with the rest of the network, ensuring no one can impersonate us.
-    (2) PeerId is a unique identifier for a peer within the whole p2p network. Derived from a key pair to ensure uniqueness.  */
+    (1) Key Pair: Public & private key for secure communication with the rest of the network
+    (2) PeerId: Unique hash of public key, used to identify the peer within the whole p2p network.
+*/
 static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 /* Events for the peer to handle, either:
-       (1) inputs from ourselves
-       (2) requests from peers in the network */
+       (1) Local Inputs from the terminal
+       (2) Remote Requests from peers in the network */
 enum EventType {
     StdInput(String),
     NetworkRequest(network::BlockRequest)
@@ -48,11 +49,16 @@ pub struct Peer {
     swarm : Swarm<network::BlockchainBehaviour>
 }
 
+const USER_COMMANDS : [( &str, &str); 3]
+= [("`req <all | [peer-id]>`", "Request data from (1) all peers, or (2) a specific known peer-id")
+ , ("`create [data]: `", "Write a new piece of data to a local .json file")
+ , ("`ls <peers | blocks>`", "Print a list of (1) discovered and connected peers, or (2) data in the local .json file")];
+
 impl Peer {
+    /* Main loop -- Defines the logic for how the peer:
+        1. Handles remote requests from the network
+        2. Handles local commands from the standard input   */
     pub async fn run(&mut self){
-        /* Main loop -- Defines the logic for how the peer:
-            1. Handles remote requests from the network
-            2. Handles local commands from the standard input   */
         loop {
             // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {
@@ -63,7 +69,7 @@ impl Peer {
                     // NetworkRequest Event;
                     network_request = self.local_network_receiver.recv()
                         => Some(EventType::NetworkRequest(network_request.expect("response exists"))),
-                    // Swarm Event, which we don't need to do anything with; these are handled within our BlockBehaviour.
+                    // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
                         => { Peer::handle_swarm_event(swarm_event); None }
                 }
@@ -110,7 +116,13 @@ impl Peer {
                 self.handle_ls_command(cmd).await;
             }
             _ => {
-                error!("unknown command");
+                error!("Unknown command: {}", cmd);
+                println!("\nCommands:");
+                USER_COMMANDS
+                    .into_iter()
+                    .map(|(command, description)|
+                            println!("\n{}\n{}", description, command))
+                    .collect()
             }
         }
     }
@@ -131,7 +143,7 @@ impl Peer {
         }
     }
     async fn handle_request_command(&mut self, cmd: &str) {
-        let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
+        let args = cmd.strip_prefix("req").expect("can strip `req`").trim() ;
         match args {
             _ if args.is_empty() => {
                 info!("Command error: [req] missing an argument, specify \"all\" or \"<peer_id>\"");
@@ -197,7 +209,6 @@ impl Peer {
 
 
 pub async fn set_up_peer() -> Peer {
-    // Peer Id, a unique hash of the local peer's public key
     let local_peer_id: PeerId
         = LOCAL_PEER_ID.clone();
     // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
