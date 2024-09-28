@@ -1,9 +1,3 @@
-use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
-use log::info;
-
-use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockRequest};
-
-
 /*
     *Swarm*:
     -- Configured to a specific NetworkBehaviour, and used to broadcast messages to other peers' NetworkBehaviours.
@@ -13,6 +7,11 @@ use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockReque
     -- Manages connections created with the Transport and executes our NetworkBehaviour
     -- Used to trigger and receive events from the network
 */
+
+use libp2p::{core::transport::Boxed, swarm::SwarmBuilder, PeerId, Swarm};
+use log::info;
+
+use super::network::{BLOCK_TOPIC, BlockchainBehaviour, BlockResponse, BlockRequest};
 
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */

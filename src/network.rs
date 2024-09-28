@@ -1,16 +1,3 @@
-use libp2p::{
-  floodsub::{Floodsub, FloodsubEvent, Topic},
-  mdns::{Mdns, MdnsEvent},
-  swarm::NetworkBehaviourEventProcess,
-  NetworkBehaviour,
-};
-use log::{error, info};
-use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-
-use super::file;
-
 /*
     *NetworkBehavior*:
     -- Defines the logic of the p2p network and all its peers.
@@ -31,6 +18,19 @@ use super::file;
 
     We will use the mDNS Discovery Protocol.
 */
+
+use libp2p::{
+  floodsub::{Floodsub, FloodsubEvent, Topic},
+  mdns::{Mdns, MdnsEvent},
+  swarm::NetworkBehaviourEventProcess,
+  NetworkBehaviour,
+};
+use log::{error, info};
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
+
+use super::file;
 
 // FloodSub Topic for subscribing and sending blocks
 pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
