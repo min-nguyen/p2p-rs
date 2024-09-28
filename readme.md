@@ -63,3 +63,5 @@ Auxiliary data and functions relevant to the local machine.
                     ↓
                   FILE.rs
 ```
+
+<!-- The communication described between Peer and NetworkBehaviour (via the local channel), at run-time, is actually executed by the Swarm as an intermediary. -->

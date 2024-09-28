@@ -56,8 +56,9 @@ NetworkBehaviour and Swarm are part of Rust’s libp2p library for building peer
    Essentially, it is the "engine" that powers all network-related tasks, enabling the NetworkBehaviour to function as intended, making it crucial for coordinating peer activities in your P2P app.
 
 In short, a Peer owns:
-   1. a NetworkBehaviour which defines "what" should happen at a logical level
-   2. a Swarm which provides the event loop to process all network events and trigger the user-defined NetworkBehaviour.
+   1. A NetworkBehaviour which defines what logic should happen when handling events and interactions.
+   2. A Swarm which provides the event loop to process all network events and trigger the user-defined NetworkBehaviour.
+   3. At run-time, all communication (described in code) between a Peer and its NetworkBehaviour is actually driven by the Swarm as an intermediary.
 
 Without a Swarm, a NetworkBehaviour is just a static configuration that cannot perform any actions or respond to network events, as there is no runtime component to drive it. If you try to run a peer with only a NetworkBehaviour and no Swarm:
    - The peer won't establish or receive any connections.
