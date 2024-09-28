@@ -47,7 +47,7 @@ pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainB
 pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  debug!("local_swarm: Published request.")
+  debug!("local_swarm: Published request")
 }
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
@@ -55,13 +55,21 @@ async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
       .floodsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
 }
-
-pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> Vec<String> {
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
+  debug!("local_swarm: Getting peers");
   let nodes = swarm.behaviour().mdns.discovered_nodes();
-  let mut unique_peers: HashSet<&PeerId> = HashSet::new();
+  let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
+  let mut connected_peers: HashSet<&PeerId> = HashSet::new();
+
   for peer in nodes {
-      unique_peers.insert(peer);
+      discovered_peers.insert(peer);
+      if swarm.is_connected(peer) {
+        connected_peers.insert(peer);
+      }
   }
-  debug!("local_swarm: get_peers()");
-  unique_peers.iter().map(|p: &&PeerId| p.to_string()).collect()
+
+  let peers_to_strs
+     = |peer_id : HashSet<&PeerId>| peer_id.iter().map(|p: &&PeerId| p.to_string()).collect();
+
+  (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
 }
