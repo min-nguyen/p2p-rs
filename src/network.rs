@@ -67,11 +67,11 @@ pub struct BlockchainBehaviour {
     pub floodsub: Floodsub,
     pub mdns: Mdns,
 
-    // ** Relevant only to a specific peer that we are setting up
+    // ** Relevant only to a specific local peer that we are setting up
     #[behaviour(ignore)]
-    local_network_sender: mpsc::UnboundedSender<BlockRequest>,
+    to_peer: mpsc::UnboundedSender<BlockRequest>,
     #[behaviour(ignore)]
-    local_peer_id: libp2p::PeerId
+    peer_id: libp2p::PeerId
 }
 
 /*
@@ -85,6 +85,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             // Event for discovering (a list of) new peers
             MdnsEvent::Discovered(discovered_list) => {
                 for (peer, _addr) in discovered_list {
+                    info!("discovered peer: {}", peer);
                     // Add to our list of peers to propagate messages to
                     self.floodsub.add_node_to_partial_view(peer);
                 }
@@ -93,7 +94,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             MdnsEvent::Expired(expired_list) => {
                 for (peer, _addr) in expired_list {
                     // Remove from our list of peers
-                    info!("local_network: Removed Peer");
+                    info!("removed peer: {}", peer);
                     if !self.mdns.has_node(&peer) {
                         self.floodsub.remove_node_from_partial_view(&peer);
                     }
@@ -111,8 +112,8 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
             FloodsubEvent::Message(msg) => {
                 // Match on the deserialized payload as a BlockResponse, which we print to console.
                 if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&msg.data) {
-                    if resp.receiver_peer_id == self.local_peer_id.to_string() {
-                        info!("local_network: Response from {}:", msg.source);
+                    if resp.receiver_peer_id == self.peer_id.to_string() {
+                        info!("response from {}:", msg.source);
                         resp.data.iter().for_each(|r| info!("{:?}", r));
                     }
                 }
@@ -121,19 +122,19 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                     match req.transmit_type {
                         // Forward any ToAll requests to local peer
                         TransmitType::ToAll => {
-                            info!("local_network: Received ToAll req {:?} from {:?}", req, msg.source);
-                            info!("local_network: Forwarding ToAll req from {:?}", msg.source);
-                            if let Err(e) = self.local_network_sender.send(req) {
+                            info!("received req {:?} from {:?}", req, msg.source);
+                            info!("forwarding req from {:?}", msg.source);
+                            if let Err(e) = self.to_peer.send(req) {
                                 error!("error sending response via channel, {}", e);
                             };
                         }
                         // Filter any ToOne requests if not intended for us, otherwise forwarding to local peer
                         TransmitType::ToOne(ref peer_id) => {
-                            info!("Received ToOne req {:?} from {:?}", req, msg.source);
-                            if peer_id == &self.local_peer_id.to_string() {
-                                info!("local_network: Forwarding ToOne req from {:?}", msg.source);
-                                if let Err(e) = self.local_network_sender.send(req) {
-                                    error!("local_network: error sending response via channel, {}", e);
+                            info!("received req {:?} from {:?}", req, msg.source);
+                            if peer_id == &self.peer_id.to_string() {
+                                info!("forwarding req from {:?}", msg.source);
+                                if let Err(e) = self.to_peer.send(req) {
+                                    error!("error sending response via channel, {}", e);
                                 };
                             }
                         }
@@ -147,16 +148,16 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
 
 // Sets up a NetworkBehaviour that subscribes to the Blocks topic.
 pub async fn set_up_block_behaviour
-        (   local_peer_id : libp2p::PeerId
-          , local_network_sender : mpsc::UnboundedSender<BlockRequest>) -> BlockchainBehaviour
+        (   peer_id : libp2p::PeerId
+          , to_peer : mpsc::UnboundedSender<BlockRequest>) -> BlockchainBehaviour
 {
   let mut behaviour = BlockchainBehaviour {
-      floodsub: Floodsub::new(local_peer_id.clone()),
+      floodsub: Floodsub::new(peer_id.clone()),
       mdns: Mdns::new(Default::default())
           .await
           .expect("can create mdns"),
-      local_network_sender,
-      local_peer_id
+      to_peer,
+      peer_id
   };
 
   behaviour.floodsub.subscribe(BLOCK_TOPIC.clone());
