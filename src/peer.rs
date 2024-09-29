@@ -5,8 +5,6 @@
     ---
 */
 
-use std::io::Write;
-
 use libp2p::{
     core::upgrade,
     futures::StreamExt,
@@ -16,7 +14,7 @@ use libp2p::{
     swarm::{Swarm, SwarmEvent},
     tcp::TokioTcpConfig, PeerId, Transport,
 };
-use log::{debug, error, info};
+use log::debug;
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
@@ -69,7 +67,7 @@ impl Peer {
                         => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
-                        => { Peer::handle_swarm_event(swarm_event); None }
+                        => { Self::handle_swarm_event(swarm_event); None }
                 }
             };
             if let Some(event) = evt {
