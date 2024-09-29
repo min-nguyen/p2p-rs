@@ -1,7 +1,8 @@
-pub mod peer;
 pub mod file;
 pub mod network;
 pub mod swarm;
+pub mod peer;
+
 
 #[tokio::main]
 async fn main() {

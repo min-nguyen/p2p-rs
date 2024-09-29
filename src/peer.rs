@@ -18,7 +18,7 @@ use log::debug;
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
-use crate::network::BlockchainMessage;
+use super::network::BlockchainMessage;
 
 use super::file;
 use super::network::{self, BlockRequest, BlockResponse, TransmitType};

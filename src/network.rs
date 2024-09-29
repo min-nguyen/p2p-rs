@@ -111,7 +111,9 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                 if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&msg.data) {
                     if resp.receiver_peer_id == self.peer_id.to_string() {
                         info!("response from {}:", msg.source);
-                        self.to_peer.send(Either::Right(resp));
+                        if let Err(e) = self.to_peer.send(Either::Right(resp)){
+                            error!("error sending request via channel, {}", e);
+                        }
                     }
                 }
                 // Match on the deserialized payload as a BlockRequest, which we may forward to our local peer
