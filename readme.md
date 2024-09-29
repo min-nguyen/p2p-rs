@@ -36,8 +36,7 @@ Describes local behaviour of how network events are handled, common to all peers
   - Configures the communication and discovery protocols for the network
   - Defines how our network handles (behaves to) those protocol events.
     - For communication protocol, it receives request and response messages from remote peers, and
-      - (Currently) simply logs all responses to the terminal
-      - Forwards all relevant requests to the local peer implementation.
+      - Forwards all relevant requests/responses to the local peer implementation.
 
 #### `swarm.rs`:
 Drives the entire network stack, and executes the defined network behaviour.
@@ -60,7 +59,7 @@ Auxiliary data and functions relevant to the local machine.
                     |                                                                 |
                     |                                                                 ↓
   STDIN ----->     PEER.rs                          NETWORK.rs  <-- event <---   P2P_NETWORK
-                { chan_out } <==== request =====   { chan_in }
+                { chan_out } <==== req/resp =====  { chan_in }
                     |
                     ↓
                   FILE.rs

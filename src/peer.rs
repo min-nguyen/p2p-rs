@@ -7,7 +7,7 @@
 
 use libp2p::{
     core::upgrade,
-    futures::StreamExt,
+    futures::{future::Either, StreamExt},
     identity,
     mplex,
     noise::{Keypair, NoiseConfig, X25519Spec},
@@ -17,6 +17,8 @@ use libp2p::{
 use log::debug;
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
+
+use crate::network::BlockchainMessage;
 
 use super::file;
 use super::network::{self, BlockRequest, BlockResponse, TransmitType};
@@ -35,8 +37,8 @@ static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEY
        (1) Local Inputs from the terminal
        (2) Remote Requests from peers in the network */
 enum EventType {
-    StdInput(String),
-    NetworkEvent(BlockRequest)
+    StdInputEvent(String),
+    NetworkEvent(BlockchainMessage)
 }
 
 /* A Peer consists of:
@@ -45,7 +47,7 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network : UnboundedReceiver<BlockRequest>,
+    from_network : UnboundedReceiver<Either<BlockRequest, BlockResponse>>,
     swarm : Swarm<network::BlockchainBehaviour>
 }
 
@@ -59,10 +61,8 @@ impl Peer {
             // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {
                 tokio::select! {
-                    // StdIn Event for a local user command.
                     stdin_event = self.from_stdin.next_line()
-                        => Some(EventType::StdInput(stdin_event.expect("can get line").expect("can read line from stdin"))),
-                    // NetworkRequest Event;
+                        => Some(EventType::StdInputEvent(stdin_event.expect("can get line").expect("can read line from stdin"))),
                     network_request = self.from_network.recv()
                         => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
@@ -76,7 +76,7 @@ impl Peer {
                     EventType::NetworkEvent(req)
                         => self.handle_network_event(&req).await,
                     // StdIn Event for a local user command.
-                    EventType::StdInput(cmd)
+                    EventType::StdInputEvent(cmd)
                         => self.handle_stdin_event(&cmd).await
                 }
             }
@@ -97,18 +97,24 @@ impl Peer {
         }
     }
     // NetworkBehaviour Event for a remote request.
-    async fn handle_network_event(&mut self, req: &BlockRequest) {
-        {
-            match file::read_local_blocks().await {
-                Ok(blocks) => {
-                    let resp = BlockResponse {
-                        transmit_type: TransmitType::ToAll,
-                        receiver_peer_id: req.sender_peer_id.clone(),
-                        data: blocks.into_iter().collect(),
-                    };
-                    swarm::publish_response(resp, &mut  self.swarm).await
+    async fn handle_network_event(&mut self, msg: &BlockchainMessage) {
+        match msg {
+            Either::Left(req) => {
+                println!("Received request:\n {:?}", req);
+                match file::read_local_blocks().await {
+                    Ok(blocks) => {
+                        let resp = BlockResponse {
+                            transmit_type: TransmitType::ToAll,
+                            receiver_peer_id: req.sender_peer_id.clone(),
+                            data: blocks.into_iter().collect(),
+                        };
+                        swarm::publish_response(resp, &mut  self.swarm).await
+                    }
+                    Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
-                Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
+            },
+            Either::Right(rsp) => {
+                println!("Received response:\n {:?}", rsp);
             }
         }
     }
@@ -239,16 +245,30 @@ pub async fn set_up_peer() -> Peer {
     Peer { from_stdin, from_network, swarm }
 }
 
-const USER_COMMANDS : [( &str, &str); 3]
-    = [("`req <\"all\" | [peer-id]>`", "- Request data from (1) all peers, or (2) a specific known peer-id")
-    , ("`ls <\"peers\" | \"blocks\">`", "- Print a list of (1) remote peers, or (2) data in the local .json file")
-    , ("`mk [data]`", "- Write a new piece of data to a (pre-defined) local .json file")];
-
 fn print_user_commands(){
-    println!("# Available commands:");
-    USER_COMMANDS
-    .into_iter()
-    .map(|(command, description)|
-            println!("{}\n{}", description, command))
-    .collect()
+    let commands = r#"
+─────────────────────────────────────────────
+    # Available Commands #
+─────────────────────────────────────────────
+
+📤 *Request data from peers*:
+└── Usage: `req <"all" | [peer-id]>`
+┌── Options:
+│     • `"all"`      - Request data from all peers
+│     • `[peer-id]`  - Request data from a specific peer
+
+🔍 *Print a list*:
+└── Usage: `ls <"peers" | "blocks">`
+┌── Options:
+│     • `"peers"`    - Show a list of connected remote peers
+│     • `"blocks"`   - Show data stored in the local .json file
+
+📝 *Write new data*:
+└── Usage: `mk [data]`
+┌── Description:
+│     • Write a new piece of data to the local .json file.
+─────────────────────────────────────────────
+"#;
+
+    println!("{}", commands);
 }
