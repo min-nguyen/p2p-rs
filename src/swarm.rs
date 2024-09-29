@@ -42,12 +42,12 @@ pub fn set_up_swarm(transp : Boxed<(PeerId, libp2p::core::muxing::StreamMuxerBox
 pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  debug!("local_swarm: Published response.")
+  info!("publish_response() successful")
 }
 pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
-  debug!("local_swarm: Published request")
+  info!("publish_request() successful")
 }
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
@@ -56,7 +56,7 @@ async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
 }
 pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
-  debug!("local_swarm: Getting peers");
+  debug!("get_peers()");
   let nodes = swarm.behaviour().mdns.discovered_nodes();
   let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
   let mut connected_peers: HashSet<&PeerId> = HashSet::new();
