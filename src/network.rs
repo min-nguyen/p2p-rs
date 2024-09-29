@@ -20,10 +20,7 @@
 */
 
 use libp2p::{
-  floodsub::{Floodsub, FloodsubEvent, Topic},
-  mdns::{Mdns, MdnsEvent},
-  swarm::NetworkBehaviourEventProcess,
-  NetworkBehaviour,
+  floodsub::{Floodsub, FloodsubEvent, Topic}, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::NetworkBehaviourEventProcess, NetworkBehaviour
 };
 use log::{error, info};
 use once_cell::sync::Lazy;
@@ -36,6 +33,7 @@ use super::file;
 pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
 
 // Messages are either (1) requests for data or (2) responses to some arbitrary peer's request.
+pub type BlockchainMessage = Either<BlockRequest, BlockResponse>;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BlockRequest {
     // Requests for blocks can be either ToAll or ToOne
@@ -52,7 +50,6 @@ pub struct BlockResponse {
     // The PeerID to recieve the response.
     pub receiver_peer_id : String
 }
-
 // Messages can be intended for (1) all peers or (2) a specific peer.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TransmitType {
@@ -69,7 +66,7 @@ pub struct BlockchainBehaviour {
 
     // ** Relevant only to a specific local peer that we are setting up
     #[behaviour(ignore)]
-    to_peer: mpsc::UnboundedSender<BlockRequest>,
+    to_peer: mpsc::UnboundedSender<BlockchainMessage>,
     #[behaviour(ignore)]
     peer_id: libp2p::PeerId
 }
@@ -114,7 +111,9 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                 if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&msg.data) {
                     if resp.receiver_peer_id == self.peer_id.to_string() {
                         info!("response from {}:", msg.source);
-                        resp.data.iter().for_each(|r| info!("{:?}", r));
+                        if let Err(e) = self.to_peer.send(Either::Right(resp)){
+                            error!("error sending request via channel, {}", e);
+                        }
                     }
                 }
                 // Match on the deserialized payload as a BlockRequest, which we may forward to our local peer
@@ -124,7 +123,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                         TransmitType::ToAll => {
                             info!("received req {:?} from {:?}", req, msg.source);
                             info!("forwarding req from {:?}", msg.source);
-                            if let Err(e) = self.to_peer.send(req) {
+                            if let Err(e) = self.to_peer.send(Either::Left(req)) {
                                 error!("error sending response via channel, {}", e);
                             };
                         }
@@ -133,7 +132,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                             info!("received req {:?} from {:?}", req, msg.source);
                             if peer_id == &self.peer_id.to_string() {
                                 info!("forwarding req from {:?}", msg.source);
-                                if let Err(e) = self.to_peer.send(req) {
+                                if let Err(e) = self.to_peer.send(Either::Left(req)) {
                                     error!("error sending response via channel, {}", e);
                                 };
                             }
@@ -149,7 +148,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
 // Sets up a NetworkBehaviour that subscribes to the Blocks topic.
 pub async fn set_up_block_behaviour
         (   peer_id : libp2p::PeerId
-          , to_peer : mpsc::UnboundedSender<BlockRequest>) -> BlockchainBehaviour
+          , to_peer : mpsc::UnboundedSender<BlockchainMessage>) -> BlockchainBehaviour
 {
   let mut behaviour = BlockchainBehaviour {
       floodsub: Floodsub::new(peer_id.clone()),
