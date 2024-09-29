@@ -4,7 +4,7 @@
     --- IO for read and writing with it
 */
 
-use log::{debug, info};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
