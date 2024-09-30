@@ -3,7 +3,6 @@ pub mod network;
 pub mod swarm;
 pub mod peer;
 
-
 #[tokio::main]
 async fn main() {
   pretty_env_logger::init();

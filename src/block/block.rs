@@ -56,12 +56,15 @@ impl Chain {
   }
 
   // Append new block
-  pub fn try_push_block(&mut self, new_block: Block){
+  pub fn try_push_block(&mut self, new_block: Block) -> Result<(), &str>{
     let last_block: &Block = self.blocks.last().expect("Chain must be non-empty");
     if Block::valid_block(last_block, &new_block) {
         self.blocks.push(new_block);
+        Ok (())
     } else {
-        error!("could not add new_block - invalid");
+        let e ="try_push_block(): could not add new_block - invalid";
+        error!("{}", e);
+        Err (e)
     }
   }
 }
