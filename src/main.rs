@@ -3,6 +3,7 @@ pub mod network;
 pub mod swarm;
 pub mod peer;
 pub mod block;
+pub mod file_block;
 use block::{
   Chain, Block
 };
