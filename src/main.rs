@@ -3,6 +3,7 @@ pub mod network;
 pub mod swarm;
 pub mod peer;
 
+// RUST_LOG=info cargo run --bin main
 #[tokio::main]
 async fn main() {
   pretty_env_logger::init();

@@ -1,25 +1,20 @@
-pub mod block;
-
+#[path = "./../block.rs"]
+mod block;
 use block::{
-  Chain, Block, BlockHeader
+    Chain, Block, BlockHeader
 };
 
-// RUST_LOG=info cargo run --bin block
 #[tokio::main]
 async fn main() {
   pretty_env_logger::init();
 
   let mut chain: Chain = Chain::new();
-
   let new_block = Block::new(1, "test".to_owned(), chain.blocks.last().expect("").hash);
   println!("{}", new_block);
-
-  chain.try_push_block(new_block);
-  let gen: &Block = chain.blocks.last().expect("");
-  let new_block = Block::new(1, "test".to_owned(), gen.hash);
-  chain.try_push_block(new_block);
+  let _ = chain.try_push_block(new_block);
 }
 
+// RUST_LOG=info cargo test
 #[cfg(test)]
 mod tests {
     use super::*;
