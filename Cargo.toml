@@ -4,12 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "main"
+name = "p2p"
 path = "./src/main.rs"
 
 [[test]]
 name = "test-block"
-path = "./src/tests/main.rs"
+path = "./src/tests/test_blocks.rs"
 
 [dependencies]
 chrono = "0.4"
