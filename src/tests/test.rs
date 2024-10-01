@@ -6,7 +6,7 @@ use block::{
 
 // RUST_LOG=info cargo test
 #[cfg(test)]
-mod tests {
+mod block_tests {
     use super::*;
 
     /* low-level block tests */

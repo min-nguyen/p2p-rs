@@ -23,6 +23,7 @@ use super::network::BlockchainMessage;
 use super::file;
 use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm;
+use super::block;
 
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
@@ -122,17 +123,24 @@ impl Peer {
     // StdIn Event for a local user command.
     async fn handle_stdin_event(&mut self, cmd: &str) {
         match cmd {
-             // 1. `req <all | [peer_id]>`, requiring us to publish a Request to the network.
+            // 0. `fresh`, deletes the current local chain and writes a new one with a single block.
+           cmd if cmd.starts_with("fresh") => {
+                self.handle_fresh_command().await
+           }
+            // 1. `req <all | [peer_id]>`, requiring us to publish a Request to the network.
             cmd if cmd.starts_with("req") => {
-                self.handle_req_command(cmd).await;
+                let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
+                self.handle_req_command(args).await;
             }
             // 2. `mk [data]` makes and writes a new block with the given data (and an incrementing id)
             cmd if cmd.starts_with("mk") => {
-                self.handle_mk_command(cmd).await;
+                let args = cmd.strip_prefix("mk").expect("can strip `mk`").trim();
+                self.handle_mk_command( args).await;
             }
               // 3. `ls <blocks | peers>` lists the local blocks or the discovered peers
             cmd if cmd.starts_with("ls") => {
-                self.handle_ls_command(cmd).await;
+                let args = cmd.strip_prefix("ls").expect("can strip `ls`").trim() ;
+                self.handle_ls_command( args).await;
             }
             _ => {
                 println!("Unknown command: \"{}\"", cmd);
@@ -140,8 +148,14 @@ impl Peer {
             }
         }
     }
-    async fn handle_req_command(&mut self, cmd: &str) {
-        let args = cmd.strip_prefix("req").expect("can strip `req`").trim() ;
+    async fn handle_fresh_command(&mut self) {
+        let chain = block::Chain::new();
+        match file::write_local_chain(&chain).await {
+            Ok(()) => println!("Wrote fresh chain: {}", chain),
+            Err(e) => eprintln!("error writing new valid block: {}", e),
+        }
+    }
+    async fn handle_req_command(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
@@ -164,8 +178,7 @@ impl Peer {
             }
         }
     }
-    async fn handle_mk_command(&self, cmd: &str) {
-        let args = cmd.strip_prefix("mk").expect("can strip `mk`").trim();
+    async fn handle_mk_command(&self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `mk` missing an argument [data]");
@@ -184,8 +197,7 @@ impl Peer {
             }
         }
     }
-    async fn handle_ls_command(&mut self, cmd: &str) {
-        let args: &str = cmd.strip_prefix("ls").expect("can strip `ls`").trim();
+    async fn handle_ls_command(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `ls` missing an argument `blocks` or `peers")
@@ -261,19 +273,24 @@ fn print_user_commands(){
 📤 *Request data from peers*:
 └── Usage: `req <"all" | [peer-id]>`
 ┌── Options:
-│     • `"all"`      - Request data from all peers
-│     • `[peer-id]`  - Request data from a specific peer
+│     • `"all"`      - Request last block from all peers
+│     • `[peer-id]`  - Request last block from a specific peer
 
 🔍 *Print a list*:
 └── Usage: `ls <"peers" | "blocks">`
 ┌── Options:
 │     • `"peers"`    - Show a list of connected remote peers
-│     • `"blocks"`   - Show data stored in the local .json file
+│     • `"blocks"`   - Show blocks stored in the local .json file
 
 📝 *Write new data*:
 └── Usage: `mk [data]`
 ┌── Description:
-│     • Write a new piece of data to the local .json file.
+│     • Mine and write a new block to the local .json file.
+
+📝 *Refresh data*:
+└── Usage: `fresh`
+┌── Description:
+│     • Delete current blocks and write a new genesis block to the local .json file.
 ─────────────────────────────────────────────
 "#;
 
