@@ -63,8 +63,8 @@ Core data and functions for blocks and chains.
                 req/resp                                                             req/resp
                    |                                                                    |
                    |                                                                    ↓
-  STDIN ====>  PEER.rs { chan_out } <=== req/resp ==== { chan_in }  NETWORK.rs  <-- event <---   P2P_NETWORK
-                   |
+  STDIN ====>  PEER.rs { chan_out } <=== req/resp ==== { chan_in }  SWARM.rs  <-- event <---   P2P_NETWORK
+                   |                                           (network behaviour)
                    ↓
                 FILE.rs
 ```

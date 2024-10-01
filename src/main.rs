@@ -13,10 +13,9 @@ use block::{
 async fn main() {
   pretty_env_logger::init();
 
-
-  // swarm_gs::set_up_peer().await
   run_p2p().await;
   // run_blocks()
+  // swarm_gs::set_up_swarm().await
 }
 
 async fn run_p2p(){

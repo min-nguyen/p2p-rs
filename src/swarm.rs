@@ -11,16 +11,24 @@
 use std::collections::HashSet;
 
 use libp2p::{
-  core::upgrade, floodsub::{Floodsub, FloodsubEvent, Topic}, futures::{future::Either, StreamExt}, identity, mdns::{Mdns, MdnsEvent}, mplex, noise::{Keypair, NoiseConfig, X25519Spec}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder, SwarmEvent}, tcp::TokioTcpConfig, NetworkBehaviour, PeerId, Transport
+  core::upgrade, floodsub::{Floodsub, FloodsubEvent, Topic}, futures::future::Either, identity, mdns::{Mdns, MdnsEvent}, mplex, noise::{Keypair, NoiseConfig, X25519Spec}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, NetworkBehaviour, PeerId, Transport
   };
-  use log::{error};
-  use once_cell::sync::Lazy;
-  use serde::{Deserialize, Serialize};
-  use tokio::sync::mpsc;
+use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
-  use super::block;
+use super::block;
 
-use log::{debug, info};
+use log::{debug, error, info};
+
+/*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
+    Below initialises these as global values that identify the current application (i.e. client) running.
+
+    (1) Key Pair: Public & private key for secure communication with the rest of the network
+    (2) PeerId: Unique hash of public key, used to identify the peer within the whole p2p network.
+*/
+static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
+static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 // FloodSub Topic for subscribing and sending blocks
 pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
@@ -139,7 +147,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
 
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */
-pub async fn set_up_swarm(local_peer_id : PeerId, local_keys : identity::Keypair, to_local_peer : mpsc::UnboundedSender<BlockchainMessage>)
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessage>)
   -> Swarm<BlockchainBehaviour> {
 
   // Transport, which we multiplex to enable multiple streams of data over one communication link.
@@ -147,7 +155,7 @@ pub async fn set_up_swarm(local_peer_id : PeerId, local_keys : identity::Keypair
       // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
       let local_auth_keys: libp2p::noise::AuthenticKeypair<X25519Spec>
           = Keypair::<X25519Spec>::new()
-          .into_authentic(&local_keys)
+          .into_authentic(&LOCAL_KEYS)
           .expect("can create auth keys");
 
       TokioTcpConfig::new()
@@ -158,19 +166,22 @@ pub async fn set_up_swarm(local_peer_id : PeerId, local_keys : identity::Keypair
     };
 
   // Network Behaviour, subscribed to block topic
-  let mut behaviour = BlockchainBehaviour {
-      floodsub: Floodsub::new(local_peer_id.clone()),
-      mdns: Mdns::new(Default::default())
-          .await
-          .expect("can create mdns"),
-      to_local_peer,
-      local_peer_id
+  let mut behaviour =  {
+      let floodsub
+        = Floodsub::new(LOCAL_PEER_ID.clone());
+
+      let mdns
+        = Mdns::new(Default::default())
+            .await
+            .expect("can create mdns");
+
+      BlockchainBehaviour {floodsub, mdns, to_local_peer, local_peer_id : LOCAL_PEER_ID.clone()}
   };
   behaviour.floodsub.subscribe(BLOCK_TOPIC.clone());
 
   // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
   let mut swarm
-    =  SwarmBuilder::new(transp, behaviour, local_peer_id)
+    =  SwarmBuilder::new(transp, behaviour,  LOCAL_PEER_ID.clone())
       .executor(Box::new(|fut| {
           tokio::spawn(fut);
       }))

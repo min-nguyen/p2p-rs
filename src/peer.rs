@@ -7,13 +7,9 @@
 
 use libp2p::{
     futures::{future::Either, StreamExt},
-    identity,
-    noise::{Keypair, X25519Spec},
     swarm::{Swarm, SwarmEvent},
-    PeerId,
 };
 use log::debug;
-use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 // use super::network::BlockchainMessage;
@@ -22,15 +18,6 @@ use super::file;
 // use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 use super::block;
-
-/*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
-    Below initialises these as global values that identify the current application (i.e. client) running.
-
-    (1) Key Pair: Public & private key for secure communication with the rest of the network
-    (2) PeerId: Unique hash of public key, used to identify the peer within the whole p2p network.
-*/
-static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
-static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -161,7 +148,7 @@ impl Peer {
             "all" => {
                 let req: BlockRequest = BlockRequest {
                     transmit_type: TransmitType::ToAll,
-                    sender_peer_id: LOCAL_PEER_ID.to_string(),
+                    sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
                 swarm::publish_request(req, &mut self.swarm).await;
@@ -169,7 +156,7 @@ impl Peer {
             peer_id => {
                 let req: BlockRequest = BlockRequest {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
-                    sender_peer_id: LOCAL_PEER_ID.to_string(),
+                    sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
                 swarm::publish_request(req, &mut self.swarm).await;
@@ -236,13 +223,13 @@ pub async fn set_up_peer() -> Peer {
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm::set_up_swarm(LOCAL_PEER_ID.clone(), LOCAL_KEYS.clone(), to_local_peer).await;
+        = swarm::set_up_swarm(to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
         = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
-    println!("Peer Id: {}", LOCAL_PEER_ID.to_string());
+    println!("Peer Id: {}", swarm.local_peer_id().to_string());
     Peer { from_stdin, from_network_behaviour, swarm }
 }
 

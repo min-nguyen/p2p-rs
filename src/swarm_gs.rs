@@ -1,11 +1,12 @@
 // https://docs.rs/gossipsub/latest/gossipsub/
 // https://github.com/libp2p/rust-libp2p/tree/master/examples
 
-use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, mdns::{self, Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour};
+use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{self, Mdns, MdnsEvent}, noise::X25519Spec, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId};
 use libp2p::core::{identity::Keypair,transport::{Transport, MemoryTransport}, Multiaddr};
 use log::info;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use tokio::sync::mpsc;
 
 
 // FloodSub Topic for subscribing and sending blocks
@@ -39,8 +40,8 @@ pub enum TransmitType {
 // We create a custom network behaviour that combines Gossipsub and Mdns.
 #[derive(NetworkBehaviour)]
 struct BlockchainBehaviour {
-    gossipsub: gossipsub::Gossipsub,
-    mdns: Mdns
+  pub gossipsub: gossipsub::Gossipsub,
+  pub mdns: Mdns
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
@@ -107,35 +108,37 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
 //   Ok(MyBehaviour { gossipsub, mdns })
 // }
 
-pub async fn set_up_peer(){
-  let local_key = Keypair::generate_ed25519();
-  let local_peer_id = libp2p::core::PeerId::from(local_key.public());
+pub async fn set_up_swarm(local_peer_id : PeerId, local_keys : identity::Keypair, to_local_peer : mpsc::UnboundedSender<BlockchainMessage>){
 
-  // Set up an encrypted TCP Transport over the Mplex
-  let noise_keys = libp2p::noise::Keypair::<libp2p::noise::X25519Spec>::new().into_authentic(&local_key).unwrap();
-  let transp = MemoryTransport::default()
+  // Transport,
+  let transp = {
+    // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
+    let local_auth_keys: libp2p::noise::AuthenticKeypair<X25519Spec>
+      = libp2p::noise::Keypair::<X25519Spec>::new()
+      .into_authentic(&local_keys)
+      .expect("can create auth keys");
+
+    MemoryTransport::default()
             .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(libp2p::noise::NoiseConfig::xx(noise_keys).into_authenticated())
+            .authenticate(libp2p::noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
             .multiplex(libp2p::mplex::MplexConfig::new())
-            .boxed();
+            .boxed()
+    };
 
+  // Network behaviour
+  let mut behaviour = {
+    let gossipsub: libp2p::gossipsub::Gossipsub =
+        libp2p::gossipsub::Gossipsub::new
+          ( MessageAuthenticity::Signed(local_keys)
+          , libp2p::gossipsub::GossipsubConfig::default()).unwrap();
 
-  // Build a gossipsub network behaviour
+    let mdns =  Mdns::new(Default::default())
+          .await
+          .expect("can create mdns");
 
-  let message_authenticity = MessageAuthenticity::Signed(local_key);
-  // set default parameters for gossipsub
-  let gossipsub_config = libp2p::gossipsub::GossipsubConfig::default();
-  // build a gossipsub network behaviour
-  let mut gossipsub: libp2p::gossipsub::Gossipsub =
-      libp2p::gossipsub::Gossipsub::new(message_authenticity, gossipsub_config).unwrap();
-
-  gossipsub.subscribe(&BLOCK_TOPIC);
-
-  let mdns =  Mdns::new(Default::default())
-    .await
-    .expect("can create mdns");
-
-  let behaviour = BlockchainBehaviour {gossipsub, mdns};
+    BlockchainBehaviour {gossipsub, mdns}
+  };
+  behaviour.gossipsub.subscribe(&BLOCK_TOPIC);
 
   // Create a Swarm to manage peers and events
   let mut swarm =
