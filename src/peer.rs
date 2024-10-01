@@ -12,16 +12,13 @@ use libp2p::{
 use log::debug;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
-// use super::network::BlockchainMessage;
-
 use super::file;
-// use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 use super::block;
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
-       (2) Remote Requests from peers in the network */
+       (2) Remote Requests/Responses from peers in the network */
 enum EventType {
     StdInputEvent(String),
     NetworkEvent(BlockchainMessage)
@@ -29,7 +26,7 @@ enum EventType {
 
 /* A Peer consists of:
     (1) A channel to handle commands from standard input
-    (2) A channel to handle requests  forwarded from the local network behaviour (but originating from the remote network)
+    (2) A channel to handle requests/responses forwarded from the local network behaviour (but originating from the remote network)
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
@@ -39,7 +36,7 @@ pub struct Peer {
 
 impl Peer {
     /* Main loop -- Defines the logic for how the peer:
-        1. Handles remote requests from the network
+        1. Handles remote requests/responses from the network
         2. Handles local commands from the standard input   */
     pub async fn run(&mut self){
         print_user_commands();

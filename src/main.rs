@@ -2,6 +2,7 @@ pub mod file;
 pub mod swarm;
 pub mod peer;
 pub mod block;
+pub mod swarm_gs;
 
 use block::{
   Chain, Block
