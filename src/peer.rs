@@ -12,10 +12,7 @@ use libp2p::{
 use log::debug;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
-// use super::network::BlockchainMessage;
-
 use super::file;
-// use super::network::{self, BlockRequest, BlockResponse, TransmitType};
 use super::swarm::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 use super::block;
 
