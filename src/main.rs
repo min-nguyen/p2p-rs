@@ -15,7 +15,6 @@ async fn main() {
 
   run_p2p().await;
   // run_blocks()
-  // swarm_gs::set_up_swarm().await
 }
 
 async fn run_p2p(){

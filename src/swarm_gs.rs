@@ -3,8 +3,8 @@
 
 use std::collections::HashSet;
 
-use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{self, Mdns, MdnsEvent}, mplex, noise::{self, X25519Spec}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId, Swarm};
-use libp2p::core::{identity::Keypair,transport::{Transport, MemoryTransport}, Multiaddr};
+use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{Mdns, MdnsEvent}, mplex, noise::{self, X25519Spec}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId, Swarm};
+use libp2p::core::{transport::{Transport, MemoryTransport}, Multiaddr};
 use log::{debug, info};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
