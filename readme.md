@@ -57,17 +57,16 @@ Core data and functions for blocks and chains.
 
 #### Architecture
 ```rs
-                    ------------------------------> SWARM.rs -------------------------->
-                    ↑                                                                 |
-                    |                                                                 |
-                 req/resp                                                          req/resp
-                    |                                                                 |
-                    |                                                                 ↓
-  STDIN ----->     PEER.rs                          NETWORK.rs  <-- event <---   P2P_NETWORK
-                { chan_out } <==== req/resp =====  { chan_in }
-                |
-                ↓
-             FILE.rs
+                   ------------------------------> SWARM.rs ---------------------------->
+                   ↑                                                                    |
+                   |                                                                    |
+                req/resp                                                             req/resp
+                   |                                                                    |
+                   |                                                                    ↓
+  STDIN ====>  PEER.rs { chan_out } <=== req/resp ==== { chan_in }  NETWORK.rs  <-- event <---   P2P_NETWORK
+                   |
+                   ↓
+                FILE.rs
 ```
 
 <!--
