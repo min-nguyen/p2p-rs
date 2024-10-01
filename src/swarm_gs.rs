@@ -139,19 +139,23 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
 
 pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
-  publish(json, swarm).await;
-  info!("publish_response() successful")
+  match publish(json, swarm).await {
+    Ok(t) => println!("publish_response(): successful {}", t),
+    Err(e) => eprintln!("publish_response() error: {:?}", e)
+  }
 }
 pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
-  publish(json, swarm).await;
-  info!("publish_request() successful")
+  match publish(json, swarm).await {
+    Ok(t) => println!("publish_request(): successful {}", t),
+    Err(e) => eprintln!("publish_request() error: {:?}", e)
+  }
 }
-async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
+async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) -> Result<gossipsub::MessageId, gossipsub::error::PublishError>{
   swarm
       .behaviour_mut()
       .gossipsub
-      .publish(BLOCK_TOPIC.clone(), json.as_bytes());
+      .publish(BLOCK_TOPIC.clone(), json.as_bytes())
 }
 pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
   debug!("get_peers()");
