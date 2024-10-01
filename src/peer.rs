@@ -6,23 +6,21 @@
 */
 
 use libp2p::{
-    core::upgrade,
     futures::{future::Either, StreamExt},
     identity,
-    mplex,
-    noise::{Keypair, NoiseConfig, X25519Spec},
+    noise::{Keypair, X25519Spec},
     swarm::{Swarm, SwarmEvent},
-    tcp::TokioTcpConfig, PeerId, Transport,
+    PeerId,
 };
 use log::debug;
 use once_cell::sync::Lazy;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
-use super::network::BlockchainMessage;
+// use super::network::BlockchainMessage;
 
 use super::file;
-use super::network::{self, BlockRequest, BlockResponse, TransmitType};
-use super::swarm;
+// use super::network::{self, BlockRequest, BlockResponse, TransmitType};
+use super::swarm::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 use super::block;
 
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
@@ -48,8 +46,8 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network : UnboundedReceiver<Either<BlockRequest, BlockResponse>>,
-    swarm : Swarm<network::BlockchainBehaviour>
+    from_network_behaviour : UnboundedReceiver<Either<BlockRequest, BlockResponse>>,
+    swarm : Swarm<BlockchainBehaviour>
 }
 
 impl Peer {
@@ -64,7 +62,7 @@ impl Peer {
                 tokio::select! {
                     stdin_event = self.from_stdin.next_line()
                         => Some(EventType::StdInputEvent(stdin_event.expect("can get line").expect("can read line from stdin"))),
-                    network_request = self.from_network.recv()
+                    network_request = self.from_network_behaviour.recv()
                         => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
@@ -227,41 +225,25 @@ impl Peer {
 
 
 pub async fn set_up_peer() -> Peer {
-    let local_peer_id: PeerId
-        = LOCAL_PEER_ID.clone();
-    // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
-    let local_auth_keys
-        = Keypair::<X25519Spec>::new()
-        .into_authentic(&LOCAL_KEYS)
-        .expect("can create auth keys");
     /* Asynchronous channel, to communicate between different parts of our application.
         1. to_peer is an output channel, provided to network.rs.
             After network receieves a remote message, it forwards any requests here back to the peer (from_network)
         2. from_network is an input channel, used by peer.rs
             Receive requests forwarded by to_peer, and handles them. */
-    let ( to_peer // used to send messages to response_rcv
-        , from_network) // used to receive the messages sent by response_sender.
+    let ( to_local_peer // used to send messages to response_rcv
+        , from_network_behaviour) // used to receive the messages sent by response_sender.
         = mpsc::unbounded_channel();
 
-    // Network Behaviour,
-    let behaviour
-        = network::set_up_block_behaviour(local_peer_id, to_peer).await;
-
-    // Transport, which we multiplex to enable multiple streams of data over one communication link.
-    let transp = TokioTcpConfig::new()
-        .upgrade(upgrade::Version::V1)
-        .authenticate(NoiseConfig::xx(local_auth_keys).into_authenticated())
-        .multiplex(mplex::MplexConfig::new())
-        .boxed();
-
-    // Swarm,
-    let swarm = swarm::set_up_swarm(transp, behaviour, local_peer_id);
+    // Swarm, with our network behaviour
+    let swarm
+        = swarm::set_up_swarm(LOCAL_PEER_ID.clone(), LOCAL_KEYS.clone(), to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
-    let from_stdin = tokio::io::BufReader::new(tokio::io::stdin()).lines();
+    let from_stdin
+        = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
-    println!("Peer Id: {}", local_peer_id);
-    Peer { from_stdin, from_network, swarm }
+    println!("Peer Id: {}", LOCAL_PEER_ID.to_string());
+    Peer { from_stdin, from_network_behaviour, swarm }
 }
 
 fn print_user_commands(){

@@ -1,5 +1,4 @@
 pub mod file;
-pub mod network;
 pub mod swarm;
 pub mod peer;
 pub mod block;
@@ -14,6 +13,8 @@ use block::{
 async fn main() {
   pretty_env_logger::init();
 
+
+  // swarm_gs::set_up_peer().await
   run_p2p().await;
   // run_blocks()
 }
