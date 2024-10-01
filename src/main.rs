@@ -3,7 +3,6 @@ pub mod network;
 pub mod swarm;
 pub mod peer;
 pub mod block;
-pub mod file_block;
 use block::{
   Chain, Block
 };
@@ -25,7 +24,7 @@ async fn run_p2p(){
 fn run_blocks(){
   let mut chain: Chain = Chain::new();
   for _ in 0 .. 10 {
-    chain.make_new_valid_block("test".to_string());
+    chain.make_new_valid_block("test");
   }
   println!("{}", chain);
 }

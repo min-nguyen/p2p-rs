@@ -101,12 +101,13 @@ impl Peer {
         match msg {
             Either::Left(req) => {
                 println!("Received request:\n {:?}", req);
-                match file::read_local_blocks().await {
-                    Ok(blocks) => {
+                match file::read_local_chain().await {
+                    Ok(chain) => {
+                        // println!("{}", chain);
                         let resp = BlockResponse {
                             transmit_type: TransmitType::ToAll,
                             receiver_peer_id: req.sender_peer_id.clone(),
-                            data: blocks.into_iter().collect(),
+                            data: chain.get_last_block().clone(),
                         };
                         swarm::publish_response(resp, &mut  self.swarm).await
                     }
@@ -169,10 +170,16 @@ impl Peer {
             _ if args.is_empty() => {
                 println!("Command error: `mk` missing an argument [data]");
             }
-            name => {
-                match file::write_new_local_block(name).await {
-                    Ok(b) => println!("Made new block: {:?}", b),
-                    Err(e) => eprintln!("Error creating block: {}", e),
+            data => {
+                match file::read_local_chain().await {
+                    Ok(mut chain) => {
+                        chain.make_new_valid_block(data);
+                        match file::write_local_chain(&chain).await {
+                            Ok(()) => println!("Mined and wrote new block: {:?}", chain.get_last_block()),
+                            Err(e) => eprintln!("error writing new valid block: {}", e),
+                        }
+                    }
+                    Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
             }
         }
@@ -184,9 +191,9 @@ impl Peer {
                 println!("Command error: `ls` missing an argument `blocks` or `peers")
             }
             "blocks"   => {
-                match file::read_local_blocks().await {
+                match file::read_local_chain().await {
                     Ok(blocks) => {
-                       blocks.iter().for_each(|r| println!("{:?}", r))
+                       blocks.0.iter().for_each(|r| println!("{:?}", r))
                     }
                     Err(e) => eprintln!("error fetching local blocks: {}", e),
                 };

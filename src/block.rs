@@ -1,4 +1,4 @@
-/////////////////
+// /////////////////
 //
 // PoW Implementation
 //
@@ -17,18 +17,18 @@ const DIFFICULTY_PREFIX: &str = "0";
 
 /* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Chain { blocks : Vec<Block> }
+pub struct Chain (pub Vec<Block>);
 
 impl Chain {
   // New chain with a single genesis block
   pub fn new() -> Self {
-    Self {blocks : vec![Block::genesis()]}
+    Self (vec![Block::genesis()])
   }
 
   // Mine a new valid block from given data
-  pub fn make_new_valid_block(&mut self, data: String) {
+  pub fn make_new_valid_block(&mut self, data: &str) {
     let last_block: &Block = self.get_last_block();
-    let new_block: Block = Block::mine_block(last_block.idx + 1, &data, last_block.hash);
+    let new_block: Block = Block::mine_block(last_block.idx + 1, data, last_block.hash);
     self.try_push_block(new_block).expect("returned mined block isn't valid")
   }
 
@@ -37,7 +37,7 @@ impl Chain {
     let last_block: &Block = self.get_last_block();
     if Block::valid_block(last_block, &new_block) {
         info!("try_push_block(): added new block");
-        self.blocks.push(new_block);
+        self.0.push(new_block);
         Ok (())
     } else {
         let e ="try_push_block(): could not add new_block - invalid";
@@ -47,16 +47,16 @@ impl Chain {
   }
 
   pub fn get_last_block(&self) -> &Block {
-    self.blocks.last().expect("Chain must be non-empty")
+    self.0.last().expect("Chain must be non-empty")
   }
 
   // Validate entire chain (ignoring the genesis block)
   pub fn valid_chain(chain: &Chain) -> bool {
-    for i in 1..chain.blocks.len() {
+    for i in 1..chain.0.len() {
       let err: String = format!("Block idx not found: {}", &((i-1).to_string()));
-      let prev: &Block = chain.blocks.get(i - 1).expect(&err);
+      let prev: &Block = chain.0.get(i - 1).expect(&err);
       let err: String = format!("Block idx not found: {}", &((i).to_string()));
-      let curr: &Block = chain.blocks.get(i).expect(&err);
+      let curr: &Block = chain.0.get(i).expect(&err);
       if !Block::valid_block(prev, curr){
         return false
       }
@@ -68,7 +68,7 @@ impl Chain {
   pub fn choose_chain(local: Chain, remote: Chain) -> Chain {
       match(Chain::valid_chain(&local), Chain::valid_chain(&remote))  {
         (true, true) => {
-          if local.blocks.len() >= remote.blocks.len() {
+          if local.0.len() >= remote.0.len() {
             local
           } else {
             remote
@@ -84,7 +84,7 @@ impl Chain {
 impl std::fmt::Display for Chain {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     write!(f, "Chain {{\n")?;
-    for block in &self.blocks {
+    for block in &self.0 {
       write!(f, "{}\n", block)?
     };
     write!(f, "\n}}\n")

@@ -40,7 +40,7 @@ mod tests {
     #[test]
     fn test_extend_chain_once() {
       let mut chain: Chain = Chain::new();
-      chain.make_new_valid_block("test".to_string());
+      chain.make_new_valid_block("test");
       assert_eq!(true, Chain::valid_chain(&chain))
     }
 
@@ -48,7 +48,7 @@ mod tests {
     fn test_extend_chain_many() {
       let mut chain: Chain = Chain::new();
       for _ in 0 .. 10 {
-        chain.make_new_valid_block("test".to_string());
+        chain.make_new_valid_block("test");
       }
       assert_eq!(true, Chain::valid_chain(&chain));
     }

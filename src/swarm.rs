@@ -1,4 +1,4 @@
-/*
+/*BlockResponse
     *Swarm*:  Wraps around a specific NetworkBehaviour and drives the execution of the network's defined behaviours.
     -- Used to broadcast messages to other peers' NetworkBehaviours.
     -- Each peer has a local Swarm object.
