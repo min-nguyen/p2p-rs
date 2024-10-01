@@ -1,9 +1,11 @@
 // https://docs.rs/gossipsub/latest/gossipsub/
 // https://github.com/libp2p/rust-libp2p/tree/master/examples
 
-use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{self, Mdns, MdnsEvent}, mplex, noise::{self, X25519Spec}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId};
+use std::collections::HashSet;
+
+use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{self, Mdns, MdnsEvent}, mplex, noise::{self, X25519Spec}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId, Swarm};
 use libp2p::core::{identity::Keypair,transport::{Transport, MemoryTransport}, Multiaddr};
-use log::info;
+use log::{debug, info};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -52,8 +54,11 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             MdnsEvent::Discovered(discovered_list) => {
                 for (peer, _addr) in discovered_list {
                     info!("discovered peer: {}", peer);
+                    //  self.gossipsub.all_mesh_peers().for_each(| x |  {println!("{:?}", x)} );
                     // Add to our list of peers to propagate messages to
-                    // self.gossipsub.ad .add_node_to_partial_view(peer);
+                    // Swarm::dial(&mut self, peer_id)
+                    // self.inject_event(event);
+                    // self.gossipsub.add_explicit_peer(&peer); // .add_node_to_partial_view(peer);
                 }
             }
             // Event for (a list of) expired peers
@@ -61,9 +66,9 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
                 for (peer, _addr) in expired_list {
                     // Remove from our list of peers
                     info!("removed peer: {}", peer);
-                    if !self.mdns.has_node(&peer) {
+                    // if !self.mdns.has_node(&peer) {
                         // self.floodsub.remove_node_from_partial_view(&peer);
-                    }
+                    // }
                 }
             }
         }
@@ -81,7 +86,9 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   }
 }
 
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessage>){
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessage>)
+  -> Swarm<BlockchainBehaviour>
+  {
   // Transport
   let transp = {
     // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
@@ -127,6 +134,46 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
   let memory: Multiaddr = libp2p::core::multiaddr::Protocol::Memory(10).into();
   let addr = libp2p::swarm::Swarm::listen_on(&mut swarm, memory).unwrap();
   println!("Listening on {:?}", addr);
+  swarm
+}
+
+pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
+  let json = serde_json::to_string(&resp).expect("can jsonify response");
+  match publish(json, swarm).await {
+    Ok(t) => println!("publish_response(): successful {}", t),
+    Err(e) => eprintln!("publish_response() error: {:?}", e)
+  }
+}
+pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
+  let json = serde_json::to_string(&resp).expect("can jsonify response");
+  match publish(json, swarm).await {
+    Ok(t) => println!("publish_request(): successful {}", t),
+    Err(e) => eprintln!("publish_request() error: {:?}", e)
+  }
+}
+async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) -> Result<gossipsub::MessageId, gossipsub::error::PublishError>{
+  swarm
+      .behaviour_mut()
+      .gossipsub
+      .publish(BLOCK_TOPIC.clone(), json.as_bytes())
+}
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
+  debug!("get_peers()");
+  let nodes = swarm.behaviour().mdns.discovered_nodes();
+  let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
+  let mut connected_peers: HashSet<&PeerId> = HashSet::new();
+
+  for peer in nodes {
+      discovered_peers.insert(peer);
+      if swarm.is_connected(peer) {
+        connected_peers.insert(peer);
+      }
+  }
+
+  let peers_to_strs
+     = |peer_id : HashSet<&PeerId>| peer_id.iter().map(|p: &&PeerId| p.to_string()).collect();
+
+  (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
 }
 
 
