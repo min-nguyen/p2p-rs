@@ -69,7 +69,7 @@ Without a Swarm, a NetworkBehaviour is just a static configuration that cannot p
 
 A `NetworkBehavior` is a struct that configures different protocols, events, and handlers.
 
-For peers in a P2P network to coexist, they need to have some high-level components in common:
+For peers in a P2P network to coexist, they need to agree on some protocols to connect to each other, e.g:
  - Communication Protocol, Like FloodSub
  - Peer Discovery, Like mDNS
  - Other things:
@@ -78,8 +78,14 @@ For peers in a P2P network to coexist, they need to have some high-level compone
   - Message handling and routing mechanisms
   - Security and authentication measures
   - Common event handling capabilities
+See [https://docs.libp2p.io/concepts/fundamentals/protocols/].
 
-### Communication protocol: FloodSub
+
+### PubSub Communication: Topics
+A topic is a named channel that we can subscribe to and send messages on, in order to only listen to a subset of the traffic on a pub/sub network.
+
+
+### PubSub Communication protocol: FloodSub
 
 FloodSub is a publish-subscribe protocol:
 1. Publishers send messages to all peers they are directly connected to, without any filtering.
@@ -87,8 +93,28 @@ FloodSub is a publish-subscribe protocol:
 3. When a message is published, it is flooded to all peers in the network, and
   each peer forwards the message to their connected peers until the message reaches all interested nodes.
 
-#### Topics
-A topic is a named channel that we can subscribe to and send messages on, in order to only listen to a subset of the traffic on a pub/sub network.
+
+### PubSub Communication Protocol: GossipSub
+Gossipsub is an advanced publish-subscribe protocol designed to optimize message propagation and reduce network load through a combination of *gossip dissemination* and *flooding*:
+
+1. **Gossip-based Message Propagation**:
+   - Peers maintain a partial view of the network by selecting a subset of peers for each topic, forming a mesh network.
+   - Instead of forwarding every message to all peers, Gossipsub only forwards messages to peers within the same topic mesh, reducing redundant transmissions.
+   - Periodically, each peer *gossips* about message IDs (instead of the full message) to a randomly selected set of non-mesh peers, enabling them to request the actual message if they are interested.
+
+2. **Improved Efficiency and Scalability**:
+   - Gossipsub reduces bandwidth consumption and network congestion compared to simpler flooding protocols like Floodsub.
+   - The mesh network structure prevents message duplication while ensuring that all interested peers receive the published messages.
+
+3. **Message Reliability and Redundancy**:
+   - Gossipsub maintains a balance between redundancy and efficiency by dynamically adjusting the mesh topology based on network conditions.
+   - In addition to forwarding messages in the mesh, peers may add more peers to the mesh temporarily or propagate message metadata to nearby peers if certain peers become unresponsive or disconnected.
+
+4. **Configurable Parameters and Extensions**:
+   - The protocol allows fine-tuning for parameters like mesh size, gossip frequency, and message propagation strategies, making it adaptable to diverse network sizes and requirements.
+   - It supports advanced features like message signing, peer scoring, and customizable validation rules, offering enhanced security and control over the propagation behavior.
+
+In summary, Gossipsub combines direct mesh-based routing with gossip dissemination to achieve both reliability and efficiency in large and dynamic networks, making it a highly scalable protocol for publish-subscribe communication.
 
 
 ## LibP2P: Swarm
