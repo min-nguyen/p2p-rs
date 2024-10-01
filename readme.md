@@ -46,8 +46,13 @@ Drives the entire network stack, and executes the defined network behaviour.
 #### `file.rs`:
 Auxiliary data and functions relevant to the local machine.
 
-- Defines types for core data i.e. blocks.
-- Defines interface for reading and writing core data to local storage.
+- Defines interface for reading and writing blocks to local storage.
+
+#### `block.rs`:
+Core data and functions for blocks and chains.
+
+- Defines types for Chains and Blocks.
+- Defines interface for hashing, mining, validating, and choosing blocks and chains.
 
 
 #### Architecture
@@ -60,9 +65,9 @@ Auxiliary data and functions relevant to the local machine.
                     |                                                                 ↓
   STDIN ----->     PEER.rs                          NETWORK.rs  <-- event <---   P2P_NETWORK
                 { chan_out } <==== req/resp =====  { chan_in }
-                    |
-                    ↓
-                  FILE.rs
+                |
+                ↓
+             FILE.rs
 ```
 
 <!--
