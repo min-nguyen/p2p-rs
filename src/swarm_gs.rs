@@ -3,15 +3,26 @@
 
 use std::collections::HashSet;
 
-use libp2p::{futures::future::Either, gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic}, identity, mdns::{Mdns, MdnsEvent}, mplex, noise::{self, X25519Spec}, swarm::{NetworkBehaviourEventProcess, SwarmBuilder}, NetworkBehaviour, PeerId, Swarm};
-use libp2p::core::{transport::{Transport, MemoryTransport}, Multiaddr};
-use log::{debug, info};
+// use libp2p::{
+//   floodsub::{Floodsub, FloodsubEvent, Topic},
+//   mplex, noise, core::upgrade,
+//   NetworkBehaviour, PeerId, Transport,
+//   identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
+//   };
+use libp2p::{
+  gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic},
+  mplex, noise,
+  NetworkBehaviour, PeerId,
+  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
+  core::{transport::MemoryTransport, Multiaddr, Transport}
+};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use log::{debug, info};
 
-static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
-static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
+static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
+static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 pub static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
 
@@ -90,10 +101,16 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
   -> Swarm<BlockchainBehaviour>
   {
   // Transport
+
+  /* NOTE: Memory transport isn't working:
+
+        Try TCP transport (like in swarm.rs)
+  */
+
   let transp = {
     // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
-    let local_auth_keys: noise::AuthenticKeypair<X25519Spec>
-      = noise::Keypair::<X25519Spec>::new()
+    let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
+      = noise::Keypair::<noise::X25519Spec>::new()
       .into_authentic(&LOCAL_KEYS.clone())
       .expect("can create auth keys");
 
