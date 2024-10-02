@@ -4,18 +4,19 @@
 use std::collections::HashSet;
 
 // use libp2p::{
-//   floodsub::{Floodsub, FloodsubEvent, Topic},
-//   mplex, noise, core::upgrade,
-//   NetworkBehaviour, PeerId, Transport,
-//   identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
-//   };
+//   gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic},
+//   mplex, noise,
+//   NetworkBehaviour, PeerId,
+//   identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
+//   core::{transport::MemoryTransport, Multiaddr, Transport}
+// };
 use libp2p::{
   gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic},
-  mplex, noise,
-  NetworkBehaviour, PeerId,
-  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
-  core::{transport::MemoryTransport, Multiaddr, Transport}
-};
+  mplex, noise, core::upgrade,
+  NetworkBehaviour, PeerId, Transport, Multiaddr,
+  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
+  };
+
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -98,28 +99,22 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
 }
 
 pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessage>)
-  -> Swarm<BlockchainBehaviour>
-  {
+  -> Swarm<BlockchainBehaviour> {
+
   // Transport
-
-  /* NOTE: Memory transport isn't working:
-
-        Try TCP transport (like in swarm.rs)
-  */
-
   let transp = {
     // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
     let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
-      = noise::Keypair::<noise::X25519Spec>::new()
-      .into_authentic(&LOCAL_KEYS.clone())
-      .expect("can create auth keys");
+        = noise::Keypair::<noise::X25519Spec>::new()
+        .into_authentic(&LOCAL_KEYS.clone())
+        .expect("can create auth keys");
 
-    MemoryTransport::default()
-            .upgrade(libp2p::core::upgrade::Version::V1)
-            .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
-            .multiplex(mplex::MplexConfig::new())
-            .boxed()
-    };
+    TokioTcpConfig::new()
+        .upgrade(upgrade::Version::V1)
+        .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
+        .multiplex(mplex::MplexConfig::new())
+        .boxed()
+  };
 
   // Network behaviour
   let mut behaviour = {
@@ -137,7 +132,11 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
 
     BlockchainBehaviour {gossipsub, mdns}
   };
-  behaviour.gossipsub.subscribe(&BLOCK_TOPIC);
+
+  match behaviour.gossipsub.subscribe(&BLOCK_TOPIC)  {
+    Ok(b) => info!("gossipsub.subscribe() returned {}", b),
+    Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
+  };
 
   // Swarm
   let mut swarm =
@@ -148,9 +147,9 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
     .build();
 
   // Listen on a memory transport.
-  let memory: Multiaddr = libp2p::core::multiaddr::Protocol::Memory(10).into();
-  let addr = libp2p::swarm::Swarm::listen_on(&mut swarm, memory).unwrap();
-  println!("Listening on {:?}", addr);
+  let listen_addr : Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().expect("can get a local socket");
+  Swarm::listen_on(&mut swarm, listen_addr.clone()).expect("swarm can be started");
+  println!("Listening on {:?}", listen_addr);
   swarm
 }
 
