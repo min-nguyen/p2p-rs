@@ -11,15 +11,18 @@
 use std::collections::HashSet;
 
 use libp2p::{
-  core::upgrade, floodsub::{Floodsub, FloodsubEvent, Topic}, futures::future::Either, identity, mdns::{Mdns, MdnsEvent}, mplex, noise::{Keypair, NoiseConfig, X25519Spec}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, NetworkBehaviour, PeerId, Transport
+  floodsub::{Floodsub, FloodsubEvent, Topic},
+  mplex, noise, core::upgrade,
+  NetworkBehaviour, PeerId, Transport,
+  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
   };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use log::{debug, error, info};
 
 use super::block;
 
-use log::{debug, error, info};
 
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
@@ -27,8 +30,8 @@ use log::{debug, error, info};
     (1) Key Pair: Public & private key for secure communication with the rest of the network
     (2) PeerId: Unique hash of public key, used to identify the peer within the whole p2p network.
 */
-static LOCAL_KEYS: Lazy<identity::Keypair> = Lazy::new(|| identity::Keypair::generate_ed25519());
-static LOCAL_PEER_ID: Lazy<libp2p::PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
+static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
+static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 // FloodSub Topic for subscribing and sending blocks
 pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
@@ -69,7 +72,7 @@ pub struct BlockchainBehaviour {
     #[behaviour(ignore)]
     to_local_peer: mpsc::UnboundedSender<BlockchainMessage>,
     #[behaviour(ignore)]
-    local_peer_id: libp2p::PeerId
+    local_peer_id: PeerId
 }
 
 /*
@@ -153,14 +156,14 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
   // Transport, which we multiplex to enable multiple streams of data over one communication link.
   let transp = {
       // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
-      let local_auth_keys: libp2p::noise::AuthenticKeypair<X25519Spec>
-          = Keypair::<X25519Spec>::new()
+      let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
+          = noise::Keypair::<noise::X25519Spec>::new()
           .into_authentic(&LOCAL_KEYS)
           .expect("can create auth keys");
 
       TokioTcpConfig::new()
         .upgrade(upgrade::Version::V1)
-        .authenticate(NoiseConfig::xx(local_auth_keys).into_authenticated())
+        .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
         .multiplex(mplex::MplexConfig::new())
         .boxed()
     };
