@@ -11,7 +11,10 @@
 use std::collections::HashSet;
 
 use libp2p::{
-  core::upgrade, floodsub::{Floodsub, FloodsubEvent, Topic}, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, mplex, noise, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+  floodsub::{Floodsub, FloodsubEvent, Topic},
+  mplex, noise, core::upgrade,
+  NetworkBehaviour, PeerId, Transport, Multiaddr,
+  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
   };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
