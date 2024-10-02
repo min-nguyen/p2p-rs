@@ -70,7 +70,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
                     // Add to our list of peers to propagate messages to
                     // Swarm::dial(&mut self, peer_id)
                     // self.inject_event(event);
-                    // self.gossipsub.add_explicit_peer(&peer); // .add_node_to_partial_view(peer);
+                    self.gossipsub.add_explicit_peer(&peer);
                 }
             }
             // Event for (a list of) expired peers
@@ -78,9 +78,9 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
                 for (peer, _addr) in expired_list {
                     // Remove from our list of peers
                     info!("removed peer: {}", peer);
-                    // if !self.mdns.has_node(&peer) {
-                        // self.floodsub.remove_node_from_partial_view(&peer);
-                    // }
+                    if !self.mdns.has_node(&peer) {
+                        self.gossipsub.remove_explicit_peer(&peer);
+                    }
                 }
             }
         }
