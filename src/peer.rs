@@ -75,6 +75,8 @@ impl Peer {
                 => debug!("connection closed with peer: {:?}, cause: {:?}", peer_id, err),
             SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
                 => debug!("connection closed with peer: {:?}", peer_id),
+            SwarmEvent::NewListenAddr { address, .. }
+                => println!("Swarm listening on {}", address),
             _
                 => debug!("unhandled swarm event: {:?}", swarm_event)
         }

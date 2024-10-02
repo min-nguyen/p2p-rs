@@ -11,10 +11,7 @@
 use std::collections::HashSet;
 
 use libp2p::{
-  floodsub::{Floodsub, FloodsubEvent, Topic},
-  mplex, noise, core::upgrade,
-  NetworkBehaviour, PeerId, Transport,
-  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
+  core::upgrade, floodsub::{Floodsub, FloodsubEvent, Topic}, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, mplex, noise, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
   };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -190,16 +187,11 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
       }))
       .build();
 
-  Swarm::listen_on(
-      &mut swarm,
-      "/ip4/0.0.0.0/tcp/0"
-          .parse()
-          .expect("can get a local socket"),
-  )
-  .expect("swarm can be started");
-
+  let listen_addr : Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().expect("can get a local socket");
+  Swarm::listen_on(&mut swarm, listen_addr).expect("swarm can be started");
   swarm
 }
+
 
 pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
