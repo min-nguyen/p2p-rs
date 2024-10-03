@@ -1,8 +1,8 @@
 pub mod file;
-pub mod swarm;
+pub mod swarm_flood;
 pub mod peer;
 pub mod block;
-pub mod swarm_gs;
+pub mod swarm_gossip;
 
 use block::{
   Chain, Block
@@ -14,7 +14,7 @@ async fn main() {
   pretty_env_logger::init();
 
   run_p2p().await;
-  // run_blocks()
+  // dummy_chain(10)
 }
 
 async fn run_p2p(){
@@ -22,10 +22,11 @@ async fn run_p2p(){
   peer.run().await
 }
 
-fn run_blocks(){
+fn dummy_chain(len : u32) -> Chain{
   let mut chain: Chain = Chain::new();
-  for _ in 0 .. 10 {
+  for _ in 0 .. len {
     chain.make_new_valid_block("test");
   }
   println!("{}", chain);
+  chain
 }

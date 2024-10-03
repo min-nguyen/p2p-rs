@@ -126,14 +126,49 @@ A topic is a named channel that we can subscribe to and send messages on, in ord
 ### PubSub: FloodSub
 
 FloodSub is a publish-subscribe protocol:
-1. **Publishers** broadcast messages to all directly connected peers whenever they choose to publish, without any filtering.
+1. **Publishers** broadcast messages to all directly connected peers whenever they choose to plsublish, without any filtering.
 2. **Subscribers** receive messages by subscribing to specific topics.
 3. **Message Propagation**: Each published message is flooded through the network as every peer forwards it to their connected peers until it reaches all subscribed nodes.
 
 ### PubSub: GossipSub
 
 Gossipsub is an optimized publish-subscribe protocol that combines *flooding* and *gossiping* for efficient message dissemination:
-1. **Mesh Network**: Peers form a mesh for each topic, **publishing full messages** only to peers within the same mesh.
+
+**Message IDs**:
+   - Message IDs are used to uniquely identify each message published in the Gossipsub network.
+   - Peers will implicitly collect the heartbeats of other peers, and these heartbeats contain message IDs of published messages that those peers have seen.
+   - This ensures that identical messages (with the same content) will have the same message ID, facilitating deduplication.
+This allows peers to recognize and differentiate between different messages, even if they have similar content. Gossipsub prevents two messages with the same id from being sent. How the message id is generated can be customly done, allowing e.g. messages with simply the same content to only be sent once.
+
+1. **Message Dissmenination**:
+   1. Each topic has its own mesh.
+   2. Peers **publish messages** only to peers within the same mesh.
+   3. Publshing and subscribing works as usual.
+
    - Publishing: an explicit sharing of data, such as notifications about new blocks in a blockchain, user messages, or status updates.
-2. **Gossip Dissemination**: Periodically **gossips heartbeat message IDs** (not full messages) to a set of non-mesh peers  to signal its presence in the network. Those peers can then request messages if interested, e.g. by publishing an actual message on the topic or a different topic.
-   - Heartbeat: a periodic message sent by a peer to signal its presence in the network.
+
+2. **Gossip Dissemination**:
+   1. Peers store message ids they have seen and their own subscriptions in a heartbeat data structure.
+   2. Peers periodically **gossip heart beat messages (not full messages)** to a set of non-mesh peers.
+   3. Those peers will then store other peers heartbeats in a temporary buffer.
+      This information is used automatically by the gossipsub framework internally, (but can also be used explicitly by the programmer).
+
+   Gossipsub Heartbeat Message {
+    "message_ids": [ "msgid1", "msgid2", "msgid3", ... ],
+
+    "subscriptions": [ "topic1", "topic2" ],
+
+    "control_messages": {
+        "graft": [ { "peer_id": "peer1", "topic": "topic1" }, ... ],
+        "prune": [ { "peer_id": "peer2", "topic": "topic1" }, ... ],
+        "ihave": [ { "peer_id": "peer3", "message_ids": ["msgid4", "msgid5"] }, ... ]
+    }
+}
+   (In libp2p's `Gossipsub` implementation, you do not need to handle heartbeat messages explicitly. The Gossipsub protocol automatically manages the heartbeat messages for you as part of its internal operation. yYou can configure aspects of the Gossipsub protocol, such as the frequency of heartbeats and how many message IDs are included in each heartbeat. When you implement a Gossipsub protocol in your libp2p node, you typically focus on publishing and receiving messages. )
+
+**Difference with Floodsub: Message dissemination**
+Floodsub: doesn't have topic-specific meshes.
+  1.  Uses a flooding mechanism for message dissemination.
+  2.  When a peer receives a message, it forwards it to all its directly connected peers regardless of topic subscriptions or. This means that every peer floods the message to every other connected peer, leading to high redundancy and potential message duplication.
+  3. As a result, Floodsub doesn’t have topic-specific meshes. There is no distinct mesh network for each topic; it just relies on the existing peer connections to flood messages.
+

@@ -1,26 +1,22 @@
-// https://docs.rs/gossipsub/latest/gossipsub/
-// https://github.com/libp2p/rust-libp2p/tree/master/examples
+/*  A Swarm for NetworkBehaviour with a GossipSub Messaging Protocol.
+    https://docs.rs/gossipsub/latest/gossipsub/
 
-use std::collections::HashSet;
+    GossipSub, unlike FloodSub, can have its max transmit message size be changed.
+*/
 
-// use libp2p::{
-//   gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic},
-//   mplex, noise,
-//   NetworkBehaviour, PeerId,
-//   identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
-//   core::{transport::MemoryTransport, Multiaddr, Transport}
-// };
 use libp2p::{
-  gossipsub::{self, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic},
-  mplex, noise, core::upgrade,
-  NetworkBehaviour, PeerId, Transport, Multiaddr,
-  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
-  };
+  gossipsub::{self, Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic, ValidationMode},
+  mplex, noise, core::upgrade, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+};
 
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
+use std::time::Duration;
 use tokio::sync::mpsc;
-use log::{debug, info};
+use log::{debug, error, info};
+
+use super::block;
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
@@ -43,7 +39,7 @@ pub struct BlockResponse {
     // The PeerID to recieve the response.
     pub receiver_peer_id : String,
     // Core message payload being transmitted in the network.
-    pub data : String
+    pub data : block::Chain
 }
 // Messages can be intended for (1) all peers or (2) a specific peer.
 #[derive(Debug, Serialize, Deserialize)]
@@ -56,7 +52,10 @@ pub enum TransmitType {
 #[derive(NetworkBehaviour)]
 pub struct BlockchainBehaviour {
   pub gossipsub: gossipsub::Gossipsub,
-  pub mdns: Mdns
+  pub mdns: Mdns,
+  // ** Relevant only to a specific local peer that we are setting up
+  #[behaviour(ignore)]
+  to_local_peer: mpsc::UnboundedSender<BlockchainMessage>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
@@ -90,8 +89,43 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   fn inject_event(&mut self, event: GossipsubEvent) {
       match event {
           // Event for a new message from a peer
-          gossipsub::GossipsubEvent::Message{ propagation_source, message_id, message } => {
-            println!("{:?}", message)
+          GossipsubEvent::Message{
+            propagation_source,
+            message_id,
+            message } => {
+
+                // Match on the deserialized payload as a BlockResponse, which we print to console.
+                if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&message.data) {
+                  if resp.receiver_peer_id == LOCAL_PEER_ID.to_string() {
+                      info!("response from {:?}:", propagation_source);
+                      if let Err(e) = self.to_local_peer.send(Either::Right(resp)){
+                          error!("error sending request via channel, {}", e);
+                      }
+                  }
+              }
+              // Match on the deserialized payload as a BlockRequest, which we may forward to our local peer
+              else if let Ok(req) = serde_json::from_slice::<BlockRequest>(&message.data) {
+                  match req.transmit_type {
+                      // Forward any ToAll requests to local peer
+                      TransmitType::ToAll => {
+                          info!("received req {:?} from {:?}", req, propagation_source);
+                          info!("forwarding req from {:?}", propagation_source);
+                          if let Err(e) = self.to_local_peer.send(Either::Left(req)) {
+                              error!("error sending response via channel, {}", e);
+                          };
+                      }
+                      // Filter any ToOne requests if not intended for us, otherwise forwarding to local peer
+                      TransmitType::ToOne(ref peer_id) => {
+                          info!("received req {:?} from {:?}", req, propagation_source);
+                          if peer_id == &LOCAL_PEER_ID.to_string() {
+                              info!("forwarding req from {:?}", propagation_source);
+                              if let Err(e) = self.to_local_peer.send(Either::Left(req)) {
+                                  error!("error sending response via channel, {}", e);
+                              };
+                          }
+                      }
+                  }
+              }
           }
           _ => (),
       }
@@ -118,19 +152,48 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
 
   // Network behaviour
   let mut behaviour = {
+
+    // GossipSub
+    /*  Configuring with this message_id_fn would prevent two messages of simply the same content being sent.
+        This is not useful for us if we want to send `req all` twice.
+        let message_id_fn = |message: &gossipsub::GossipsubMessage| {
+            let mut s = DefaultHasher::new();
+            message.data.hash(&mut s);
+            gossipsub::MessageId::from(s.finish().to_string())
+        };  */
+
+
+    const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
+    let gossipsub_config
+      = GossipsubConfigBuilder::default()
+        // This is set to aid debugging by not cluttering the log space
+        .heartbeat_interval(Duration::from_secs(10))
+        // This sets the kind of message validation. The default is Strict (enforce message signing)
+        .validation_mode(ValidationMode::Strict)
+        // increase max size of messages published size
+        .max_transmit_size(MAX_MESSAGE_SIZE)
+        // time a connection is maintained to a peer without receiving/sending a message to them
+        .idle_timeout(Duration::from_secs(120))
+        // number of
+        .history_length(12)
+        .max_messages_per_rpc(Some(500))
+        .build()
+        .expect("valid gossipsub config");
+
     let gossipsub
-      = gossipsub::Gossipsub::new
+      = Gossipsub::new
           ( MessageAuthenticity::Signed(LOCAL_KEYS.clone())
-          , gossipsub::GossipsubConfig::default(),
+          , gossipsub_config,
         )
         .expect("can create gossipsub");
 
+    // MDNS Discovery
     let mdns
       = Mdns::new(Default::default())
         .await
         .expect("can create mdns");
 
-    BlockchainBehaviour {gossipsub, mdns}
+    BlockchainBehaviour {gossipsub, mdns, to_local_peer}
   };
 
   match behaviour.gossipsub.subscribe(&BLOCK_TOPIC)  {

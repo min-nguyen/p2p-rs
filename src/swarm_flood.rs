@@ -1,23 +1,22 @@
-/*BlockResponse
-    *Swarm*:  Wraps around a specific NetworkBehaviour and drives the execution of the network's defined behaviours.
-    -- Used to broadcast messages to other peers' NetworkBehaviours.
-    -- Each peer has a local Swarm object.
+/*  A Swarm for NetworkBehaviour with a FloodSub Messaging Protocol
 
-    More generally,
+    *Swarm*:
+    Wraps around a specific NetworkBehaviour and drives the execution of the network's defined behaviours.
+    -- Used to broadcast messages to other peers' NetworkBehaviours.
     -- Manages connections created with the Transport and executes our NetworkBehaviour
     -- Used to trigger and receive events from the network
+
+    Each peer has a local Swarm object.
 */
 
-use std::collections::HashSet;
-
 use libp2p::{
-  floodsub::{Floodsub, FloodsubEvent, Topic},
-  mplex, noise, core::upgrade,
-  NetworkBehaviour, PeerId, Transport, Multiaddr,
-  identity::Keypair, futures::future::Either, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig,
+  floodsub::{Floodsub, FloodsubConfig, FloodsubEvent, Topic},
+  mplex, noise, core::upgrade, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
   };
+
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use tokio::sync::mpsc;
 use log::{debug, error, info};
 
@@ -170,8 +169,11 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
 
   // Network Behaviour, subscribed to block topic
   let mut behaviour =  {
-      let floodsub
-        = Floodsub::new(LOCAL_PEER_ID.clone());
+
+      let floodsubconfig: FloodsubConfig
+        = FloodsubConfig::new(LOCAL_PEER_ID.clone());
+      let floodsub: Floodsub
+        = Floodsub::from_config(floodsubconfig);
 
       let mdns
         = Mdns::new(Default::default())

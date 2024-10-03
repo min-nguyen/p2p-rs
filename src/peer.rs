@@ -13,9 +13,9 @@ use log::{debug, info};
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
-// use super::network::{self, BlockRequest, BlockResponse, TransmitType};
-use super::swarm_gs::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 use super::block;
+// use super::swarm_flood::{self, BlockRequest, BlockResponse, TransmitType};
+use super::swarm_gossip::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -47,8 +47,8 @@ impl Peer {
                 tokio::select! {
                     stdin_event = self.from_stdin.next_line()
                         => Some(EventType::StdInputEvent(stdin_event.expect("can get line").expect("can read line from stdin"))),
-                    // network_request = self.from_network_behaviour.recv()
-                    //     => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
+                    network_request = self.from_network_behaviour.recv()
+                        => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
                         => { Self::handle_swarm_event(swarm_event); None }
@@ -93,10 +93,9 @@ impl Peer {
                         let resp: BlockResponse = BlockResponse {
                             transmit_type: TransmitType::ToAll,
                             receiver_peer_id: req.sender_peer_id.clone(),
-                            data : "fo fix".to_string()
-                            // data: chain.get_last_block().clone(),
+                            data: chain.clone(),
                         };
-                        swarm_gs::publish_response(resp, &mut  self.swarm).await
+                        swarm_gossip::publish_response(resp, &mut  self.swarm).await
                     }
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
@@ -152,7 +151,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
-                swarm_gs::publish_request(req, &mut self.swarm).await;
+                swarm_gossip::publish_request(req, &mut self.swarm).await;
             }
             peer_id => {
                 let req: BlockRequest = BlockRequest {
@@ -160,7 +159,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
-                swarm_gs::publish_request(req, &mut self.swarm).await;
+                swarm_gossip::publish_request(req, &mut self.swarm).await;
             }
         }
     }
@@ -198,7 +197,7 @@ impl Peer {
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<String>, Vec<String>)
-                    = swarm_gs::get_peers(&mut self.swarm);
+                    = swarm_gossip::get_peers(&mut self.swarm);
                 println!("Discovered Peers ({})", dscv_peers.len());
                 dscv_peers.iter().for_each(|p| println!("{}", p));
                 println!("Connected Peers ({})", conn_peers.len());
@@ -224,7 +223,7 @@ pub async fn set_up_peer() -> Peer {
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm_gs::set_up_swarm(to_local_peer).await;
+        = swarm_gossip::set_up_swarm(to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
