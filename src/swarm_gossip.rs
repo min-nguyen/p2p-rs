@@ -12,9 +12,9 @@ use libp2p::{
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::time::Duration;
 use tokio::sync::mpsc;
 use log::{debug, error, info};
+use std::time::Duration;
 
 use super::block;
 

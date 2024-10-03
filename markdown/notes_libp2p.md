@@ -79,6 +79,7 @@ See [https://docs.libp2p.io/concepts/fundamentals/protocols/].
 ## Swarm
 
 Swarm: a container and driver for the network behaviour.
+Each swarm is responsible for managing one set of behaviors, connections, and communication patterns.
 
    - The Swarm is a lower-level construct that manages the networking aspects of a libp2p application.
    - It wraps the NetworkBehaviour and provides the infrastructure to drive the execution of the defined behaviours.
