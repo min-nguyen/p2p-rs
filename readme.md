@@ -8,18 +8,15 @@ Run the following (on multiple terminals) to initialise new peers on the same p2
 RUST_LOG=info cargo run --bin p2p
 ```
 
-
-
 ### Info
 
 #### `peer.rs`:
 The peer's logic on the local machine, which the entire application is architected around.
 
 - Defines a peer id and public & private keys
-- Initialises a network behaviour object for the peer
-  - used to receive messages (and events) from the remote network, and forward these to the peer via a local channel
 - Initialises a swarm object for the peer, configured to the network behaviour
   - used to send local messages to the remote network
+  - used to receive messages (and events) from the remote network, and forward these to the peer via a local channel
 - Initialises a standard input buffer for the peer,
   - used to read console commands
 - Defines the main (asynchronous) application loop
@@ -27,21 +24,18 @@ The peer's logic on the local machine, which the entire application is architect
   - how to send messages to the remote network (via the swarm object)
   - how to handle commands from the console
 
-#### `network.rs`:
-Describes global configuration of protocols and messages supported by the network, necessary to all peers that access it.
-Describes local behaviour of how network events are handled, common to all peers using this specific implementation.
+#### `swarm.rs`:
+The network logic for discovering peers, connecting to peers, sending/receiving messages, and handling network events.
 
-- Defines the types of messages transmitted in the network: responses and requests (for blocks).
-- Defines the type of our network which derives a `NetworkBehaviour`, which is used by all its peers.
+Defines the interface for publishing request and response messages to the remote network
+Defines a Swarm that executes the defined network behaviour and drives the entire network stack.
+Defines a NetworkBehaviour that
+  - Defines the types of messages transmitted in the network: responses and requests (for blocks).
+  - Defines the type of our network which derives a `NetworkBehaviour`, which is used by all its peers.
   - Configures the communication and discovery protocols for the network
   - Defines how our network handles (behaves to) those protocol events.
     - For communication protocol, it receives request and response messages from remote peers, and
       - Forwards all relevant requests/responses to the local peer implementation.
-
-#### `swarm.rs`:
-Drives the entire network stack, and executes the defined network behaviour.
-
-- Defines interface for publishing request and response messages to the remote network
 
 #### `file.rs`:
 Auxiliary data and functions relevant to the local machine.
