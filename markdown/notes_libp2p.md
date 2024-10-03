@@ -133,5 +133,7 @@ FloodSub is a publish-subscribe protocol:
 ### PubSub: GossipSub
 
 Gossipsub is an optimized publish-subscribe protocol that combines *flooding* and *gossiping* for efficient message dissemination:
-1. **Mesh Network**: Peers form a mesh for each topic, forwarding messages only to peers within the same mesh.
-2. **Gossip Dissemination**: Periodically gossips message IDs (not full messages) to a set of non-mesh peers, who can then request messages if interested.
+1. **Mesh Network**: Peers form a mesh for each topic, **publishing full messages** only to peers within the same mesh.
+   - Publishing: an explicit sharing of data, such as notifications about new blocks in a blockchain, user messages, or status updates.
+2. **Gossip Dissemination**: Periodically **gossips heartbeat message IDs** (not full messages) to a set of non-mesh peers  to signal its presence in the network. Those peers can then request messages if interested, e.g. by publishing an actual message on the topic or a different topic.
+   - Heartbeat: a periodic message sent by a peer to signal its presence in the network.
