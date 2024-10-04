@@ -3,7 +3,22 @@
 
 Blockchain is a distributed, decentralized, and immutable digital ledger that records data in a series of blocks, each cryptographically linked to the previous one, forming a chain. It enables secure, transparent, and decentralized record-keeping, eliminating the need for intermediaries.
 
-## Core Concepts
+## Networks vs Blockchains vs Cryptocurrencies
+The terms network, a blockchain, and cryptocurrency are often used interchangeably to describe applications like Ethereum Classic and Bitcoin.
+
+Strictly speaking:
+  - A **network** is set of machines that work as a system of connected nodes that communicate to share resources.
+  - A **blockchain** is the database --- a distributed ledger --- that a computer network manages, which has the information about various **data** and **transactions**
+  - A **cryptocurrency** is a form of money that can be managed inside a blockchain database.
+    It is a specific application of the blockchain technology designed to facilitate *financial* transactions.
+
+For example:
+  - Ethereum Classic is a **network** because it is a system of machines, nodes, and a shared database called a blockchain. In particular, it is a public network and its software is open source so that anyone can audit and use it to participate in the system.
+  - Ethereum Classic is a **blockchain** because its database contains a ledger with accounts and balances, where transactions are fully transmitted and form a fully replicated chain of blocks.
+  - Ethereum Classic is a **cryptocurrency** because its ledger tracks a coin called ETC that is scarce, durable, costly to create, portable, divisible, fungible, and transferable, so it may be used for payments and as a store of value.
+  - Ethereum Classic allows users on the network to run **smart contracts**.
+
+## Blockchain: Core Concepts
 
 1. **Distributed Network**
    - A distributed network spreads processing and data storage across multiple nodes that work together.
@@ -11,17 +26,23 @@ Blockchain is a distributed, decentralized, and immutable digital ledger that re
 2. **Decentralized Network**
    - A decentralized network is where no single node or authority has complete control.
 
-3. **Blockchain Network**
-   - A Blockchain network typically has one main chain agreed upon by the majority of nodes. This is the longest chain with the most valid and up-to-date data.
-   - **Distributed**: Every node maintains a copy of the entire blockchain within a P2P network.
-   - **Decentralized**: The nodes communicate to validate and agree on adding new blocks to the chain.
+3. **Blockchain**
+   - A **blockchain** is the database --- a distributed ledger --- that a decentralized network manages, which has the information about (1) **data** and (2) **transactions**. It is represented by a chain data structure.
+   - A **blockchain network**  typically has one main chain agreed upon by the majority of nodes, being the longest chain with the most valid and up-to-date data.
+      - **Distributed**: Every node maintains a copy of the entire blockchain within a P2P network.
+      - **Decentralized**: The nodes communicate to validate and agree on adding new blocks to the chain.
+
+34. **Transactions**
+  - Transactions are a fundamental concept in blockchain, and captures details of an activity that has taken place on a blockchain.
+  - Transactions are a way to interact with a blockchain.
+  - Transactions are the only way to change the state of the blockchain.
 
 4. **Ledgers**
-   - Ledgers are records of data (e.g., transactions).
+   - Ledgers are records of **data** and **transactions**.
    - **Uses of Ledgers Include**:
-     - **Cryptocurrency**: Ledgers record transactions made within a specific cryptocurrency network (e.g., Bitcoin).
-     - **Supply Chain Management**: Ledgers record the movement of goods.
-     - **Healthcare**: Ledgers record medical records of patients.
+     - **Cryptocurrency**: Ledgers record **balances** and financial transactions made within a specific cryptocurrency network (e.g., Bitcoin).
+     - **Supply Chain Management**: Ledgers record goods and transactions that track the movement of goods.
+     - **Healthcare**: Ledgers record medical records of patients and transactions that capture interactions between healthcare providers, patients, and institutions.
 
 5. **Blocks**
    - **Blocks Contain**:
@@ -53,14 +74,18 @@ Blockchain is a distributed, decentralized, and immutable digital ledger that re
    - These are programmable contracts that automatically execute predefined conditions.
 
 
-#  Blockchain in Cryptocurrency
+#  Blockchain: Cryptocurrency
 
-In Cryptocurrency:
+In the application of Blockchain to Cryptocurrency:
+- Cryptocurrency is represented concretely as financial transactions on the blockchain, specific to a certain cryptocurrency network, with each transaction detailing the transfer of ownership from one address to another.
+- The specific representation can vary based on the blockchain's architecture and consensus mechanism.
+   For example:
+   - UTXO Model: In blockchains like Bitcoin, coins are represented as Unspent Transaction Outputs (UTXOs). Each UTXO can be thought of as a separate coin that is stored on the blockchain. Users' balances are derived from the total value of their UTXOs.
+   - Account-based Model: In Ethereum, balances are stored in accounts. Each account has an address, and its balance is updated as transactions occur. The current state of all accounts and their balances is stored in the blockchain.
 
-- The blocks' contents store financial transactions specific to a certain cryptocurrency network.
+## Proof-of-Work (PoW)
 - The consensus algorithm is used to validate these financial transactions.
-
-## Proof-of-Work (PoW) Consensus Algorithm
+Consensus Algorithm
 
 One possible consensus algorithm for cryptocurrency is **Proof-of-Work (PoW)**:
 
