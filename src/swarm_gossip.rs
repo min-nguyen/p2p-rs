@@ -6,47 +6,22 @@
 
 use libp2p::{
   gossipsub::{self, Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic, ValidationMode},
-  mplex, noise, core::upgrade, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
 };
 
 use once_cell::sync::Lazy;
-use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use tokio::sync::mpsc;
 use log::{debug, error, info};
 use std::time::Duration;
 
-use super::block;
+use super::message::{BlockMessage, TransmitType};
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
+static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
 
-pub static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
-
-// Messages are either (1) requests for data or (2) responses to some arbitrary peer's request.
-pub type BlockchainMessage = Either<BlockRequest, BlockResponse>;
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BlockRequest {
-    // Requests for blocks can be either ToAll or ToOne
-    pub transmit_type : TransmitType,
-    // The PeerID the request came from.
-    pub sender_peer_id : String
-}
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BlockResponse {
-    // Responding with our blocks will always to be ToAll
-    pub transmit_type : TransmitType,
-    // The PeerID to recieve the response.
-    pub receiver_peer_id : String,
-    // Core message payload being transmitted in the network.
-    pub data : block::Chain
-}
-// Messages can be intended for (1) all peers or (2) a specific peer.
-#[derive(Debug, Serialize, Deserialize)]
-pub enum TransmitType {
-    ToAll,
-    ToOne(String)   // contains intended peer id
-}
+const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
 // We create a custom network behaviour that combines Gossipsub and Mdns.
 #[derive(NetworkBehaviour)]
@@ -55,7 +30,7 @@ pub struct BlockchainBehaviour {
   pub mdns: Mdns,
   // ** Relevant only to a specific local peer that we are setting up
   #[behaviour(ignore)]
-  to_local_peer: mpsc::UnboundedSender<BlockchainMessage>,
+  to_local_peer: mpsc::UnboundedSender<BlockMessage>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
@@ -88,42 +63,29 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
 impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   fn inject_event(&mut self, event: GossipsubEvent) {
       match event {
-          // Event for a new message from a peer
           GossipsubEvent::Message{
             propagation_source,
             message_id,
             message } => {
 
-                // Match on the deserialized payload as a BlockResponse, which we print to console.
-                if let Ok(resp) = serde_json::from_slice::<BlockResponse>(&message.data) {
-                  if resp.receiver_peer_id == LOCAL_PEER_ID.to_string() {
-                      info!("response from {:?}:", propagation_source);
-                      if let Err(e) = self.to_local_peer.send(Either::Right(resp)){
-                          error!("error sending request via channel, {}", e);
-                      }
-                  }
-              }
-              // Match on the deserialized payload as a BlockRequest, which we may forward to our local peer
-              else if let Ok(req) = serde_json::from_slice::<BlockRequest>(&message.data) {
-                  match req.transmit_type {
-                      // Forward any ToAll requests to local peer
-                      TransmitType::ToAll => {
-                          info!("received req {:?} from {:?}", req, propagation_source);
-                          info!("forwarding req from {:?}", propagation_source);
-                          if let Err(e) = self.to_local_peer.send(Either::Left(req)) {
-                              error!("error sending response via channel, {}", e);
-                          };
-                      }
-                      // Filter any ToOne requests if not intended for us, otherwise forwarding to local peer
-                      TransmitType::ToOne(ref peer_id) => {
-                          info!("received req {:?} from {:?}", req, propagation_source);
-                          if peer_id == &LOCAL_PEER_ID.to_string() {
-                              info!("forwarding req from {:?}", propagation_source);
-                              if let Err(e) = self.to_local_peer.send(Either::Left(req)) {
-                                  error!("error sending response via channel, {}", e);
-                              };
+                if let Ok(block_msg) = serde_json::from_slice::<BlockMessage>(&message.data) {
+                  info!("received {:?} from {:?}", block_msg, propagation_source);
+                  match block_msg {
+                         BlockMessage::BlockResponse { ref transmit_type, .. }
+                       | BlockMessage::BlockRequest { ref transmit_type, .. } =>
+                          match transmit_type {
+                              TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
+                              => if let Err(e) = self.to_local_peer.send(block_msg){
+                                      error!("error sending request via channel, {}", e);
+                                 }
+                              ,
+                              TransmitType::ToAll
+                              => if let Err(e) = self.to_local_peer.send(block_msg){
+                                      error!("error sending request via channel, {}", e);
+                                  }
+                              ,
+                              _ => info!("message unintended for us. ignoring.")
                           }
-                      }
                   }
               }
           }
@@ -132,7 +94,7 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   }
 }
 
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessage>)
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
   -> Swarm<BlockchainBehaviour> {
 
   // Transport
@@ -162,8 +124,6 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
             gossipsub::MessageId::from(s.finish().to_string())
         };  */
 
-
-    const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
     let gossipsub_config
       = GossipsubConfigBuilder::default()
         // This is set to aid debugging by not cluttering the log space
@@ -216,18 +176,13 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockchainMessag
   swarm
 }
 
-pub async fn publish_response(resp: BlockResponse, swarm: &mut Swarm<BlockchainBehaviour>){
+pub async fn publish_block_message(resp: BlockMessage, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
-  match publish(json, swarm).await {
-    Ok(t) => println!("publish_response(): successful {}", t),
-    Err(e) => eprintln!("publish_response() error: {:?}", e)
+  if let Err(e) = publish(json, swarm).await {
+    eprintln!("publish_block_message() error: {:?}", e)
   }
-}
-pub async fn publish_request(resp: BlockRequest, swarm: &mut Swarm<BlockchainBehaviour>){
-  let json = serde_json::to_string(&resp).expect("can jsonify response");
-  match publish(json, swarm).await {
-    Ok(t) => println!("publish_request(): successful {}", t),
-    Err(e) => eprintln!("publish_request() error: {:?}", e)
+  else {
+    info!("publish_block_message() successful")
   }
 }
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) -> Result<gossipsub::MessageId, gossipsub::error::PublishError>{
@@ -254,30 +209,3 @@ pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<S
 
   (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
 }
-
-
-// pub fn set_up_block_behaviour(){
-//   let message_id_fn = |message: &gossipsub::Message| {
-//       let mut s = DefaultHasher::new();
-//       message.data.hash(&mut s);
-//       gossipsub::MessageId::from(s.finish().to_string())
-//   };
-
-//   // Set a custom gossipsub configuration
-//   let gossipsub_config = gossipsub::ConfigBuilder::default()
-//       .heartbeat_interval(Duration::from_secs(10)) // This is set to aid debugging by not cluttering the log space
-//       .validation_mode(gossipsub::ValidationMode::Strict) // This sets the kind of message validation. The default is Strict (enforce message signing)
-//       .message_id_fn(message_id_fn) // content-address messages. No two messages of the same content will be propagated.
-//       .build()
-//       .map_err(|msg| io::Error::new(io::ErrorKind::Other, msg))?; // Temporary hack because `build` does not return a proper `std::error::Error`.
-
-//   // build a gossipsub network behaviour
-//   let gossipsub = gossipsub::Behaviour::new(
-//       gossipsub::MessageAuthenticity::Signed(key.clone()),
-//       gossipsub_config,
-//   )?;
-
-//   let mdns =
-//       mdns::tokio::Behaviour::new(mdns::Config::default(), key.public().to_peer_id())?;
-//   Ok(MyBehaviour { gossipsub, mdns })
-// }

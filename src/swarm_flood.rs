@@ -11,7 +11,7 @@
 
 use libp2p::{
   floodsub::{Floodsub, FloodsubConfig, FloodsubEvent, Topic},
-  mplex, noise, core::upgrade, futures::future::Either, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
   };
 
 use once_cell::sync::Lazy;
@@ -20,18 +20,18 @@ use tokio::sync::mpsc;
 use log::{debug, error, info};
 
 use super::message::{BlockMessage, TransmitType};
-
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 
     (1) Key Pair: Public & private key for secure communication with the rest of the network
     (2) PeerId: Unique hash of public key, used to identify the peer within the whole p2p network.
 */
+
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 // FloodSub Topic for subscribing and sending blocks
-pub static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
+static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
 
 
 // Base NetworkBehaviour, simply specifying the 2 Protocol types
@@ -160,18 +160,19 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
   swarm
 }
 
-
 pub async fn publish_block_message(resp: BlockMessage, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&resp).expect("can jsonify response");
   publish(json, swarm).await;
   info!("publish_block_message() successful")
 }
+
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
       .behaviour_mut()
       .floodsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
 }
+
 pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
   debug!("get_peers()");
   let nodes = swarm.behaviour().mdns.discovered_nodes();

@@ -12,13 +12,11 @@ use libp2p::{
 use log::{debug, info};
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
-use crate::block::Block;
-
 use super::file;
 use super::block;
-use super::message::{self, BlockMessage, TransmitType};
-use super::swarm_flood::{self, BlockchainBehaviour};
-// use super::swarm_gossip::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
+use super::message::{BlockMessage, TransmitType};
+// use super::swarm_flood::{self as swarm, BlockchainBehaviour};
+use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -74,11 +72,11 @@ impl Peer {
     fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
         match swarm_event {
             SwarmEvent::ConnectionEstablished { peer_id, .. }
-                => debug!("connection established with peer: {:?}", peer_id),
+                => info!("connection established with peer: {:?}", peer_id),
             SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
-                => debug!("connection closed with peer: {:?}, cause: {:?}", peer_id, err),
+                => info!("connection closed with peer: {:?}, cause: {:?}", peer_id, err),
             SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
-                => debug!("connection closed with peer: {:?}", peer_id),
+                => info!("connection closed with peer: {:?}", peer_id),
             SwarmEvent::NewListenAddr { address, .. }
                 => println!("Swarm listening on {}", address),
             _
@@ -98,7 +96,7 @@ impl Peer {
                             data: chain.get_last_block().clone(),
                         };
                         println!("Sent response to {}", sender_peer_id);
-                        swarm_flood::publish_block_message(resp, &mut  self.swarm).await
+                        swarm::publish_block_message(resp, &mut  self.swarm).await
                     }
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
@@ -154,7 +152,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
-                swarm_flood::publish_block_message(req, &mut self.swarm).await;
+                swarm::publish_block_message(req, &mut self.swarm).await;
             }
             peer_id => {
                 let req = BlockMessage::BlockRequest {
@@ -162,7 +160,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
-                swarm_flood::publish_block_message(req, &mut self.swarm).await;
+                swarm::publish_block_message(req, &mut self.swarm).await;
             }
         }
     }
@@ -200,7 +198,7 @@ impl Peer {
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<String>, Vec<String>)
-                    = swarm_flood::get_peers(&mut self.swarm);
+                    = swarm::get_peers(&mut self.swarm);
                 println!("Discovered Peers ({})", dscv_peers.len());
                 dscv_peers.iter().for_each(|p| println!("{}", p));
                 println!("Connected Peers ({})", conn_peers.len());
@@ -226,7 +224,7 @@ pub async fn set_up_peer() -> Peer {
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm_flood::set_up_swarm(to_local_peer).await;
+        = swarm::set_up_swarm(to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
@@ -237,34 +235,6 @@ pub async fn set_up_peer() -> Peer {
 }
 
 fn print_user_commands(){
-    let commands = r#"
-─────────────────────────────────────────────
-    # Available Commands #
-─────────────────────────────────────────────
-
-📤 *Request data from peers*:
-└── Usage: `req <"all" | [peer-id]>`
-┌── Options:
-│     • `"all"`      - Request last block from all peers
-│     • `[peer-id]`  - Request last block from a specific peer
-
-🔍 *Print a list*:
-└── Usage: `ls <"peers" | "blocks">`
-┌── Options:
-│     • `"peers"`    - Show a list of connected remote peers
-│     • `"blocks"`   - Show blocks stored in the local .json file
-
-📝 *Write new data*:
-└── Usage: `mk [data]`
-┌── Description:
-│     • Mine and write a new block to the local .json file.
-
-📝 *Refresh data*:
-└── Usage: `fresh`
-┌── Description:
-│     • Delete current blocks and write a new genesis block to the local .json file.
-─────────────────────────────────────────────
-"#;
-
+    let commands = include_str!("../commands.md");
     println!("{}", commands);
 }
