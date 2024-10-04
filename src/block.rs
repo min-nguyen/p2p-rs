@@ -29,15 +29,15 @@ impl Chain {
   pub fn make_new_valid_block(&mut self, data: &str) {
     let last_block: &Block = self.get_last_block();
     let new_block: Block = Block::mine_block(last_block.idx + 1, data, last_block.hash);
-    self.try_push_block(new_block).expect("returned mined block isn't valid")
+    self.try_push_block(&new_block).expect("returned mined block isn't valid")
   }
 
   // Try to append an arbitrary block
-  pub fn try_push_block(&mut self, new_block: Block) -> Result<(), &str>{
+  pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), &str>{
     let last_block: &Block = self.get_last_block();
     if Block::valid_block(last_block, &new_block) {
         info!("try_push_block(): added new block");
-        self.0.push(new_block);
+        self.0.push(new_block.clone());
         Ok (())
     } else {
         let e ="try_push_block(): could not add new_block - invalid";

@@ -12,13 +12,17 @@ pub enum TransmitType {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum BlockMessage {
-  Request{
+pub enum Message {
+  ChainRequest {
     transmit_type : TransmitType,
     sender_peer_id : String
   },
-  Response {
+  ChainResponse {
     transmit_type : TransmitType,
+    data : block::Chain
+  },
+  NewBlock {
+    transmit_type : TransmitType, // always ToAll
     data : block::Block
   }
 }

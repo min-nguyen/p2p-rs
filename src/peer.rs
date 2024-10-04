@@ -15,7 +15,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
 use super::block;
-use super::message::{BlockMessage, TransmitType};
+use super::message::{Message, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
 
@@ -24,7 +24,7 @@ use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
        (2) Remote Requests/Responses from peers in the network */
 enum EventType {
     StdInputEvent(String),
-    NetworkEvent(BlockMessage)
+    NetworkEvent(Message)
 }
 
 /* A Peer consists of:
@@ -33,7 +33,7 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network_behaviour : UnboundedReceiver<BlockMessage>,
+    from_network_behaviour : UnboundedReceiver<Message>,
     swarm : Swarm<BlockchainBehaviour>
 }
 
@@ -58,7 +58,7 @@ impl Peer {
             };
             if let Some(event) = evt {
                 match event {
-                    // Network Request from a remote user, requiring us to publish a Response to the network.
+                    // Network ChainRequest from a remote user, requiring us to publish a ChainResponse to the network.
                     EventType::NetworkEvent(req)
                         => self.handle_network_event(&req).await,
                     // StdIn Event for a local user command.
@@ -85,25 +85,28 @@ impl Peer {
         }
     }
     // NetworkBehaviour Event for a remote request.
-    async fn handle_network_event(&mut self, block_msg: &BlockMessage) {
-        match block_msg {
-            req@BlockMessage::Request { sender_peer_id, .. } => {
-                println!("Received request:\n {:?}", req);
+    async fn handle_network_event(&mut self, msg: &Message) {
+        println!("Received message:\n {:?}", msg);
+        match msg {
+            Message::ChainRequest { sender_peer_id, .. } => {
                 match file::read_local_chain().await {
                     Ok(chain) => {
                         println!("Reading from local file ...");
-                        let resp = BlockMessage::Response {
+                        let resp = Message::ChainResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                            data: chain.get_last_block().clone(),
+                            data: chain.clone(),
                         };
                         println!("Sent response to {}", sender_peer_id);
-                        swarm::publish_block_message(resp, &mut  self.swarm).await
+                        swarm::publish_message(resp, &mut  self.swarm).await
                     }
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
             },
-            rsp@BlockMessage::Response{..} => {
-                println!("Received response:\n {:?}", rsp);
+            Message::ChainResponse{ data : Chain, ..} => {
+                eprintln!("TO IMPLEMENT: handle_network_event() => ChainResponse.")
+            },
+            Message::NewBlock { data, .. } => {
+                eprintln!("TO IMPLEMENT: handle_network_event() => NewBlock.")
             }
         }
     }
@@ -118,7 +121,7 @@ impl Peer {
            cmd if cmd.starts_with("fresh") => {
                 self.handle_cmd_fresh().await
            }
-            //`req <all | [peer_id]>`, requiring us to publish a Request to the network.
+            //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
             cmd if cmd.starts_with("req") => {
                 let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
                 self.handle_cmd_req(args).await;
@@ -161,20 +164,20 @@ impl Peer {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
             "all" => {
-                let req = BlockMessage::Request {
+                let req = Message::ChainRequest {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
-                swarm::publish_block_message(req, &mut self.swarm).await;
+                swarm::publish_message(req, &mut self.swarm).await;
             }
             peer_id => {
-                let req = BlockMessage::Request {
+                let req = Message::ChainRequest {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
-                swarm::publish_block_message(req, &mut self.swarm).await;
+                swarm::publish_message(req, &mut self.swarm).await;
             }
         }
     }
