@@ -1,7 +1,8 @@
 pub mod file;
-pub mod swarm_flood;
 pub mod peer;
 pub mod block;
+pub mod message;
+pub mod swarm_flood;
 pub mod swarm_gossip;
 
 use block::{

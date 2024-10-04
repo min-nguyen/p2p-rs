@@ -12,17 +12,20 @@ use libp2p::{
 use log::{debug, info};
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
+use crate::block::Block;
+
 use super::file;
 use super::block;
-// use super::swarm_flood::{self, BlockRequest, BlockResponse, TransmitType};
-use super::swarm_gossip::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
+use super::message::{self, BlockMessage, TransmitType};
+use super::swarm_flood::{self, BlockchainBehaviour};
+// use super::swarm_gossip::{self, BlockchainBehaviour, BlockchainMessage, BlockRequest, BlockResponse, TransmitType};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
        (2) Remote Requests/Responses from peers in the network */
 enum EventType {
     StdInputEvent(String),
-    NetworkEvent(BlockchainMessage)
+    NetworkEvent(BlockMessage)
 }
 
 /* A Peer consists of:
@@ -31,7 +34,7 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network_behaviour : UnboundedReceiver<Either<BlockRequest, BlockResponse>>,
+    from_network_behaviour : UnboundedReceiver<BlockMessage>,
     swarm : Swarm<BlockchainBehaviour>
 }
 
@@ -83,24 +86,24 @@ impl Peer {
         }
     }
     // NetworkBehaviour Event for a remote request.
-    async fn handle_network_event(&mut self, msg: &BlockchainMessage) {
-        match msg {
-            Either::Left(req) => {
+    async fn handle_network_event(&mut self, block_msg: &BlockMessage) {
+        match block_msg {
+            req@BlockMessage::BlockRequest { sender_peer_id, .. } => {
                 println!("Received request:\n {:?}", req);
                 match file::read_local_chain().await {
                     Ok(chain) => {
-                        println!("{}", chain);
-                        let resp: BlockResponse = BlockResponse {
-                            transmit_type: TransmitType::ToAll,
-                            receiver_peer_id: req.sender_peer_id.clone(),
-                            data: chain.clone(),
+                        println!("Reading from local file ...");
+                        let resp = BlockMessage::BlockResponse {
+                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
+                            data: chain.get_last_block().clone(),
                         };
-                        swarm_gossip::publish_response(resp, &mut  self.swarm).await
+                        println!("Sent response to {}", sender_peer_id);
+                        swarm_flood::publish_block_message(resp, &mut  self.swarm).await
                     }
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
             },
-            Either::Right(rsp) => {
+            rsp@BlockMessage::BlockResponse{..} => {
                 println!("Received response:\n {:?}", rsp);
             }
         }
@@ -146,20 +149,20 @@ impl Peer {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
             "all" => {
-                let req: BlockRequest = BlockRequest {
+                let req = BlockMessage::BlockRequest {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
-                swarm_gossip::publish_request(req, &mut self.swarm).await;
+                swarm_flood::publish_block_message(req, &mut self.swarm).await;
             }
             peer_id => {
-                let req: BlockRequest = BlockRequest {
+                let req = BlockMessage::BlockRequest {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
-                swarm_gossip::publish_request(req, &mut self.swarm).await;
+                swarm_flood::publish_block_message(req, &mut self.swarm).await;
             }
         }
     }
@@ -197,7 +200,7 @@ impl Peer {
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<String>, Vec<String>)
-                    = swarm_gossip::get_peers(&mut self.swarm);
+                    = swarm_flood::get_peers(&mut self.swarm);
                 println!("Discovered Peers ({})", dscv_peers.len());
                 dscv_peers.iter().for_each(|p| println!("{}", p));
                 println!("Connected Peers ({})", conn_peers.len());
@@ -223,7 +226,7 @@ pub async fn set_up_peer() -> Peer {
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm_gossip::set_up_swarm(to_local_peer).await;
+        = swarm_flood::set_up_swarm(to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
