@@ -14,7 +14,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
-use super::block;
+use super::block::{self, Chain};
 use super::message::{Message, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
@@ -34,7 +34,8 @@ enum EventType {
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     from_network_behaviour : UnboundedReceiver<Message>,
-    swarm : Swarm<BlockchainBehaviour>
+    swarm : Swarm<BlockchainBehaviour>,
+    chain : Chain
 }
 
 impl Peer {
@@ -78,8 +79,8 @@ impl Peer {
                 => info!("SwarmEvent: connection closed with peer: {:?}, cause: {:?}", peer_id, err),
             SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
                 => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
-            SwarmEvent::NewListenAddr { address, .. }
-                => info!("SwarmEvent: listening on {}", address),
+            SwarmEvent::NewListenAddr { listener_id, address, .. }
+                => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
             _
                 => info!("Unhandled swarm event: {:?}", swarm_event)
         }
@@ -102,7 +103,7 @@ impl Peer {
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
             },
-            Message::ChainResponse{ data : Chain, ..} => {
+            Message::ChainResponse{ data , ..} => {
                 eprintln!("TO IMPLEMENT: handle_network_event() => ChainResponse.")
             },
             Message::NewBlock { data, .. } => {
@@ -181,7 +182,7 @@ impl Peer {
             }
         }
     }
-    async fn handle_cmd_mk(&self, args: &str) {
+    async fn handle_cmd_mk(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `mk` missing an argument [data]");
@@ -191,7 +192,17 @@ impl Peer {
                     Ok(mut chain) => {
                         chain.make_new_valid_block(data);
                         match file::write_local_chain(&chain).await {
-                            Ok(()) => println!("Mined and wrote new block: {:?}", chain.get_last_block()),
+                            Ok(()) => {
+                                let last_block = chain.get_last_block().to_owned();
+                                println!("Mined and wrote new block: {:?}", last_block);
+                                println!("Broadcasting new block");
+                                swarm::publish_message(
+                                    Message::NewBlock {
+                                        transmit_type: TransmitType::ToAll,
+                                        data: last_block
+                                    }
+                                , &mut self.swarm).await;
+                            },
                             Err(e) => eprintln!("error writing new valid block: {}", e),
                         }
                     }
@@ -247,8 +258,22 @@ pub async fn set_up_peer() -> Peer {
     let from_stdin
         = tokio::io::BufReader::new(tokio::io::stdin()).lines();
 
+    // Load chain from local file
+    let chain: Chain
+        = match file::read_local_chain().await {
+            Err(e) => {
+                eprintln!("Problem loading chain from local file: \"{}\" \n\
+                           Instantiating fresh chain instead: ", e);
+                Chain::new()
+            }
+            Ok(chain) => {
+                println!("Succesfully loaded chain from local file.");
+                chain
+            }
+        };
+
     println!("Peer Id: {}", swarm.local_peer_id().to_string());
-    Peer { from_stdin, from_network_behaviour, swarm }
+    Peer { from_stdin, from_network_behaviour, swarm, chain }
 }
 
 fn print_user_commands(){

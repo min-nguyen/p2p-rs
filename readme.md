@@ -1,5 +1,12 @@
 Small work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
 
+// To do:
+ - [ ] load and maintain the local chain in the application, rather than reading-writing to a local file
+ - [ ] handle broadcasting new blocks
+ - [ ] handle receiving new blocks
+ - [ ] handle new chain requests
+ - [ ] handle new chain responses
+
 ### Running
 
 Run the following (on multiple terminals) to initialise new peers on the same p2p network.
