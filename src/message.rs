@@ -8,22 +8,29 @@ use super::block;
 #[derive(Debug, Serialize, Deserialize)]
 pub enum TransmitType {
     ToAll,
-    ToOne(String) // contains intended peer id
+    ToOne(String) // receiving peer id
 }
 
-// Messages are either (1) requests for data or (2) responses to some arbitrary peer's request.
 #[derive(Debug, Serialize, Deserialize)]
 pub enum BlockMessage {
-  BlockRequest{
-    // Requests for blocks can be either ToAll or ToOne
+  Request{
     transmit_type : TransmitType,
-    // The PeerID the request came from.
     sender_peer_id : String
   },
-  BlockResponse{
-    // Responses for blocks are ToOne
+  Response {
     transmit_type : TransmitType,
-    // Core message payload being transmitted in the network.
     data : block::Block
   }
 }
+
+// #[derive(Debug, Serialize, Deserialize)]
+// pub enum ChainMessage {
+//   Request{
+//     transmit_type : TransmitType,
+//     sender_peer_id : String
+//   },
+//   Response{
+//     transmit_type : TransmitType,
+//     data : block::Chain
+//   }
+// }

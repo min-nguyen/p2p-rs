@@ -84,8 +84,8 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
                 if let Ok(block_msg) = serde_json::from_slice::<BlockMessage>(&msg.data) {
                     info!("received {:?} from {:?}", block_msg, msg.source);
                     match block_msg {
-                           BlockMessage::BlockResponse { ref transmit_type, .. }
-                         | BlockMessage::BlockRequest { ref transmit_type, .. } =>
+                           BlockMessage::Response { ref transmit_type, .. }
+                         | BlockMessage::Request { ref transmit_type, .. } =>
                             match transmit_type {
                                 TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
                                 => if let Err(e) = self.to_local_peer.send(block_msg){

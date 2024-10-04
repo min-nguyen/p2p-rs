@@ -87,12 +87,12 @@ impl Peer {
     // NetworkBehaviour Event for a remote request.
     async fn handle_network_event(&mut self, block_msg: &BlockMessage) {
         match block_msg {
-            req@BlockMessage::BlockRequest { sender_peer_id, .. } => {
+            req@BlockMessage::Request { sender_peer_id, .. } => {
                 println!("Received request:\n {:?}", req);
                 match file::read_local_chain().await {
                     Ok(chain) => {
                         println!("Reading from local file ...");
-                        let resp = BlockMessage::BlockResponse {
+                        let resp = BlockMessage::Response {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                             data: chain.get_last_block().clone(),
                         };
@@ -102,7 +102,7 @@ impl Peer {
                     Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
                 }
             },
-            rsp@BlockMessage::BlockResponse{..} => {
+            rsp@BlockMessage::Response{..} => {
                 println!("Received response:\n {:?}", rsp);
             }
         }
@@ -161,7 +161,7 @@ impl Peer {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
             "all" => {
-                let req = BlockMessage::BlockRequest {
+                let req = BlockMessage::Request {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
@@ -169,7 +169,7 @@ impl Peer {
                 swarm::publish_block_message(req, &mut self.swarm).await;
             }
             peer_id => {
-                let req = BlockMessage::BlockRequest {
+                let req = BlockMessage::Request {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
