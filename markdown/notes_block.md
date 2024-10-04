@@ -83,6 +83,36 @@ In the application of Blockchain to Cryptocurrency:
    - UTXO Model: In blockchains like Bitcoin, coins are represented as Unspent Transaction Outputs (UTXOs). Each UTXO can be thought of as a separate coin that is stored on the blockchain. Users' balances are derived from the total value of their UTXOs.
    - Account-based Model: In Ethereum, balances are stored in accounts. Each account has an address, and its balance is updated as transactions occur. The current state of all accounts and their balances is stored in the blockchain.
 
+### Accessing Cryptocurrency on a Blockchain
+
+#### 1. Public and Private Keys
+- **Public Key**: Derived from the private key; acts like a bank account number for receiving funds.
+- **Private Key**: A secret key that proves ownership of funds; acts like a password.
+
+#### 2. Accessing Your Coins
+##### Ownership Proof
+- Coins are associated with public addresses on the blockchain.
+- Private keys prove ownership of the coins tied to a specific address.
+
+##### Signing Transactions
+- To send coins, you create a transaction and sign it with your private key:
+  1. **Create a Transaction**: Specify the amount and recipient.
+  2. **Sign the Transaction**: Use your private key to create a digital signature.
+  3. **Broadcast**: Send the signed transaction to the network for verification.
+
+#### 3. Example Process
+1. **Receiving Coins**: Funds are sent to your public address.
+2. **Spending Coins**:
+  - Create a transaction in your wallet.
+  - Sign it with your private key.
+  - Send it to the blockchain.
+
+##### Wallets
+- Blockchain Explorers: You can look up your balance and transaction history using blockchain explorers that manually look up the balance on the block chain itself. However, this is not necessary for most (e.g. everyday) users.
+- Digital wallets: handle these queries seamlessly, allowing users to focus on managing their currency without needing to interact with the blockchain directly. Blockchain explorers serve as a backup tool for verification and transparency.
+  - Local Wallets store your private keys and transaction data directly on your device (computer or mobile).
+  - Remote wallets store your private keys on a server controlled by a third party (e.g., exchanges or web-based wallets).
+
 ## Proof-of-Work (PoW)
 - The consensus algorithm is used to validate these financial transactions.
 Consensus Algorithm
