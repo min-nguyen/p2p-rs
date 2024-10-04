@@ -6,10 +6,11 @@
 */
 
 use libp2p::{
-    futures::{future::Either, StreamExt},
+    PeerId,
+    futures::StreamExt,
     swarm::{Swarm, SwarmEvent},
 };
-use log::{debug, info};
+use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
@@ -72,15 +73,15 @@ impl Peer {
     fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
         match swarm_event {
             SwarmEvent::ConnectionEstablished { peer_id, .. }
-                => info!("connection established with peer: {:?}", peer_id),
+                => info!("SwarmEvent: connection established with peer: {:?}", peer_id),
             SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
-                => info!("connection closed with peer: {:?}, cause: {:?}", peer_id, err),
+                => info!("SwarmEvent: connection closed with peer: {:?}, cause: {:?}", peer_id, err),
             SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
-                => info!("connection closed with peer: {:?}", peer_id),
+                => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
             SwarmEvent::NewListenAddr { address, .. }
-                => println!("Swarm listening on {}", address),
+                => info!("SwarmEvent: listening on {}", address),
             _
-                => info!("unhandled swarm event: {:?}", swarm_event)
+                => info!("Unhandled swarm event: {:?}", swarm_event)
         }
     }
     // NetworkBehaviour Event for a remote request.
@@ -109,24 +110,28 @@ impl Peer {
     // StdIn Event for a local user command.
     async fn handle_stdin_event(&mut self, cmd: &str) {
         match cmd {
-            // 0. `fresh`, deletes the current local chain and writes a new one with a single block.
+            // `redial`, dial all discovered peers
+           cmd if cmd.starts_with("redial") => {
+                self.handle_cmd_redial()
+            },
+            // `fresh`, deletes the current local chain and writes a new one with a single block.
            cmd if cmd.starts_with("fresh") => {
-                self.handle_fresh_command().await
+                self.handle_cmd_fresh().await
            }
-            // 1. `req <all | [peer_id]>`, requiring us to publish a Request to the network.
+            //`req <all | [peer_id]>`, requiring us to publish a Request to the network.
             cmd if cmd.starts_with("req") => {
                 let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
-                self.handle_req_command(args).await;
+                self.handle_cmd_req(args).await;
             }
-            // 2. `mk [data]` makes and writes a new block with the given data (and an incrementing id)
+            // `mk [data]` makes and writes a new block with the given data (and an incrementing id)
             cmd if cmd.starts_with("mk") => {
                 let args = cmd.strip_prefix("mk").expect("can strip `mk`").trim();
-                self.handle_mk_command( args).await;
+                self.handle_cmd_mk( args).await;
             }
-              // 3. `ls <blocks | peers>` lists the local blocks or the discovered peers
+            // `ls <blocks | peers>` lists the local blocks or the discovered & connected peers
             cmd if cmd.starts_with("ls") => {
                 let args = cmd.strip_prefix("ls").expect("can strip `ls`").trim() ;
-                self.handle_ls_command( args).await;
+                self.handle_cmd_ls( args).await;
             }
             _ => {
                 println!("Unknown command: \"{}\"", cmd);
@@ -134,14 +139,23 @@ impl Peer {
             }
         }
     }
-    async fn handle_fresh_command(&mut self) {
+    fn handle_cmd_redial(&mut self){
+        let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
+        for peer_id in discovered_peers {
+            match self.swarm.dial(&peer_id){
+                Ok(()) => println!("Dialled {}", peer_id),
+                Err(e) => eprintln!("Dial error {}", e)
+            }
+        }
+    }
+    async fn handle_cmd_fresh(&mut self) {
         let chain = block::Chain::new();
         match file::write_local_chain(&chain).await {
             Ok(()) => println!("Wrote fresh chain: {}", chain),
             Err(e) => eprintln!("error writing new valid block: {}", e),
         }
     }
-    async fn handle_req_command(&mut self, args: &str) {
+    async fn handle_cmd_req(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
@@ -164,7 +178,7 @@ impl Peer {
             }
         }
     }
-    async fn handle_mk_command(&self, args: &str) {
+    async fn handle_cmd_mk(&self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `mk` missing an argument [data]");
@@ -183,7 +197,7 @@ impl Peer {
             }
         }
     }
-    async fn handle_ls_command(&mut self, args: &str) {
+    async fn handle_cmd_ls(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `ls` missing an argument `blocks` or `peers")
@@ -197,7 +211,7 @@ impl Peer {
                 };
             }
             "peers"   => {
-                let (dscv_peers, conn_peers): (Vec<String>, Vec<String>)
+                let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)
                     = swarm::get_peers(&mut self.swarm);
                 println!("Discovered Peers ({})", dscv_peers.len());
                 dscv_peers.iter().for_each(|p| println!("{}", p));

@@ -159,35 +159,30 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
   Swarm::listen_on(&mut swarm, listen_addr).expect("swarm can be started");
   swarm
 }
-
 pub async fn publish_block_message(resp: BlockMessage, swarm: &mut Swarm<BlockchainBehaviour>){
-  let json = serde_json::to_string(&resp).expect("can jsonify response");
+  let json = serde_json::to_string(&resp).expect("can jsonify block message");
   publish(json, swarm).await;
   info!("publish_block_message() successful")
 }
-
 async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) {
   swarm
       .behaviour_mut()
       .floodsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes());
 }
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<PeerId>) {
+    debug!("get_peers()");
+    let nodes = swarm.behaviour().mdns.discovered_nodes();
+    let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
+    let mut connected_peers: HashSet<&PeerId> = HashSet::new();
+    for peer in nodes {
+        discovered_peers.insert(peer);
+        if swarm.is_connected(peer) {
+          connected_peers.insert(peer);
+        }
+    }
+    let collect_peers
+       = |peers : HashSet<&PeerId>| peers.into_iter().cloned().collect();
 
-pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
-  debug!("get_peers()");
-  let nodes = swarm.behaviour().mdns.discovered_nodes();
-  let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
-  let mut connected_peers: HashSet<&PeerId> = HashSet::new();
-
-  for peer in nodes {
-      discovered_peers.insert(peer);
-      if swarm.is_connected(peer) {
-        connected_peers.insert(peer);
-      }
-  }
-
-  let peers_to_strs
-     = |peer_id : HashSet<&PeerId>| peer_id.iter().map(|p: &&PeerId| p.to_string()).collect();
-
-  (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
+    (collect_peers(discovered_peers), collect_peers(connected_peers))
 }

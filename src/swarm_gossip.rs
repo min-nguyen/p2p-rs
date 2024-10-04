@@ -5,8 +5,8 @@
 */
 
 use libp2p::{
-  gossipsub::{self, Gossipsub, GossipsubConfigBuilder, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic, ValidationMode},
-  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+  gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic, ValidationMode},
+  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsConfig, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
 };
 
 use once_cell::sync::Lazy;
@@ -18,8 +18,8 @@ use std::time::Duration;
 use super::message::{BlockMessage, TransmitType};
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
-static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
-static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
+pub static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
+pub static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
@@ -40,17 +40,14 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             MdnsEvent::Discovered(discovered_list) => {
                 for (peer, _addr) in discovered_list {
                     info!("discovered peer: {}", peer);
-                    //  self.gossipsub.all_mesh_peers().for_each(| x |  {println!("{:?}", x)} );
-                    // Add to our list of peers to propagate messages to
-                    // Swarm::dial(&mut self, peer_id)
-                    // self.inject_event(event);
                     self.gossipsub.add_explicit_peer(&peer);
+                    let mesh_peers : Vec<libp2p::PeerId> = self.gossipsub.all_mesh_peers().cloned().collect();
+                    println!("{:?}", mesh_peers);
                 }
             }
             // Event for (a list of) expired peers
             MdnsEvent::Expired(expired_list) => {
                 for (peer, _addr) in expired_list {
-                    // Remove from our list of peers
                     info!("removed peer: {}", peer);
                     if !self.mdns.has_node(&peer) {
                         self.gossipsub.remove_explicit_peer(&peer);
@@ -124,7 +121,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
             gossipsub::MessageId::from(s.finish().to_string())
         };  */
 
-    let gossipsub_config
+    let gossipsub_config: GossipsubConfig
       = GossipsubConfigBuilder::default()
         // This is set to aid debugging by not cluttering the log space
         .heartbeat_interval(Duration::from_secs(10))
@@ -132,15 +129,15 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
         .validation_mode(ValidationMode::Strict)
         // increase max size of messages published size
         .max_transmit_size(MAX_MESSAGE_SIZE)
-        // time a connection is maintained to a peer without receiving/sending a message to them
+        // time a connection is maintained to a peer without being in the mesh and without receiving/sending a message to them
         .idle_timeout(Duration::from_secs(120))
-        // number of
+        // number of heartbeats to keep in cache
         .history_length(12)
         .max_messages_per_rpc(Some(500))
         .build()
         .expect("valid gossipsub config");
 
-    let gossipsub
+    let gossipsub: Gossipsub
       = Gossipsub::new
           ( MessageAuthenticity::Signed(LOCAL_KEYS.clone())
           , gossipsub_config,
@@ -148,8 +145,10 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
         .expect("can create gossipsub");
 
     // MDNS Discovery
-    let mdns
-      = Mdns::new(Default::default())
+    let mdns_config: MdnsConfig
+      = MdnsConfig::default();
+    let mdns: Mdns
+      = Mdns::new(mdns_config)
         .await
         .expect("can create mdns");
 
@@ -177,7 +176,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<BlockMessage>)
 }
 
 pub async fn publish_block_message(resp: BlockMessage, swarm: &mut Swarm<BlockchainBehaviour>){
-  let json = serde_json::to_string(&resp).expect("can jsonify response");
+  let json = serde_json::to_string(&resp).expect("can jsonify block message");
   if let Err(e) = publish(json, swarm).await {
     eprintln!("publish_block_message() error: {:?}", e)
   }
@@ -191,21 +190,19 @@ async fn publish(json : String,  swarm: &mut Swarm<BlockchainBehaviour> ) -> Res
       .gossipsub
       .publish(BLOCK_TOPIC.clone(), json.as_bytes())
 }
-pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<String>, Vec<String>) {
+pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<PeerId>) {
   debug!("get_peers()");
   let nodes = swarm.behaviour().mdns.discovered_nodes();
   let mut discovered_peers: HashSet<&PeerId> = HashSet::new();
   let mut connected_peers: HashSet<&PeerId> = HashSet::new();
-
   for peer in nodes {
       discovered_peers.insert(peer);
       if swarm.is_connected(peer) {
         connected_peers.insert(peer);
       }
   }
+  let collect_peers
+     = |peers : HashSet<&PeerId>| peers.into_iter().cloned().collect();
 
-  let peers_to_strs
-     = |peer_id : HashSet<&PeerId>| peer_id.iter().map(|p: &&PeerId| p.to_string()).collect();
-
-  (peers_to_strs(discovered_peers), peers_to_strs(connected_peers))
+  (collect_peers(discovered_peers), collect_peers(connected_peers))
 }
