@@ -37,11 +37,6 @@
     Behavior: Use the Gossipsub protocol for broadcasting transactions and blocks while integrating a reliable transport layer (e.g., TCP with Noise for encryption).
     Purpose: This combination allows for efficient message propagation across peers with added security, ensuring that all nodes receive new blocks or transactions in a timely manner while keeping the data encrypted.
 
-2. MDNS with Gossip for Peer Discovery
-
-    Behavior: Implement mDNS for local peer discovery combined with Gossipsub for data dissemination.
-    Purpose: This setup allows peers to discover each other within a local network automatically and share their blockchain data efficiently. It is particularly useful for local testing or in environments where nodes frequently join and leave.
-
 3. Identify Protocol with Gossipsub
 
     Behavior: Use the Identify Protocol to gather metadata about peers (like public keys and capabilities) and combine it with Gossipsub for message propagation.

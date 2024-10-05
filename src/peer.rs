@@ -121,9 +121,9 @@ impl Peer {
     async fn handle_stdin_event(&mut self, cmd: &str) {
         match cmd {
             //
-            cmd if cmd.starts_with("trans") => {
+            // cmd if cmd.starts_with("trans") => {
 
-            }
+            // }
             // `redial`, dial all discovered peers
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()

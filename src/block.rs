@@ -207,12 +207,10 @@ impl Block {
            , last_block.idx, block.hash, Block::hash_block(&block)) ;
       return false
     }
-
     // * proof-of-work check:
     //    - check if block's (binary formatted) hash has a valid number of leading zeros
     let BinaryString(hash_binary)
       = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
-
     if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
       info!("valid_block(): block with idx {} has hash binary {}, which does need meet the difficulty target {}"
            , last_block.idx, hash_binary, DIFFICULTY_PREFIX) ;
