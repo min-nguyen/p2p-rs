@@ -1,14 +1,17 @@
-An interactive Proof-of-Work P2P Blockchain Network application in Rust, with a command-line interface. Work in progress.
+##  Interactive Proof-of-Work Blockchain Network in Rust 🦀  
 
-### Running
+An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain network, with a command-line interface for interactions. 
 
-Run the following (on multiple terminals) to initialise new peers on the same p2p network.
+#### Running
+
+Start multiple instances of the application on separate terminals to initialize new peers within the same peer-to-peer network. 
 
 ```sh
 RUST_LOG=info cargo run --bin main
 ```
-### Commands
-```
+
+#### Commands Overview
+```sh
 ─────────────────────────────────────────────
   *Load chain*:
 └── Usage: `load`
@@ -48,46 +51,54 @@ RUST_LOG=info cargo run --bin main
 │     • Redial all discovered peers.
 ─────────────────────────────────────────────
 ```
-### Files
 
-#### `peer.rs`:
-The peer's logic on the local machine, which the entire application is architected around.
+---
 
-Defines:
-  - A Swarm object for the peer, used to send and receive messages to/from the remote network.
-  - A standard input buffer for the peer, used to read console commands.
-  - The main (asynchronous) application loop:
-    - How to handle messages from the remote network (forwarded from the NetworkBehaviour object).
-    - How to send messages to the remote network (via the Swarm object).
-    - How to handle commands from the console.
+### File Overview
 
-#### `swarm.rs`:
-The network logic for discovering peers, connecting to peers, sending/receiving messages, and handling network events.
+##### `peer.rs`
+Handles the logic for local peer nodes and serves as the foundation of the application.
 
-Defines:
-  - The Peer ID and public & private keys.
-  - The interface for publishing request and response messages to the remote network.
-  - The Swarm that executes the defined NetworkBehaviour.
-  - The NetworkBehaviour for specific communication and discovery protocols, which specifies how those protocols' events should be handled. For the communication protocol, it receives request and response messages from remote peers and forwards all relevant requests/responses to the local peer application.
+- **Components**:
+  - **Swarm Object**: Manages peer communication and message handling within the network.
+  - **Standard Input Buffer**: Reads console commands and interprets them into application actions.
+  - **Asynchronous Application Loop**: Processes messages from the network, sends commands, and handles input from the console.
 
-#### `message.rs`:
-Types of potential messages transmitted in a network.
+#### `swarm_gossip.rs`
+Implements the core networking logic using `GossipSub` for message exchange and `Mdns` for peer discovery.
 
-#### `block.rs`:
-Core data and functions for blocks and chains.
+- **Components**:
+  - **PeerId and Keypair**: Establishes the identity of the node in the network.
+  - **Topics and NetworkBehaviour**: Manages peer connections, event handling, and protocol communication.
+  - **Swarm Instance**: Encapsulates the network behaviour and handles incoming/outgoing events and messages.
 
-Defines:
-  - Types for Chains and Blocks.
-  - The interface for hashing, mining, validating, and choosing blocks and chains.
+#### `block.rs`
+Contains the blockchain logic, built around a simplified Proof-of-Work consensus algorithm.
 
-#### `file.rs`:
-Auxiliary data and functions relevant to the local machine.
+- **Data Types**:
+  - **`Chain`**: Represents the entire blockchain structure.
+  - **`Block`**: Represents individual blocks in the chain.
+- **Functions**: 
+  - Methods for hashing, mining, validating, and managing blocks and chains.
 
-Defines:
-  - The interface for reading and writing blocks to local storage.
+#### `message.rs`
+Defines the possible message types exchanged in the blockchain network.
 
+- **Message Types**:
+  - Requests for chain data.
+  - Responses containing block information.
+  - Notifications for newly mined blocks.
 
-#### Architecture
+#### `file.rs`
+Provides utilities for reading and writing blockchains to and from local storage.
+
+- **Functions**:
+  - Reading a blockchain from a file.
+  - Writing the current chain state to a file for persistence.
+
+---
+
+### Architecture
 ```rs
                    ------------------------------> SWARM.rs ---------------------------->
                    ↑                                                                    |
