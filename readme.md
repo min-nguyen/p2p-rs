@@ -1,4 +1,4 @@
-Work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
+A Proof-of-Work P2P Blockchain Network, using `libp2p`. Work in progress.
 
 ### Running
 
