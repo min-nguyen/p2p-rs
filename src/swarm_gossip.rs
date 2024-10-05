@@ -172,7 +172,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
   swarm
 }
 
-pub async fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
+pub fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&msg).expect("can jsonify message");
   let res = swarm
           .behaviour_mut()

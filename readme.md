@@ -1,8 +1,8 @@
 Small work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
 
 // To do:
- - [ ] load and maintain the local chain in the application, rather than reading-writing to a local file
- - [ ] handle broadcasting new blocks
+ - [x] load and maintain the local chain in the application, rather than reading-writing to a local file
+ - [x] handle broadcasting new blocks
  - [ ] handle receiving new blocks
  - [ ] handle new chain requests
  - [ ] handle new chain responses
@@ -16,27 +16,38 @@ RUST_LOG=info cargo run --bin p2p
 ```
 ### Commands
 
-  *Request data from peers*:
-└── Usage: `req <"all" | [peer-id]>`
-┌── Options:
-│     • `"all"`      - Request last block from all peers
-│     • `[peer-id]`  - Request last block from a specific peer
+─────────────────────────────────────────────
+  *Load chain*:
+└── Usage: `load`
+┌── Description:
+│     • Load a chain to the application from a (predefined) local file `blocks.json`.
+
+  *Save chain*:
+└── Usage: `save`
+┌── Description:
+│     • Save the current chain to a (predefined) local file  `blocks.json`.
 
   *Print a list*:
-└── Usage: `ls <"peers" | "blocks">`
+└── Usage: `ls <"peers" | "chain">`
 ┌── Options:
-│     • `"peers"`    - Show a list of connected remote peers
-│     • `"blocks"`   - Show blocks stored in the local .json file
+│     • `"peers"`   - Show a list of discovered and connected peers
+│     • `"chain"`   - Show current chain
 
-  *Write new data*:
-└── Usage: `mk [data]`
+  *Reset blockchain*:
+└── Usage: `reset`
 ┌── Description:
-│     • Mine and write a new block to the local .json file.
+│     • Reset current chain to a single block.
 
-  *Refresh data*:
-└── Usage: `fresh`
+  *Mine new block*:
+└── Usage: `mine [data]`
 ┌── Description:
-│     • Delete current blocks and write a new genesis block to the local .json file.
+│     • Mine and add a new block to the chain, broadcasting this to other peers.
+
+  *Request chain from peers*:
+└── Usage: `req <"all" | [peer-id]>`
+┌── Options:
+│     • `"all"`      - Request chain from all peers
+│     • `[peer-id]`  - Request chain from a specific peer
 
   *Redial*:
 └── Usage: `redial`

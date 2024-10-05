@@ -60,8 +60,8 @@ impl Peer {
             if let Some(event) = evt {
                 match event {
                     // Network ChainRequest from a remote user, requiring us to publish a ChainResponse to the network.
-                    EventType::NetworkEvent(req)
-                        => self.handle_network_event(&req).await,
+                    EventType::NetworkEvent(msg)
+                        => self.handle_network_event(&msg).await,
                     // StdIn Event for a local user command.
                     EventType::StdInputEvent(cmd)
                         => self.handle_stdin_event(&cmd).await
@@ -95,13 +95,23 @@ impl Peer {
                     data: self.chain.clone(),
                 };
                 println!("Sent response to {}", sender_peer_id);
-                swarm::publish_message(resp, &mut  self.swarm).await
+                swarm::publish_message(resp, &mut  self.swarm)
             },
             Message::ChainResponse{ data , ..} => {
-                eprintln!("TO IMPLEMENT: handle_network_event() => ChainResponse.")
+                if self.chain.sync_chain(data){
+                    println!("Updated current chain to a remote peer's longer chain")
+                }
+                else {
+                    println!("Retained current chain over a remote peer's chain")
+                }
             },
             Message::NewBlock { data, .. } => {
-                eprintln!("TO IMPLEMENT: handle_network_event() => NewBlock.")
+                match self.chain.try_push_block(data){
+                    Ok(()) =>
+                        println!("Extended current chain by a remote peer's new block"),
+                    Err(e) =>
+                        println!("Retained current chain and ignored remote peer's new block: {}", e)
+                }
             }
         }
     }
@@ -112,63 +122,36 @@ impl Peer {
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()
             },
-            // `fresh`, deletes the current local chain and writes a new one with a single block.
-           cmd if cmd.starts_with("fresh") => {
-                self.handle_cmd_fresh().await
+            // `reset`, deletes the current local chain and writes a new one with a single block.
+           cmd if cmd.starts_with("reset") => {
+                self.handle_cmd_reset()
            }
+            // `load`, loads a chain from a local file.
+            cmd if cmd.starts_with("load") => {
+                self.handle_cmd_load().await
+            }
+            // `save`, saves a chain from a local file.
+            cmd if cmd.starts_with("save") => {
+                self.handle_cmd_save().await
+            }
             //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
             cmd if cmd.starts_with("req") => {
                 let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
-                self.handle_cmd_req(args).await;
+                self.handle_cmd_req(args)
             }
-            // `mk [data]` makes and writes a new block with the given data (and an incrementing id)
-            cmd if cmd.starts_with("mk") => {
-                let args = cmd.strip_prefix("mk").expect("can strip `mk`").trim();
-                self.handle_cmd_mk( args).await;
+            // `mine [data]` makes and writes a new block with the given data (and an incrementing id)
+            cmd if cmd.starts_with("mine") => {
+                let args = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
+                self.handle_cmd_mine(args)
             }
-            // `ls <blocks | peers>` lists the local blocks or the discovered & connected peers
+            // `ls <chain | peers>` lists the local chain or the discovered & connected peers
             cmd if cmd.starts_with("ls") => {
                 let args = cmd.strip_prefix("ls").expect("can strip `ls`").trim() ;
-                self.handle_cmd_ls( args).await;
+                self.handle_cmd_ls(args);
             }
             _ => {
                 println!("Unknown command: \"{}\"", cmd);
                 print_user_commands();
-            }
-        }
-    }
-    fn handle_cmd_redial(&mut self){
-        let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
-        for peer_id in discovered_peers {
-            match self.swarm.dial(&peer_id){
-                Ok(()) => println!("Dialled {}", peer_id),
-                Err(e) => eprintln!("Dial error {}", e)
-            }
-        }
-    }
-    async fn handle_cmd_fresh(&mut self) {
-        self.chain = block::Chain::new();
-    }
-    async fn handle_cmd_req(&mut self, args: &str) {
-        match args {
-            _ if args.is_empty() => {
-                println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
-            }
-            "all" => {
-                let req = Message::ChainRequest {
-                    transmit_type: TransmitType::ToAll,
-                    sender_peer_id: self.swarm.local_peer_id().to_string(),
-                };
-                println!("Broadcasting request to all");
-                swarm::publish_message(req, &mut self.swarm).await;
-            }
-            peer_id => {
-                let req = Message::ChainRequest {
-                    transmit_type: TransmitType::ToOne(peer_id.to_owned()),
-                    sender_peer_id: self.swarm.local_peer_id().to_string(),
-                };
-                println!("Broadcasting request for \"{}\"", peer_id);
-                swarm::publish_message(req, &mut self.swarm).await;
             }
         }
     }
@@ -189,10 +172,14 @@ impl Peer {
             Err(e) => eprintln!("Error saving chain to local file: {}", e),
         }
     }
-    async fn handle_cmd_mk(&mut self, args: &str) {
+    fn handle_cmd_reset(&mut self) {
+        self.chain = block::Chain::new();
+        println!("Current chain reset to a single block")
+    }
+    fn handle_cmd_mine(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `mk` missing an argument [data]");
+                println!("Command error: `mine` missing an argument [data]");
             },
             data => {
                 self.chain.make_new_valid_block(data);
@@ -204,17 +191,39 @@ impl Peer {
                         transmit_type: TransmitType::ToAll,
                         data: last_block
                     }
-                , &mut self.swarm).await;
+                , &mut self.swarm);
             }
         }
     }
-
-    async fn handle_cmd_ls(&mut self, args: &str) {
+    fn handle_cmd_req(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `ls` missing an argument `blocks` or `peers")
+                println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
-            "blocks"   => {
+            "all" => {
+                let req = Message::ChainRequest {
+                    transmit_type: TransmitType::ToAll,
+                    sender_peer_id: self.swarm.local_peer_id().to_string(),
+                };
+                println!("Broadcasting request to all");
+                swarm::publish_message(req, &mut self.swarm);
+            }
+            peer_id => {
+                let req = Message::ChainRequest {
+                    transmit_type: TransmitType::ToOne(peer_id.to_owned()),
+                    sender_peer_id: self.swarm.local_peer_id().to_string(),
+                };
+                println!("Broadcasting request for \"{}\"", peer_id);
+                swarm::publish_message(req, &mut self.swarm);
+            }
+        }
+    }
+    fn handle_cmd_ls(&mut self, args: &str) {
+        match args {
+            _ if args.is_empty() => {
+                println!("Command error: `ls` missing an argument `chain` or `peers")
+            }
+            "chain"   => {
                 self.chain.0.iter().for_each(|r| println!("{:?}", r))
             }
             "peers"   => {
@@ -226,7 +235,16 @@ impl Peer {
                 conn_peers.iter().for_each(|p| println!("{}", p));
             }
             _ => {
-                println!("Command error: `ls` has unrecognised argument(s). Specify `blocks` or `peers")
+                println!("Command error: `ls` has unrecognised argument(s). Specify `chain` or `peers")
+            }
+        }
+    }
+    fn handle_cmd_redial(&mut self){
+        let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
+        for peer_id in discovered_peers {
+            match self.swarm.dial(&peer_id){
+                Ok(()) => println!("Dialled {}", peer_id),
+                Err(e) => eprintln!("Dial error {}", e)
             }
         }
     }
@@ -256,7 +274,7 @@ pub async fn set_up_peer() -> Peer {
         = match file::read_chain().await {
             Err(e) => {
                 eprintln!("Problem loading chain from local file: \"{}\" \n\
-                           Instantiating fresh chain instead: ", e);
+                           Instantiating reset chain instead: ", e);
                 Chain::new()
             }
             Ok(chain) => {

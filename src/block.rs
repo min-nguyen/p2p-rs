@@ -64,18 +64,19 @@ impl Chain {
     true
   }
 
-  // Retain the longest valid chain (defaulting to the local version)
-  pub fn choose_chain(local: Chain, remote: Chain) -> Chain {
-      match(Chain::valid_chain(&local), Chain::valid_chain(&remote))  {
+  // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
+  pub fn sync_chain(&mut self, remote: &Chain) -> bool {
+      match(Chain::valid_chain(&self), Chain::valid_chain(&remote))  {
         (true, true) => {
-          if local.0.len() >= remote.0.len() {
-            local
+          if self.0.len() >= remote.0.len() {
+            false
           } else {
-            remote
+            *self = remote.clone();
+            true
           }
         },
-        (false, true) => local,
-        (true, false) => remote,
+        (false, true) => false,
+        (true, false) => {*self = remote.clone(); true},
         _ => panic!("local and remote chains both invalid")
       }
   }
