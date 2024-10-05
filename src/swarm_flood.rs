@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use tokio::sync::mpsc;
 use log::{debug, error, info};
 
-use super::message::{POWMessage, TransmitType};
+use super::message::{PowMessage, TransmitType};
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 
@@ -43,7 +43,7 @@ pub struct BlockchainBehaviour {
 
     // ** Relevant only to a specific local peer that we are setting up
     #[behaviour(ignore)]
-    to_local_peer: mpsc::UnboundedSender<POWMessage>
+    to_local_peer: mpsc::UnboundedSender<PowMessage>
 }
 
 /*
@@ -81,12 +81,12 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
             // Event for a new message from a peer
             FloodsubEvent::Message(fs_msg) => {
                 // Match on the deserialized payload as a BlockMessage
-                if let Ok(msg) = serde_json::from_slice::<POWMessage>(&fs_msg.data) {
+                if let Ok(msg) = serde_json::from_slice::<PowMessage>(&fs_msg.data) {
                     info!("received {:?} from {:?}", msg, fs_msg.source);
                     match msg {
-                           POWMessage::ChainResponse { ref transmit_type, .. }
-                         | POWMessage::ChainRequest { ref transmit_type, .. }
-                         | POWMessage::NewBlock { ref transmit_type, .. } =>
+                           PowMessage::ChainResponse { ref transmit_type, .. }
+                         | PowMessage::ChainRequest { ref transmit_type, .. }
+                         | PowMessage::NewBlock { ref transmit_type, .. } =>
                             match transmit_type {
                                 TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
                                 => if let Err(e) = self.to_local_peer.send(msg){
@@ -113,55 +113,55 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
 
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
-  -> Swarm<BlockchainBehaviour> {
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<PowMessage>)
+    -> Swarm<BlockchainBehaviour> {
 
-  // Transport, which we multiplex to enable multiple streams of data over one communication link.
-  let transp = {
-      // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
-      let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
-          = noise::Keypair::<noise::X25519Spec>::new()
-          .into_authentic(&LOCAL_KEYS)
-          .expect("can create auth keys");
+    // Transport, which we multiplex to enable multiple streams of data over one communication link.
+    let transp = {
+        // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
+        let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
+            = noise::Keypair::<noise::X25519Spec>::new()
+            .into_authentic(&LOCAL_KEYS)
+            .expect("can create auth keys");
 
-      TokioTcpConfig::new()
-        .upgrade(upgrade::Version::V1)
-        .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
-        .multiplex(mplex::MplexConfig::new())
-        .boxed()
+        TokioTcpConfig::new()
+            .upgrade(upgrade::Version::V1)
+            .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
+            .multiplex(mplex::MplexConfig::new())
+            .boxed()
+        };
+
+    // Network Behaviour, subscribed to block topic
+    let mut behaviour =  {
+
+        let floodsubconfig: FloodsubConfig
+            = FloodsubConfig::new(LOCAL_PEER_ID.clone());
+        let floodsub: Floodsub
+            = Floodsub::from_config(floodsubconfig);
+
+        let mdns
+            = Mdns::new(Default::default())
+                .await
+                .expect("can create mdns");
+
+        BlockchainBehaviour {floodsub, mdns, to_local_peer}
     };
+    behaviour.floodsub.subscribe(CHAIN_TOPIC.clone());
 
-  // Network Behaviour, subscribed to block topic
-  let mut behaviour =  {
+    // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
+    let mut swarm
+        =  SwarmBuilder::new(transp, behaviour,  LOCAL_PEER_ID.clone())
+        .executor(Box::new(|fut| {
+            tokio::spawn(fut);
+        }))
+        .build();
 
-      let floodsubconfig: FloodsubConfig
-        = FloodsubConfig::new(LOCAL_PEER_ID.clone());
-      let floodsub: Floodsub
-        = Floodsub::from_config(floodsubconfig);
-
-      let mdns
-        = Mdns::new(Default::default())
-            .await
-            .expect("can create mdns");
-
-      BlockchainBehaviour {floodsub, mdns, to_local_peer}
-  };
-  behaviour.floodsub.subscribe(CHAIN_TOPIC.clone());
-
-  // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
-  let mut swarm
-    =  SwarmBuilder::new(transp, behaviour,  LOCAL_PEER_ID.clone())
-      .executor(Box::new(|fut| {
-          tokio::spawn(fut);
-      }))
-      .build();
-
-  let listen_addr : Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().expect("can get a local socket");
-  Swarm::listen_on(&mut swarm, listen_addr).expect("swarm can be started");
-  swarm
+    let listen_addr : Multiaddr = "/ip4/0.0.0.0/tcp/0".parse().expect("can get a local socket");
+    Swarm::listen_on(&mut swarm, listen_addr).expect("swarm can be started");
+    swarm
 }
 
-pub fn publish_message(msg: POWMessage, swarm: &mut Swarm<BlockchainBehaviour>){
+pub fn publish_message(msg: PowMessage, swarm: &mut Swarm<BlockchainBehaviour>){
     let json = serde_json::to_string(&msg).expect("can jsonify message");
     swarm
             .behaviour_mut()

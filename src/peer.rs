@@ -15,17 +15,20 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
 use super::block::{self, Chain};
-use super::message::{POWMessage, TransmitType};
+use super::transaction::{self, Transaction};
+use super::message::{PowMessage, TxnMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
-// use super::transaction::{Transaction};
 
 /* Events for the peer to handle, either:
-       (1) Local Inputs from the terminal
-       (2) Remote Requests/Responses from peers in the network */
+    (1) Local inputs from the terminal
+    (2) Remote chain messages from miners in the network
+    (3) Remote transaction messages from peers in the network
+*/
 enum EventType {
-    StdInputEvent(String),
-    NetworkEvent(POWMessage)
+    StdEvent(String),
+    PowEvent(PowMessage),
+    TxnEvent(TxnMessage)
 }
 
 /* A Peer consists of:
@@ -34,10 +37,11 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network_behaviour : UnboundedReceiver<POWMessage>,
+    pow_receiver : UnboundedReceiver<PowMessage>,
+    txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    // transaction_pool : Vec<Transaction>
+    txn_pool : Vec<Transaction>
 }
 
 impl Peer {
@@ -50,10 +54,12 @@ impl Peer {
             // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {
                 tokio::select! {
-                    stdin_event = self.from_stdin.next_line()
-                        => Some(EventType::StdInputEvent(stdin_event.expect("can get line").expect("can read line from stdin"))),
-                    network_request = self.from_network_behaviour.recv()
-                        => Some(EventType::NetworkEvent(network_request.expect("response exists"))),
+                    pow_event = self.pow_receiver.recv()
+                        => Some(EventType::PowEvent(pow_event.expect("pow event exists"))),
+                    txn_event = self.txn_receiver.recv()
+                        => Some(EventType::TxnEvent(txn_event.expect("txn event exists"))),
+                    std_event = self.from_stdin.next_line()
+                        => Some(EventType::StdEvent(std_event.expect("can get line").expect("can read line from stdin"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
                         => { Self::handle_swarm_event(swarm_event); None }
@@ -61,45 +67,29 @@ impl Peer {
             };
             if let Some(event) = evt {
                 match event {
-                    // Network ChainRequest from a remote user, requiring us to publish a ChainResponse to the network.
-                    EventType::NetworkEvent(msg)
-                        => self.handle_network_event(&msg).await,
-                    // StdIn Event for a local user command.
-                    EventType::StdInputEvent(cmd)
-                        => self.handle_stdin_event(&cmd).await
+                    EventType::PowEvent(msg)
+                        => self.handle_pow_event(&msg),
+                    EventType::TxnEvent(msg)
+                        => self.handle_txn_event(&msg),
+                    EventType::StdEvent(cmd)
+                        => self.handle_std_event(&cmd).await,
                 }
             }
         }
     }
-
-    // (Predefined) Swarm Event. For debugging purposes.
-    fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
-        match swarm_event {
-            SwarmEvent::ConnectionEstablished { peer_id, .. }
-                => info!("SwarmEvent: connection established with peer: {:?}", peer_id),
-            SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
-                => info!("SwarmEvent: connection closed with peer: {:?}, cause: {:?}", peer_id, err),
-            SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
-                => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
-            SwarmEvent::NewListenAddr { listener_id, address, .. }
-                => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
-            _
-                => info!("Unhandled swarm event: {:?}", swarm_event)
-        }
-    }
-    // NetworkBehaviour Event for a remote request.
-    async fn handle_network_event(&mut self, msg: &POWMessage) {
+    // Blockchain event.
+    fn handle_pow_event(&mut self, msg: &PowMessage) {
         println!("Received message:\n {}", msg);
         match msg {
-            POWMessage::ChainRequest { sender_peer_id, .. } => {
-                let resp = POWMessage::ChainResponse {
+            PowMessage::ChainRequest { sender_peer_id, .. } => {
+                let resp = PowMessage::ChainResponse {
                     transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                     data: self.chain.clone(),
                 };
                 println!("Sent response to {}", sender_peer_id);
                 swarm::publish_message(resp, &mut  self.swarm)
             },
-            POWMessage::ChainResponse{ data , ..} => {
+            PowMessage::ChainResponse{ data , ..} => {
                 if self.chain.sync_chain(data){
                     println!("Updated current chain to a remote peer's longer chain")
                 }
@@ -107,7 +97,7 @@ impl Peer {
                     println!("Retained current chain over a remote peer's chain")
                 }
             },
-            POWMessage::NewBlock { data, .. } => {
+            PowMessage::NewBlock { data, .. } => {
                 match self.chain.try_push_block(data){
                     Ok(()) =>
                         println!("Extended current chain by a remote peer's new block"),
@@ -117,8 +107,13 @@ impl Peer {
             }
         }
     }
-    // StdIn Event for a local user command.
-    async fn handle_stdin_event(&mut self, cmd: &str) {
+    fn handle_txn_event(&mut self, msg: &TxnMessage) {
+        /*
+        TO DO
+        */
+    }
+    // Stdin event for a local user command.
+    async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
             //
             cmd if cmd.starts_with("trans") => {
@@ -150,14 +145,16 @@ impl Peer {
                 let args = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
                 self.handle_cmd_mine(args)
             }
-            // `ls <chain | peers>` lists the local chain or the discovered & connected peers
-            cmd if cmd.starts_with("ls") => {
-                let args = cmd.strip_prefix("ls").expect("can strip `ls`").trim() ;
+            // `show <chain | peers>` lists the local chain or the discovered & connected peers
+            cmd if cmd.starts_with("show") => {
+                let args = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
                 self.handle_cmd_ls(args);
             }
+            cmd if cmd.starts_with("help") => {
+                 print_user_commands();
+             },
             _ => {
-                println!("Unknown command: \"{}\"", cmd);
-                print_user_commands();
+                println!("Unknown command: \"{}\" \nWrite `help` to show available commands.", cmd);
             }
         }
     }
@@ -193,7 +190,7 @@ impl Peer {
                 println!("Mined and wrote new block: {:?}", last_block);
                 println!("Broadcasting new block");
                 swarm::publish_message(
-                    POWMessage::NewBlock {
+                    PowMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
                         data: last_block
                     }
@@ -207,7 +204,7 @@ impl Peer {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
             "all" => {
-                let req = POWMessage::ChainRequest {
+                let req = PowMessage::ChainRequest {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
@@ -215,7 +212,7 @@ impl Peer {
                 swarm::publish_message(req, &mut self.swarm);
             }
             peer_id => {
-                let req = POWMessage::ChainRequest {
+                let req = PowMessage::ChainRequest {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
@@ -227,7 +224,7 @@ impl Peer {
     fn handle_cmd_ls(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `ls` missing an argument `chain` or `peers")
+                println!("Command error: `show` missing an argument `chain` or `peers`")
             }
             "chain"   => {
                 self.chain.0.iter().for_each(|r| println!("{:?}", r))
@@ -241,17 +238,36 @@ impl Peer {
                 conn_peers.iter().for_each(|p| println!("{}", p));
             }
             _ => {
-                println!("Command error: `ls` has unrecognised argument(s). Specify `chain` or `peers")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers")
             }
         }
     }
     fn handle_cmd_redial(&mut self){
         let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
+        if discovered_peers.is_empty() {
+            println!("No discovered peers to dial!");
+            return ()
+        }
         for peer_id in discovered_peers {
             match self.swarm.dial(&peer_id){
-                Ok(()) => println!("Dialled {}", peer_id),
+                Ok(()) => println!("Dial for {}", peer_id),
                 Err(e) => eprintln!("Dial error {}", e)
             }
+        }
+    }
+    // (Predefined) Swarm event. For debugging purposes.
+    fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
+        match swarm_event {
+            SwarmEvent::ConnectionEstablished { peer_id, .. }
+                => info!("SwarmEvent: connection established with peer: {:?}", peer_id),
+            SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
+                => info!("SwarmEvent: connection closed with peer: {:?}, cause: {:?}", peer_id, err),
+            SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
+                => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
+            SwarmEvent::NewListenAddr { listener_id, address, .. }
+                => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
+            _
+                => info!("Unhandled swarm event: {:?}", swarm_event)
         }
     }
 }
@@ -263,13 +279,16 @@ pub async fn set_up_peer() -> Peer {
             After network receieves a remote message, it forwards any requests here back to the peer (from_network)
         2. from_network is an input channel, used by peer.rs
             Receive requests forwarded by to_peer, and handles them. */
-    let ( pow_msg_sender // used to send messages to response_rcv
-        , pow_msg_receiver // used to receive the messages sent by response_sender.
+    let ( pow_sender // used to send messages to response_rcv
+        , pow_receiver) // used to receive the messages sent by response_sender.
+        = mpsc::unbounded_channel();
+    let ( txn_sender // used to send messages to response_rcv
+        , txn_receiver) // used to receive the messages sent by response_sender.
         = mpsc::unbounded_channel();
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm::set_up_blockchain_swarm(to_local_peer).await;
+        = swarm::set_up_blockchain_swarm(pow_sender, txn_sender).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
@@ -279,22 +298,23 @@ pub async fn set_up_peer() -> Peer {
     let chain: Chain
         = match file::read_chain().await {
             Err(e) => {
-                eprintln!("Problem loading chain from local file: \"{}\" \n\
-                           Instantiating reset chain instead: ", e);
+                eprintln!("\nProblem loading chain from the local file: \"{}\" \n\
+                           Instantiating a fresh chain instead. ", e);
                 Chain::new()
             }
             Ok(chain) => {
-                println!("Succesfully loaded chain from local file.");
+                println!("\nLoaded chain from local file.\n");
                 chain
             }
         };
 
-    println!("Peer Id: {}", swarm.local_peer_id().to_string());
+    println!("\nYour Peer Id: {}\n", swarm.local_peer_id().to_string());
     Peer { from_stdin
-        , from_network_behaviour
+        , pow_receiver
+        , txn_receiver
         , swarm
         , chain
-        // , transaction_pool: vec![]
+        , txn_pool: vec![]
     }
 }
 

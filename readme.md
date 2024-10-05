@@ -1,10 +1,10 @@
-##  Interactive Proof-of-Work Blockchain Network in Rust 🦀  
+##  Interactive Proof-of-Work Blockchain Network in Rust 🦀
 
-An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain network, with a command-line interface for interactions. 
+An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain network, with a command-line interface for interactions.
 
 #### Running
 
-Start multiple instances of the application on separate terminals to initialize new peers within the same peer-to-peer network. 
+Start multiple instances of the application on separate terminals to initialize new peers within the same peer-to-peer network.
 
 ```sh
 RUST_LOG=info cargo run --bin main
@@ -21,13 +21,7 @@ RUST_LOG=info cargo run --bin main
   *Save chain*:
 └── Usage: `save`
 ┌── Description:
-│     • Save the current chain to a (predefined) local file  `blocks.json`.
-
-  *Print a list*:
-└── Usage: `ls <"peers" | "chain">`
-┌── Options:
-│     • `"peers"`   - Show a list of discovered and connected peers
-│     • `"chain"`   - Show current chain
+│     • Save the current chain to a (predefined) local file `blocks.json`.
 
   *Reset blockchain*:
 └── Usage: `reset`
@@ -45,10 +39,21 @@ RUST_LOG=info cargo run --bin main
 │     • `"all"`      - Request chain from all peers
 │     • `[peer-id]`  - Request chain from a specific peer
 
+  *Print chain or peers*:
+└── Usage: `show <"peers" | "chain">`
+┌── Options:
+│     • `"peers"`   - Show a list of discovered and connected peers
+│     • `"chain"`   - Show current chain
+
   *Redial*:
 └── Usage: `redial`
 ┌── Description:
 │     • Redial all discovered peers.
+
+  *Show commands*:
+└── Usage: `help`
+┌── Description:
+│     • Prints this list of commands.
 ─────────────────────────────────────────────
 ```
 
