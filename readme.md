@@ -53,48 +53,32 @@ RUST_LOG=info cargo run --bin main
 ```
 
 ---
-
 ### File Overview
 
-##### `peer.rs`
-Handles the logic for local peer nodes and serves as the foundation of the application.
-
-- **Components**:
-  - **Swarm Object**: Manages peer communication and message handling within the network.
-  - **Standard Input Buffer**: Reads console commands and interprets them into application actions.
-  - **Asynchronous Application Loop**: Processes messages from the network, sends commands, and handles input from the console.
+#### `peer.rs`
+Manages the core peer logic, providing the main application loop and interfaces for sending/receiving messages.
+- Manages a Swarm object for peer communication within the network.
+- Manages standard input events for command-line interactions.
 
 #### `swarm_gossip.rs`
-Implements the core networking logic using `GossipSub` for message exchange and `Mdns` for peer discovery.
-
-- **Components**:
-  - **PeerId and Keypair**: Establishes the identity of the node in the network.
-  - **Topics and NetworkBehaviour**: Manages peer connections, event handling, and protocol communication.
-  - **Swarm Instance**: Encapsulates the network behaviour and handles incoming/outgoing events and messages.
+Contains the network logic using GossipSub as the communication protocol and Mdns as the peer discovery protocol.
+- Configures PeerId, Keypair, and Topic(s) for the network.
+- Sets up NetworkBehaviour to define how immediate peer discovery and message events are handled.
+- Sets up Swarm that wraps around and executes the NetworkBehaviour.
 
 #### `block.rs`
-Contains the blockchain logic, built around a simplified Proof-of-Work consensus algorithm.
-
-- **Data Types**:
-  - **`Chain`**: Represents the entire blockchain structure.
-  - **`Block`**: Represents individual blocks in the chain.
-- **Functions**: 
-  - Methods for hashing, mining, validating, and managing blocks and chains.
+Provides the blockchain data structures and the Proof-of-Work consensus algorithm.
+- Defines Chain and Block types.
+- Implements methods for hashing, mining, validating, and managing blocks.
 
 #### `message.rs`
-Defines the possible message types exchanged in the blockchain network.
-
-- **Message Types**:
-  - Requests for chain data.
-  - Responses containing block information.
-  - Notifications for newly mined blocks.
+Specifies message formats used for communication between nodes in the network.
+- Encodes request/response messages and broadcasts for new blocks.
 
 #### `file.rs`
-Provides utilities for reading and writing blockchains to and from local storage.
+Handles reading and writing the blockchain data to and from local storage.
+- Manages file operations for loading and saving the blockchain state (`blocks.json`).
 
-- **Functions**:
-  - Reading a blockchain from a file.
-  - Writing the current chain state to a file for persistence.
 
 ---
 
