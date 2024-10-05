@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use tokio::sync::mpsc;
 use log::{debug, error, info};
 
-use super::message::{Message, TransmitType};
+use super::message::{POWMessage, TransmitType};
 /*  (Key Pair, Peer ID) are libp2p's intrinsics for identifying a client on the network.
     Below initialises these as global values that identify the current application (i.e. client) running.
 
@@ -31,7 +31,7 @@ static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 // FloodSub Topic for subscribing and sending blocks
-static BLOCK_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
+static CHAIN_TOPIC: Lazy<Topic> = Lazy::new(|| Topic::new("blocks"));
 
 
 // Base NetworkBehaviour, simply specifying the 2 Protocol types
@@ -43,7 +43,7 @@ pub struct BlockchainBehaviour {
 
     // ** Relevant only to a specific local peer that we are setting up
     #[behaviour(ignore)]
-    to_local_peer: mpsc::UnboundedSender<Message>
+    to_local_peer: mpsc::UnboundedSender<POWMessage>
 }
 
 /*
@@ -81,12 +81,12 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
             // Event for a new message from a peer
             FloodsubEvent::Message(fs_msg) => {
                 // Match on the deserialized payload as a BlockMessage
-                if let Ok(msg) = serde_json::from_slice::<Message>(&fs_msg.data) {
+                if let Ok(msg) = serde_json::from_slice::<POWMessage>(&fs_msg.data) {
                     info!("received {:?} from {:?}", msg, fs_msg.source);
                     match msg {
-                           Message::ChainResponse { ref transmit_type, .. }
-                         | Message::ChainRequest { ref transmit_type, .. }
-                         | Message::NewBlock { ref transmit_type, .. } =>
+                           POWMessage::ChainResponse { ref transmit_type, .. }
+                         | POWMessage::ChainRequest { ref transmit_type, .. }
+                         | POWMessage::NewBlock { ref transmit_type, .. } =>
                             match transmit_type {
                                 TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
                                 => if let Err(e) = self.to_local_peer.send(msg){
@@ -113,7 +113,7 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
 
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
   -> Swarm<BlockchainBehaviour> {
 
   // Transport, which we multiplex to enable multiple streams of data over one communication link.
@@ -146,7 +146,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
 
       BlockchainBehaviour {floodsub, mdns, to_local_peer}
   };
-  behaviour.floodsub.subscribe(BLOCK_TOPIC.clone());
+  behaviour.floodsub.subscribe(CHAIN_TOPIC.clone());
 
   // Create a swarm with our Transport, NetworkBehaviour, and PeerID.
   let mut swarm
@@ -161,12 +161,12 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
   swarm
 }
 
-pub fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
+pub fn publish_message(msg: POWMessage, swarm: &mut Swarm<BlockchainBehaviour>){
     let json = serde_json::to_string(&msg).expect("can jsonify message");
     swarm
             .behaviour_mut()
             .floodsub
-            .publish(BLOCK_TOPIC.clone(), json.as_bytes())
+            .publish(CHAIN_TOPIC.clone(), json.as_bytes())
 }
 
 pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<PeerId>) {

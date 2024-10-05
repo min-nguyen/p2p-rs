@@ -1,8 +1,12 @@
 Work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
 
+
 - [ ] messages for new transactions
 - [ ] messages for proposing new blocks
-- [ ] messages for responding with validations of blocks
+- [ ] data for storing peers' public keys
+- [ ] messages for sending public keys
+- [ ] messages for responding with signed validations of blocks
+- [ ] data for storing number of validations for a given block
 - [ ] handling `n` peer validations of blocks by adding block to current chain
 
  +-----------------------+                   +-----------------------+

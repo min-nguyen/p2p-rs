@@ -15,7 +15,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
 use super::block::{self, Chain};
-use super::message::{Message, TransmitType};
+use super::message::{POWMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
 
@@ -24,7 +24,7 @@ use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
        (2) Remote Requests/Responses from peers in the network */
 enum EventType {
     StdInputEvent(String),
-    NetworkEvent(Message)
+    NetworkEvent(POWMessage)
 }
 
 /* A Peer consists of:
@@ -33,7 +33,7 @@ enum EventType {
     (3) A swarm to publish responses and requests to the remote network */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
-    from_network_behaviour : UnboundedReceiver<Message>,
+    from_network_behaviour : UnboundedReceiver<POWMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain
 }
@@ -86,18 +86,18 @@ impl Peer {
         }
     }
     // NetworkBehaviour Event for a remote request.
-    async fn handle_network_event(&mut self, msg: &Message) {
+    async fn handle_network_event(&mut self, msg: &POWMessage) {
         println!("Received message:\n {}", msg);
         match msg {
-            Message::ChainRequest { sender_peer_id, .. } => {
-                let resp = Message::ChainResponse {
+            POWMessage::ChainRequest { sender_peer_id, .. } => {
+                let resp = POWMessage::ChainResponse {
                     transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                     data: self.chain.clone(),
                 };
                 println!("Sent response to {}", sender_peer_id);
                 swarm::publish_message(resp, &mut  self.swarm)
             },
-            Message::ChainResponse{ data , ..} => {
+            POWMessage::ChainResponse{ data , ..} => {
                 if self.chain.sync_chain(data){
                     println!("Updated current chain to a remote peer's longer chain")
                 }
@@ -105,7 +105,7 @@ impl Peer {
                     println!("Retained current chain over a remote peer's chain")
                 }
             },
-            Message::NewBlock { data, .. } => {
+            POWMessage::NewBlock { data, .. } => {
                 match self.chain.try_push_block(data){
                     Ok(()) =>
                         println!("Extended current chain by a remote peer's new block"),
@@ -187,7 +187,7 @@ impl Peer {
                 println!("Mined and wrote new block: {:?}", last_block);
                 println!("Broadcasting new block");
                 swarm::publish_message(
-                    Message::NewBlock {
+                    POWMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
                         data: last_block
                     }
@@ -201,7 +201,7 @@ impl Peer {
                 println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
             }
             "all" => {
-                let req = Message::ChainRequest {
+                let req = POWMessage::ChainRequest {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
@@ -209,7 +209,7 @@ impl Peer {
                 swarm::publish_message(req, &mut self.swarm);
             }
             peer_id => {
-                let req = Message::ChainRequest {
+                let req = POWMessage::ChainRequest {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };

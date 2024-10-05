@@ -11,7 +11,7 @@ pub enum TransmitType {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum Message {
+pub enum POWMessage {
   ChainRequest {
     transmit_type : TransmitType,
     sender_peer_id : String
@@ -34,14 +34,14 @@ pub enum Message {
   // }
 }
 
-impl std::fmt::Display for Message {
+impl std::fmt::Display for POWMessage {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
-      Message::ChainRequest { transmit_type, sender_peer_id }
+      POWMessage::ChainRequest { transmit_type, sender_peer_id }
         => write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
-      Message::ChainResponse { transmit_type, data }
+        POWMessage::ChainResponse { transmit_type, data }
         => write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Data: {} \n}}", transmit_type, data),
-      Message::NewBlock { transmit_type, data }
+      POWMessage::NewBlock { transmit_type, data }
         => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, data),
     }
   }

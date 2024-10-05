@@ -15,11 +15,12 @@ use tokio::sync::mpsc;
 use log::{debug, error, info};
 use std::time::Duration;
 
-use super::message::{Message, TransmitType};
+use super::message::{POWMessage, TransmitType};
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 pub static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
-pub static BLOCK_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("blocks"));
+pub static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
+pub static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
@@ -30,7 +31,7 @@ pub struct BlockchainBehaviour {
   pub mdns: Mdns,
   // ** Relevant only to a specific local peer that we are setting up
   #[behaviour(ignore)]
-  to_local_peer: mpsc::UnboundedSender<Message>,
+  to_local_peer: mpsc::UnboundedSender<POWMessage>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
@@ -61,12 +62,12 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   fn inject_event(&mut self, event: GossipsubEvent) {
       match event {
           GossipsubEvent::Message{propagation_source, message, message_id} => {
-                if let Ok(msg) = serde_json::from_slice::<Message>(&message.data) {
+                if let Ok(msg) = serde_json::from_slice::<POWMessage>(&message.data) {
                   info!("Received {:?} from {:?}", msg, propagation_source);
                   match msg {
-                           Message::ChainResponse { ref transmit_type, .. }
-                         | Message::ChainRequest { ref transmit_type, .. }
-                         | Message::NewBlock { ref transmit_type, .. } =>
+                           POWMessage::ChainResponse { ref transmit_type, .. }
+                         | POWMessage::ChainRequest { ref transmit_type, .. }
+                         | POWMessage::NewBlock { ref transmit_type, .. } =>
                           match transmit_type {
                               TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
                               => if let Err(e) = self.to_local_peer.send(msg){
@@ -88,7 +89,7 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   }
 }
 
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
+pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
   -> Swarm<BlockchainBehaviour> {
 
   // Transport
@@ -123,6 +124,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
         // This is set to aid debugging by not cluttering the log space
         .heartbeat_interval(Duration::from_secs(10))
         // This sets the kind of message validation. The default is Strict (enforce message signing)
+        // By default, the gossipsub implementation will sign all messages with the author’s private key, and require a valid signature before accepting or propagating a message further.
         .validation_mode(ValidationMode::Strict)
         // increase max size of messages published size
         .max_transmit_size(MAX_MESSAGE_SIZE)
@@ -152,7 +154,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
     BlockchainBehaviour {gossipsub, mdns, to_local_peer}
   };
 
-  match behaviour.gossipsub.subscribe(&BLOCK_TOPIC)  {
+  match behaviour.gossipsub.subscribe(&CHAIN_TOPIC)  {
     Ok(b) => info!("gossipsub.subscribe() returned {}", b),
     Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
   };
@@ -172,12 +174,12 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
   swarm
 }
 
-pub fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
+pub fn publish_message(msg: POWMessage, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&msg).expect("can jsonify message");
   let res = swarm
           .behaviour_mut()
           .gossipsub
-          .publish(BLOCK_TOPIC.clone(), json.as_bytes());
+          .publish(CHAIN_TOPIC.clone(), json.as_bytes());
   match res {
     Err(e)   => eprintln!("publish_message() error: {:?}", e),
     Ok (msg_id) => info!("publish_message() successful msg_id = {}", msg_id)
