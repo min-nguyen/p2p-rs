@@ -1,4 +1,3 @@
-use libp2p::futures;
 use serde::{Deserialize, Serialize};
 
 use super::block;
@@ -26,6 +25,7 @@ pub enum Message {
     data : block::Block
   }
 }
+
 impl std::fmt::Display for Message {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     match self {
