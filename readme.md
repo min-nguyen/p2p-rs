@@ -1,14 +1,18 @@
-Work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
+##  Interactive Proof-of-Work Blockchain Network in Rust 🦀
 
-### Running
+An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain network, with a command-line interface for interactions.
 
-Run the following (on multiple terminals) to initialise new peers on the same p2p network.
+#### Running
+
+Start multiple instances of the application on separate terminals to initialize new peers within the same peer-to-peer network.
 
 ```sh
 RUST_LOG=info cargo run --bin main
 ```
-### Commands
-```
+
+#### Commands Overview
+```sh
+─────────────────────────────────────────────
   *Load chain*:
 └── Usage: `load`
 ┌── Description:
@@ -52,46 +56,38 @@ RUST_LOG=info cargo run --bin main
 │     • Prints this list of commands.
 ─────────────────────────────────────────────
 ```
-### Files
 
-#### `peer.rs`:
-The peer's logic on the local machine, which the entire application is architected around.
+---
+### File Overview
 
-Defines:
-  - A Swarm object for the peer, used to send and receive messages to/from the remote network.
-  - A standard input buffer for the peer, used to read console commands.
-  - The main (asynchronous) application loop:
-    - How to handle messages from the remote network (forwarded from the NetworkBehaviour object).
-    - How to send messages to the remote network (via the Swarm object).
-    - How to handle commands from the console.
+#### `peer.rs`
+Manages the core peer logic, providing the main application loop and interfaces for sending/receiving messages.
+- Manages a Swarm object for peer communication within the network.
+- Manages standard input events for command-line interactions.
 
-#### `swarm.rs`:
-The network logic for discovering peers, connecting to peers, sending/receiving messages, and handling network events.
+#### `swarm_gossip.rs`
+Contains the network logic using GossipSub as the communication protocol and Mdns as the peer discovery protocol.
+- Configures PeerId, Keypair, and Topic(s) for the network.
+- Sets up NetworkBehaviour to define how immediate peer discovery and message events are handled.
+- Sets up Swarm that wraps around and executes the NetworkBehaviour.
 
-Defines:
-  - The Peer ID and public & private keys.
-  - The interface for publishing request and response messages to the remote network.
-  - The Swarm that executes the defined NetworkBehaviour.
-  - The NetworkBehaviour for specific communication and discovery protocols, which specifies how those protocols' events should be handled. For the communication protocol, it receives request and response messages from remote peers and forwards all relevant requests/responses to the local peer application.
+#### `block.rs`
+Provides the blockchain data structures and the Proof-of-Work consensus algorithm.
+- Defines Chain and Block types.
+- Implements methods for hashing, mining, validating, and managing blocks.
 
-#### `message.rs`:
-Types of potential messages transmitted in a network.
+#### `message.rs`
+Specifies message formats used for communication between nodes in the network.
+- Encodes request/response messages and broadcasts for new blocks.
 
-#### `block.rs`:
-Core data and functions for blocks and chains.
-
-Defines:
-  - Types for Chains and Blocks.
-  - The interface for hashing, mining, validating, and choosing blocks and chains.
-
-#### `file.rs`:
-Auxiliary data and functions relevant to the local machine.
-
-Defines:
-  - The interface for reading and writing blocks to local storage.
+#### `file.rs`
+Handles reading and writing the blockchain data to and from local storage.
+- Manages file operations for loading and saving the blockchain state (`blocks.json`).
 
 
-#### Architecture
+---
+
+### Architecture
 ```rs
                    ------------------------------> SWARM.rs ---------------------------->
                    ↑                                                                    |
