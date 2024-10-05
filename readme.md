@@ -12,7 +12,7 @@ Small work-in-progress project, designing a peer-to-peer (P2P) network for block
 Run the following (on multiple terminals) to initialise new peers on the same p2p network.
 
 ```sh
-RUST_LOG=info cargo run --bin p2p
+RUST_LOG=info cargo run --bin main
 ```
 ### Commands
 ```
