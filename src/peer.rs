@@ -18,7 +18,6 @@ use super::block::{self, Chain};
 use super::message::{POWMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
-// use super::transaction::{Transaction};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -36,8 +35,7 @@ pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     from_network_behaviour : UnboundedReceiver<POWMessage>,
     swarm : Swarm<BlockchainBehaviour>,
-    chain : Chain,
-    // transaction_pool : Vec<Transaction>
+    chain : Chain
 }
 
 impl Peer {

@@ -46,5 +46,3 @@ impl std::fmt::Display for POWMessage {
     }
   }
 }
-
-pub struct Transaction (String);

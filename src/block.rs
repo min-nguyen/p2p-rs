@@ -2,8 +2,8 @@
 //
 // PoW Implementation
 //
-// Simple modelling of the PoW consensus mechanism for cryptocurrency transactions.
-//    Every node in the network can add a block, storing transactions as a string, to the blockchain ledger by mining a valid block locally and then broadcasting that block. As long as it’s a valid block, each node will add the block to its chain and our piece of data become part of a decentralized network.
+// Simple modelling of the PoW consensus mechanism
+//    Every node in the network can add a block, storing data as a string, to the blockchain ledger by mining a valid block locally and then broadcasting that block. As long as it’s a valid block, each node will add the block to its chain and our piece of data become part of a decentralized network.
 //
 //
 /////////////////
@@ -96,7 +96,7 @@ impl std::fmt::Display for Chain {
 }
 
 /* Block
-  Records some or all of the most recent transactions not yet validated by the network.
+  Records some or all of the most recent data not yet validated by the network.
 */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Block {
