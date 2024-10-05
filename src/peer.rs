@@ -87,21 +87,15 @@ impl Peer {
     }
     // NetworkBehaviour Event for a remote request.
     async fn handle_network_event(&mut self, msg: &Message) {
-        println!("Received message:\n {:?}", msg);
+        println!("Received message:\n {}", msg);
         match msg {
             Message::ChainRequest { sender_peer_id, .. } => {
-                match file::read_local_chain().await {
-                    Ok(chain) => {
-                        println!("Reading from local file ...");
-                        let resp = Message::ChainResponse {
-                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                            data: chain.clone(),
-                        };
-                        println!("Sent response to {}", sender_peer_id);
-                        swarm::publish_message(resp, &mut  self.swarm).await
-                    }
-                    Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
-                }
+                let resp = Message::ChainResponse {
+                    transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
+                    data: self.chain.clone(),
+                };
+                println!("Sent response to {}", sender_peer_id);
+                swarm::publish_message(resp, &mut  self.swarm).await
             },
             Message::ChainResponse{ data , ..} => {
                 eprintln!("TO IMPLEMENT: handle_network_event() => ChainResponse.")
@@ -153,11 +147,7 @@ impl Peer {
         }
     }
     async fn handle_cmd_fresh(&mut self) {
-        let chain = block::Chain::new();
-        match file::write_local_chain(&chain).await {
-            Ok(()) => println!("Wrote fresh chain: {}", chain),
-            Err(e) => eprintln!("error writing new valid block: {}", e),
-        }
+        self.chain = block::Chain::new();
     }
     async fn handle_cmd_req(&mut self, args: &str) {
         match args {
@@ -182,47 +172,50 @@ impl Peer {
             }
         }
     }
+    async fn handle_cmd_load(&mut self){
+        match file::read_chain().await {
+            Ok(chain) => {
+                self.chain = chain;
+                println!("Loaded chain from local file")
+            }
+            Err(e) => eprintln!("Error loading chain from local file: {}", e),
+        }
+    }
+    async fn handle_cmd_save(&mut self ){
+        match file::write_chain(&self.chain).await {
+            Ok(()) => {
+                println!("Saved chain to local file")
+            },
+            Err(e) => eprintln!("Error saving chain to local file: {}", e),
+        }
+    }
     async fn handle_cmd_mk(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `mk` missing an argument [data]");
-            }
+            },
             data => {
-                match file::read_local_chain().await {
-                    Ok(mut chain) => {
-                        chain.make_new_valid_block(data);
-                        match file::write_local_chain(&chain).await {
-                            Ok(()) => {
-                                let last_block = chain.get_last_block().to_owned();
-                                println!("Mined and wrote new block: {:?}", last_block);
-                                println!("Broadcasting new block");
-                                swarm::publish_message(
-                                    Message::NewBlock {
-                                        transmit_type: TransmitType::ToAll,
-                                        data: last_block
-                                    }
-                                , &mut self.swarm).await;
-                            },
-                            Err(e) => eprintln!("error writing new valid block: {}", e),
-                        }
+                self.chain.make_new_valid_block(data);
+                let last_block = self.chain.get_last_block().to_owned();
+                println!("Mined and wrote new block: {:?}", last_block);
+                println!("Broadcasting new block");
+                swarm::publish_message(
+                    Message::NewBlock {
+                        transmit_type: TransmitType::ToAll,
+                        data: last_block
                     }
-                    Err(e) => eprintln!("error fetching local blocks to answer request, {}", e),
-                }
+                , &mut self.swarm).await;
             }
         }
     }
+
     async fn handle_cmd_ls(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `ls` missing an argument `blocks` or `peers")
             }
             "blocks"   => {
-                match file::read_local_chain().await {
-                    Ok(blocks) => {
-                       blocks.0.iter().for_each(|r| println!("{:?}", r))
-                    }
-                    Err(e) => eprintln!("error fetching local blocks: {}", e),
-                };
+                self.chain.0.iter().for_each(|r| println!("{:?}", r))
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)
@@ -260,7 +253,7 @@ pub async fn set_up_peer() -> Peer {
 
     // Load chain from local file
     let chain: Chain
-        = match file::read_local_chain().await {
+        = match file::read_chain().await {
             Err(e) => {
                 eprintln!("Problem loading chain from local file: \"{}\" \n\
                            Instantiating fresh chain instead: ", e);

@@ -85,9 +85,9 @@ impl std::fmt::Display for Chain {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
     write!(f, "Chain {{\n")?;
     for block in &self.0 {
-      write!(f, "{}\n", block)?
+      write!(f, "\t{}\n", block)?
     };
-    write!(f, "\n}}\n")
+    write!(f, "}}")
   }
 }
 
@@ -216,7 +216,7 @@ impl Block {
 impl std::fmt::Display for Block {
   fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
 
-    write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash (hex): {} \n}}"
+    write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash (hex): {}}}"
           , self.idx, self.data, hex::encode(self.hash))
   }
 }

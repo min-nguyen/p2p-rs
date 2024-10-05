@@ -180,7 +180,7 @@ pub async fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour
           .publish(BLOCK_TOPIC.clone(), json.as_bytes());
   match res {
     Err(e)   => eprintln!("publish_message() error: {:?}", e),
-    Ok (msg_id) => info!("publish_message() successful, with msg_id = {}", msg_id)
+    Ok (msg_id) => info!("publish_message() successful msg_id = {}", msg_id)
   }
 }
 
