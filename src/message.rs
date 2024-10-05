@@ -24,6 +24,14 @@ pub enum Message {
     transmit_type : TransmitType, // always ToAll
     data : block::Block
   }
+  // NewBlockProposal {
+  //   transmit_type : TransmitType, // always ToAll
+  //   data : block::Block
+  // },
+  // NewBlockValidation {
+  //   transmit_type : TransmitType, // always ToAll
+  //   data : block::Block
+  // }
 }
 
 impl std::fmt::Display for Message {
