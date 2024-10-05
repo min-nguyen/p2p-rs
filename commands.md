@@ -28,7 +28,7 @@
 │     • `[peer-id]`  - Request chain from a specific peer
 
   *Print chain or peers*:
-└── Usage: `ls <"peers" | "chain">`
+└── Usage: `show <"peers" | "chain">`
 ┌── Options:
 │     • `"peers"`   - Show a list of discovered and connected peers
 │     • `"chain"`   - Show current chain
@@ -37,4 +37,9 @@
 └── Usage: `redial`
 ┌── Description:
 │     • Redial all discovered peers.
+
+  *Show commands*:
+└── Usage: `help`
+┌── Description:
+│     • Prints this list of commands.
 ─────────────────────────────────────────────

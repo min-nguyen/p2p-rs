@@ -148,14 +148,16 @@ impl Peer {
                 let args = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
                 self.handle_cmd_mine(args)
             }
-            // `ls <chain | peers>` lists the local chain or the discovered & connected peers
-            cmd if cmd.starts_with("ls") => {
-                let args = cmd.strip_prefix("ls").expect("can strip `ls`").trim() ;
+            // `show <chain | peers>` lists the local chain or the discovered & connected peers
+            cmd if cmd.starts_with("show") => {
+                let args = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
                 self.handle_cmd_ls(args);
             }
+            cmd if cmd.starts_with("help") => {
+                 print_user_commands();
+             },
             _ => {
-                println!("Unknown command: \"{}\"", cmd);
-                print_user_commands();
+                println!("Unknown command: \"{}\" \nWrite `help` to show available commands.", cmd);
             }
         }
     }
@@ -225,7 +227,7 @@ impl Peer {
     fn handle_cmd_ls(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `ls` missing an argument `chain` or `peers")
+                println!("Command error: `show` missing an argument `chain` or `peers`")
             }
             "chain"   => {
                 self.chain.0.iter().for_each(|r| println!("{:?}", r))
@@ -239,15 +241,19 @@ impl Peer {
                 conn_peers.iter().for_each(|p| println!("{}", p));
             }
             _ => {
-                println!("Command error: `ls` has unrecognised argument(s). Specify `chain` or `peers")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers")
             }
         }
     }
     fn handle_cmd_redial(&mut self){
         let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
+        if discovered_peers.is_empty() {
+            println!("No discovered peers to dial!");
+            return ()
+        }
         for peer_id in discovered_peers {
             match self.swarm.dial(&peer_id){
-                Ok(()) => println!("Dialled {}", peer_id),
+                Ok(()) => println!("Dial for {}", peer_id),
                 Err(e) => eprintln!("Dial error {}", e)
             }
         }
@@ -277,17 +283,17 @@ pub async fn set_up_peer() -> Peer {
     let chain: Chain
         = match file::read_chain().await {
             Err(e) => {
-                eprintln!("Problem loading chain from local file: \"{}\" \n\
-                           Instantiating reset chain instead: ", e);
+                eprintln!("\nProblem loading chain from the local file: \"{}\" \n\
+                           Instantiating a fresh chain instead. ", e);
                 Chain::new()
             }
             Ok(chain) => {
-                println!("Succesfully loaded chain from local file.");
+                println!("\nLoaded chain from local file.\n");
                 chain
             }
         };
 
-    println!("Peer Id: {}", swarm.local_peer_id().to_string());
+    println!("\nYour Peer Id: {}\n", swarm.local_peer_id().to_string());
     Peer { from_stdin
         , from_network_behaviour
         , swarm
