@@ -15,7 +15,7 @@ Run the following (on multiple terminals) to initialise new peers on the same p2
 RUST_LOG=info cargo run --bin p2p
 ```
 ### Commands
-
+```
 ─────────────────────────────────────────────
   *Load chain*:
 └── Usage: `load`
@@ -54,7 +54,7 @@ RUST_LOG=info cargo run --bin p2p
 ┌── Description:
 │     • Redial all discovered peers.
 ─────────────────────────────────────────────
-
+```
 ### Files
 
 #### `peer.rs`:
