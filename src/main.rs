@@ -1,6 +1,7 @@
 pub mod file;
 pub mod peer;
 pub mod block;
+// pub mod transaction;
 pub mod message;
 pub mod swarm_flood;
 pub mod swarm_gossip;
@@ -13,6 +14,8 @@ use block::{
 #[tokio::main]
 async fn main() {
   pretty_env_logger::init();
+  let (x, y) = (hex::encode([0;32]), hex::encode([0]));
+  println!("{}, {}, {:?}, {:?}", x, y, hex::decode(&x), hex::decode(&y));
 
   run_p2p().await;
   // dummy_chain(10)

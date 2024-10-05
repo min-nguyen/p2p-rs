@@ -13,7 +13,7 @@ mod block_tests {
     #[test]
     fn test_valid_first_block() {
       let gen = Block::genesis();
-      let valid_block = Block::mine_block(1, "test", gen.hash);
+      let valid_block = Block::mine_block(1, "test", &gen.hash);
 
       assert_eq!(true, Block::valid_block(&gen, &valid_block));
     }
@@ -21,18 +21,18 @@ mod block_tests {
     #[test]
     fn test_invalid_first_block() {
       let gen = Block::genesis();
-      let valid_block = Block::mine_block(1, "test", gen.hash);
+      let valid_block = Block::mine_block(1, "test", &gen.hash);
 
       let invalid_idx = Block {idx : 0, .. valid_block.clone()};
       assert_eq!(false, Block::valid_block(&gen, &invalid_idx));
 
-      let invalid_prev_hash = Block { prev_hash : [0;32], .. valid_block.clone() };
+      let invalid_prev_hash = Block { prev_hash : hex::encode([0;32]), .. valid_block.clone() };
       assert_eq!(false, Block::valid_block(&gen, &invalid_prev_hash));
 
-      let invalid_hash = Block {hash : [0;32], .. valid_block.clone()};
+      let invalid_hash = Block {hash :  hex::encode([0;32]), .. valid_block.clone()};
       assert_eq!(false, Block::valid_block(&gen, &invalid_hash));
 
-      let invalid_difficulty_prefix = Block {hash : [1;32], .. valid_block.clone()};
+      let invalid_difficulty_prefix = Block {hash :  hex::encode([1;32]), .. valid_block.clone()};
       assert_eq!(false, Block::valid_block(&gen, &invalid_difficulty_prefix));
     }
 

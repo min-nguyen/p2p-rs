@@ -1,40 +1,5 @@
 Work-in-progress project, designing a peer-to-peer (P2P) network for blockchain.
 
-
-- [ ] messages for new transactions
-- [ ] messages for proposing new blocks
-- [ ] data for storing peers' public keys
-- [ ] messages for sending public keys
-- [ ] messages for responding with signed validations of blocks
-- [ ] data for storing number of validations for a given block
-- [ ] handling `n` peer validations of blocks by adding block to current chain
-
- +-----------------------+                   +-----------------------+
- |     Node (Miner 1)    |                   |     Node (Miner 2)    |
- | - Receives Transactions|                  | - Receives Transactions|
- | - Solves PoW Puzzle    |<---------------->| - Solves PoW Puzzle    |
- | - Broadcasts NewBlock  |                  | - Broadcasts NewBlock  |
- +-----------------------+                   +-----------------------+
-           ^                                         ^
-           |                                         |
-           |     (Gossipsub: NewBlock + Tx)          |
-           v                                         v
- +---------------------------------------------------------------+
- |                           Network                             |
- | - Gossipsub Topic for Broadcasting NewBlocks & Transactions   |
- | - mDNS for Peer Discovery                                      |
- +---------------------------------------------------------------+
-           ^                                         ^
-           |                                         |
-           v                                         v
- +-----------------------+                   +-----------------------+
- |   Node (Validator 1)  |                   |   Node (Validator 2)  |
- | - Listens for NewBlocks|                  | - Listens for NewBlocks|
- | - Verifies PoW         |<---------------->| - Verifies PoW         |
- | - Updates Ledger       |                  | - Updates Ledger       |
- +-----------------------+                   +-----------------------+
-
-
 ### Running
 
 Run the following (on multiple terminals) to initialise new peers on the same p2p network.

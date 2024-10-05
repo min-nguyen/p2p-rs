@@ -1995,9 +1995,11 @@ dependencies = [
  "log",
  "once_cell",
  "pretty_env_logger",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha2",
+ "to-binary",
  "tokio",
 ]
 
@@ -2858,6 +2860,15 @@ name = "tinyvec_macros"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
+
+[[package]]
+name = "to-binary"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4424552bc848fd1afbcd81f0e8a54b7401b90fd81bb418655ad6dc6d0823bbe3"
+dependencies = [
+ "hex",
+]
 
 [[package]]
 name = "tokio"

@@ -18,6 +18,7 @@ use super::block::{self, Chain};
 use super::message::{POWMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
+// use super::transaction::{Transaction};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -35,7 +36,8 @@ pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     from_network_behaviour : UnboundedReceiver<POWMessage>,
     swarm : Swarm<BlockchainBehaviour>,
-    chain : Chain
+    chain : Chain,
+    // transaction_pool : Vec<Transaction>
 }
 
 impl Peer {
@@ -118,6 +120,10 @@ impl Peer {
     // StdIn Event for a local user command.
     async fn handle_stdin_event(&mut self, cmd: &str) {
         match cmd {
+            //
+            cmd if cmd.starts_with("trans") => {
+
+            }
             // `redial`, dial all discovered peers
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()
@@ -284,7 +290,12 @@ pub async fn set_up_peer() -> Peer {
         };
 
     println!("Peer Id: {}", swarm.local_peer_id().to_string());
-    Peer { from_stdin, from_network_behaviour, swarm, chain }
+    Peer { from_stdin
+        , from_network_behaviour
+        , swarm
+        , chain
+        // , transaction_pool: vec![]
+    }
 }
 
 fn print_user_commands(){
