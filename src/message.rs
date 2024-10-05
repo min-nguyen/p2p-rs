@@ -46,3 +46,6 @@ impl std::fmt::Display for POWMessage {
     }
   }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TransactionMessage (String);

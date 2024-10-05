@@ -1,6 +1,7 @@
 pub mod file;
 pub mod peer;
 pub mod block;
+// pub mod transaction;
 pub mod message;
 pub mod swarm_flood;
 pub mod swarm_gossip;

@@ -11,7 +11,7 @@ pub struct Transaction {
     pub receiver: String,        // Address of the receiver (could be a public key)
     pub amount: u64,             // Amount of currency/asset being transferred
     pub timestamp: i64,          // Unix timestamp when the transaction was created
-    pub signature: String,        // Signature for verifying the authenticity of the transaction
+    pub signature: String,       // Signature for verifying the authenticity of the transaction
 }
 
 impl Transaction {

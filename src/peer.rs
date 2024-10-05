@@ -18,6 +18,7 @@ use super::block::{self, Chain};
 use super::message::{POWMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
+// use super::transaction::{Transaction};
 
 /* Events for the peer to handle, either:
        (1) Local Inputs from the terminal
@@ -35,7 +36,8 @@ pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     from_network_behaviour : UnboundedReceiver<POWMessage>,
     swarm : Swarm<BlockchainBehaviour>,
-    chain : Chain
+    chain : Chain,
+    // transaction_pool : Vec<Transaction>
 }
 
 impl Peer {
@@ -119,9 +121,9 @@ impl Peer {
     async fn handle_stdin_event(&mut self, cmd: &str) {
         match cmd {
             //
-            // cmd if cmd.starts_with("trans") => {
+            cmd if cmd.starts_with("trans") => {
 
-            // }
+            }
             // `redial`, dial all discovered peers
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()
@@ -261,13 +263,13 @@ pub async fn set_up_peer() -> Peer {
             After network receieves a remote message, it forwards any requests here back to the peer (from_network)
         2. from_network is an input channel, used by peer.rs
             Receive requests forwarded by to_peer, and handles them. */
-    let ( to_local_peer // used to send messages to response_rcv
-        , from_network_behaviour) // used to receive the messages sent by response_sender.
+    let ( pow_msg_sender // used to send messages to response_rcv
+        , pow_msg_receiver // used to receive the messages sent by response_sender.
         = mpsc::unbounded_channel();
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm::set_up_swarm(to_local_peer).await;
+        = swarm::set_up_blockchain_swarm(to_local_peer).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin

@@ -5,15 +5,16 @@
 */
 
 use libp2p::{
-  gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, IdentTopic, MessageAuthenticity, Topic, ValidationMode},
-  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsConfig, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+  core::{muxing::StreamMuxerBox, transport::Boxed, upgrade}, gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, GossipsubMessage, IdentTopic, MessageAuthenticity, MessageId, Topic, ValidationMode}, identity::Keypair, mdns::{Mdns, MdnsConfig, MdnsEvent}, mplex, noise, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
 };
 
 use once_cell::sync::Lazy;
-use std::collections::HashSet;
+use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}};
 use tokio::sync::mpsc;
 use log::{debug, error, info};
 use std::time::Duration;
+
+use super::message::TransactionMessage;
 
 use super::message::{POWMessage, TransmitType};
 
@@ -21,6 +22,7 @@ static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 pub static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 pub static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
+pub static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
@@ -31,7 +33,9 @@ pub struct BlockchainBehaviour {
   pub mdns: Mdns,
   // ** Relevant only to a specific local peer that we are setting up
   #[behaviour(ignore)]
-  to_local_peer: mpsc::UnboundedSender<POWMessage>,
+  pow_sender: mpsc::UnboundedSender<POWMessage>,
+  #[behaviour(ignore)]
+  transaction_sender: mpsc::UnboundedSender<TransactionMessage>,
 }
 
 impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
@@ -62,38 +66,37 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
   fn inject_event(&mut self, event: GossipsubEvent) {
       match event {
           GossipsubEvent::Message{propagation_source, message, message_id} => {
-                if let Ok(msg) = serde_json::from_slice::<POWMessage>(&message.data) {
-                  info!("Received {:?} from {:?}", msg, propagation_source);
-                  match msg {
+                if let Ok(pow_msg) = serde_json::from_slice::<POWMessage>(&message.data) {
+                  info!("Received {:?} from {:?}", pow_msg, propagation_source);
+                  match pow_msg {
                            POWMessage::ChainResponse { ref transmit_type, .. }
                          | POWMessage::ChainRequest { ref transmit_type, .. }
                          | POWMessage::NewBlock { ref transmit_type, .. } =>
                           match transmit_type {
                               TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
-                              => if let Err(e) = self.to_local_peer.send(msg){
+                              => if let Err(e) = self.pow_sender.send(pow_msg){
                                       error!("Error sending message to peer via local channel: {}", e);
                                  }
                               ,
                               TransmitType::ToAll
-                              => if let Err(e) = self.to_local_peer.send(msg){
+                              => if let Err(e) = self.pow_sender.send(pow_msg){
                                       error!("Error sending message to peer via local channel: {}", e);
                                   }
                               ,
                               _ => info!("Ignoring received message -- not for us.")
                           }
-                  }
-              }
+                    }
+                }
+                else if let Ok(transaction) = serde_json::from_slice::<TransactionMessage>(&message.data) {
+                    self.transaction_sender.send(transaction);
+                }
           }
           _ => (),
       }
   }
 }
 
-pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
-  -> Swarm<BlockchainBehaviour> {
-
-  // Transport
-  let transp = {
+fn new_tcp_transport() -> Boxed<(PeerId, StreamMuxerBox)>{
     // Authentication keys, for the `Noise` crypto-protocol, used to secure traffic within the p2p network
     let local_auth_keys: noise::AuthenticKeypair<noise::X25519Spec>
         = noise::Keypair::<noise::X25519Spec>::new()
@@ -105,22 +108,35 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
         .authenticate(noise::NoiseConfig::xx(local_auth_keys).into_authenticated())
         .multiplex(mplex::MplexConfig::new())
         .boxed()
-  };
+}
+
+async fn new_mdns_discovery() -> Mdns {
+    let mdns_config: MdnsConfig
+      = MdnsConfig::default();
+    Mdns::new(mdns_config)
+        .await
+        .expect("can create mdns")
+}
+
+pub async fn set_up_blockchain_swarm(
+        pow_sender : mpsc::UnboundedSender<POWMessage>
+    ,   transaction_sender : mpsc::UnboundedSender<TransactionMessage>)
+  -> Swarm<BlockchainBehaviour> {
+
+  // Transport
+  let transp = new_tcp_transport();
 
   // Network behaviour
-  let mut behaviour = {
+  let mut behaviour: BlockchainBehaviour = {
 
-    // GossipSub
-    /*  Configuring with this message_id_fn would prevent two messages of simply the same content being sent.
-        This is not useful for us if we want to send `req all` twice.
-        let message_id_fn = |message: &gossipsub::GossipsubMessage| {
-            let mut s = DefaultHasher::new();
-            message.data.hash(&mut s);
-            gossipsub::MessageId::from(s.finish().to_string())
-        };  */
+    // Discovery Protocol
+    let mdns = new_mdns_discovery().await;
 
+    // Communication Protocol
     let gossipsub_config: GossipsubConfig
       = GossipsubConfigBuilder::default()
+        // Custom hashing for message_ids, to filter out duplicate transactions
+        .message_id_fn(message_id_fn)
         // This is set to aid debugging by not cluttering the log space
         .heartbeat_interval(Duration::from_secs(10))
         // This sets the kind of message validation. The default is Strict (enforce message signing)
@@ -143,15 +159,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<POWMessage>)
         )
         .expect("can create gossipsub");
 
-    // MDNS Discovery
-    let mdns_config: MdnsConfig
-      = MdnsConfig::default();
-    let mdns: Mdns
-      = Mdns::new(mdns_config)
-        .await
-        .expect("can create mdns");
-
-    BlockchainBehaviour {gossipsub, mdns, to_local_peer}
+    BlockchainBehaviour {mdns, gossipsub, pow_sender, transaction_sender}
   };
 
   match behaviour.gossipsub.subscribe(&CHAIN_TOPIC)  {
@@ -201,4 +209,20 @@ pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<P
      = |peers : HashSet<&PeerId>| peers.into_iter().cloned().collect();
 
   (collect_peers(discovered_peers), collect_peers(connected_peers))
+}
+
+// Configuring with this message_id_fn would prevent two messages of simply the same content being sent.
+fn message_id_fn(message: &gossipsub::GossipsubMessage) -> MessageId {
+    let mut hasher: DefaultHasher = DefaultHasher::new();
+    let GossipsubMessage{  data, topic, ..} = message;
+
+    // Filter out duplicate transactions by hashing only on the payload (i.e. the transaction).
+    if *topic == TRANSACTION_TOPIC.hash(){
+      data.hash(&mut hasher);
+    }
+    // Allow duplicates of other messages (e.g. several requests).
+    else {
+      message.hash(&mut hasher);
+    }
+    gossipsub::MessageId::from(hasher.finish().to_string())
 }
