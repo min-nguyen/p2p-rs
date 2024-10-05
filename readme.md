@@ -1,4 +1,4 @@
-A Proof-of-Work P2P Blockchain Network, using `libp2p`. Work in progress.
+A Proof-of-Work P2P Blockchain Network project in Rust, using `libp2p`. Work in progress.
 
 ### Running
 
