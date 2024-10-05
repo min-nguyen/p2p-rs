@@ -21,7 +21,6 @@ static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 pub static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 pub static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
-pub static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
