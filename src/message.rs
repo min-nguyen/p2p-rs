@@ -26,15 +26,15 @@ pub enum Message {
     data : block::Block
   }
 }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// pub enum ChainMessage {
-//   Request{
-//     transmit_type : TransmitType,
-//     sender_peer_id : String
-//   },
-//   Response{
-//     transmit_type : TransmitType,
-//     data : block::Chain
-//   }
-// }
+impl std::fmt::Display for Message {
+  fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    match self {
+      Message::ChainRequest { transmit_type, sender_peer_id }
+        => write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
+      Message::ChainResponse { transmit_type, data }
+        => write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Data: {} \n}}", transmit_type, data),
+      Message::NewBlock { transmit_type, data }
+        => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, data),
+    }
+  }
+}

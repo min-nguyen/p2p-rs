@@ -39,7 +39,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             // Event for discovering (a list of) new peers
             MdnsEvent::Discovered(discovered_list) => {
                 for (peer, _addr) in discovered_list {
-                    info!("discovered peer: {}", peer);
+                    info!("MdnsEvent: discovered peer: {}", peer);
                     self.gossipsub.add_explicit_peer(&peer);
                 }
                 // let mesh_peers : Vec<libp2p::PeerId> = self.gossipsub.all_mesh_peers().cloned().collect();
@@ -48,7 +48,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             // Event for (a list of) expired peers
             MdnsEvent::Expired(expired_list) => {
                 for (peer, _addr) in expired_list {
-                    info!("removed peer: {}", peer);
+                    info!("MdnsEvent: removed peer: {}", peer);
                     if !self.mdns.has_node(&peer) {
                         self.gossipsub.remove_explicit_peer(&peer);
                     }
@@ -62,7 +62,7 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
       match event {
           GossipsubEvent::Message{propagation_source, message, message_id} => {
                 if let Ok(msg) = serde_json::from_slice::<Message>(&message.data) {
-                  info!("received {:?} from {:?}", msg, propagation_source);
+                  info!("Received {:?} from {:?}", msg, propagation_source);
                   match msg {
                            Message::ChainResponse { ref transmit_type, .. }
                          | Message::ChainRequest { ref transmit_type, .. }
@@ -70,15 +70,15 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                           match transmit_type {
                               TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
                               => if let Err(e) = self.to_local_peer.send(msg){
-                                      error!("error sending request via channel, {}", e);
+                                      error!("Error sending message to peer via local channel: {}", e);
                                  }
                               ,
                               TransmitType::ToAll
                               => if let Err(e) = self.to_local_peer.send(msg){
-                                      error!("error sending request via channel, {}", e);
+                                      error!("Error sending message to peer via local channel: {}", e);
                                   }
                               ,
-                              _ => info!("message unintended for us. ignoring.")
+                              _ => info!("Ignoring received message -- not for us.")
                           }
                   }
               }
@@ -172,7 +172,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<Message>)
   swarm
 }
 
-pub async fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
+pub fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour>){
   let json = serde_json::to_string(&msg).expect("can jsonify message");
   let res = swarm
           .behaviour_mut()
@@ -180,7 +180,7 @@ pub async fn publish_message(msg: Message, swarm: &mut Swarm<BlockchainBehaviour
           .publish(BLOCK_TOPIC.clone(), json.as_bytes());
   match res {
     Err(e)   => eprintln!("publish_message() error: {:?}", e),
-    Ok (msg_id) => info!("publish_message() successful, with msg_id = {}", msg_id)
+    Ok (msg_id) => info!("publish_message() successful msg_id = {}", msg_id)
   }
 }
 
