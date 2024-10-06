@@ -191,18 +191,18 @@ impl Block {
     // * standard correctness checks:
     //    - check if block's header correctly stores the previous block's hash
     if block.prev_hash != last_block.hash {
-        info!("valid_block(): block with idx: {} has wrong previous hash", block.idx);
+        eprintln!("Invalid block! block with idx: {} has wrong previous hash", block.idx);
         return false
     }
     //    - check if block's idx is the increment of the previous block's idx
     if block.idx != last_block.idx + 1 {
-        info!("valid_block(): block with idx {} is not the next block after the last one with idx {}"
+        eprintln!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
                 , block.idx, last_block.idx);
         return false
     }
     //    - check if block's hash is indeed the correct hash of itself.
     if block.hash != Block::hash_block(&block) {
-        info!("valid_block(): block with idx {} stores a hash {} different from its real hash {}"
+        eprintln!("Invalid block! block with idx {} stores a hash {} different from its real hash {}"
             , last_block.idx, block.hash, Block::hash_block(&block)) ;
         return false
     }
@@ -211,7 +211,7 @@ impl Block {
     let BinaryString(hash_binary)
       = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
     if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-        info!("valid_block(): block with idx {} has hash binary {}, which does need meet the difficulty target {}"
+        eprintln!("Invalid block! block with idx {} has hash binary {}, which does need meet the difficulty target {}"
             , last_block.idx, hash_binary, DIFFICULTY_PREFIX) ;
         return false
     }
