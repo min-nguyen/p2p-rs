@@ -1,6 +1,10 @@
-# Layer 1 Network and Blockchain
+# Layer 1 Network
 A Layer 1 network is a network that acts as infrastructure for other applications, protocols, and networks to build on top of.
+
+# Layer 1 Blockchain [https://metaschool.so/articles/layer-1-blockchain/]
 A Layer 1 blockchain, therefore, is hence the foundation of a blockchain network. It is responsible for:
+  - Blockchain itself and ledger
+  The data structure of the ledger stored on the blockchain
   - Transaction processing
   L1 blockchains are responsible for all on-chain transactions, including executing and confirming them.
   - Consensus mechanisms

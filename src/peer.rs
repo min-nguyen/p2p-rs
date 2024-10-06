@@ -266,6 +266,10 @@ impl Peer {
                 => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
             SwarmEvent::NewListenAddr { listener_id, address, .. }
                 => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
+            SwarmEvent::Dialing(peer_id)
+                => info!("SwarmEvent: dialling {:?} ", peer_id),
+            SwarmEvent::IncomingConnection { local_addr, send_back_addr }
+                => info!("SwarmEvent: incoming connection on addr {:?} with send-back addr {}", local_addr, send_back_addr),
             _
                 => info!("Unhandled swarm event: {:?}", swarm_event)
         }
