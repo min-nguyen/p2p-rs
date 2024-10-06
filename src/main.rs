@@ -6,9 +6,7 @@ pub mod message;
 pub mod swarm_flood;
 pub mod swarm_gossip;
 
-use chain::{
-  Chain, Block
-};
+use chain::Chain;
 
 // RUST_LOG=info cargo run --bin main
 #[tokio::main]

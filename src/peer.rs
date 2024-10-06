@@ -13,39 +13,30 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::{HashMap};
 
 use super::file;
 use super::chain::{self, Chain};
-use super::transaction::Transaction;
-use super::message::{PowMessage, TxnMessage, TransmitType};
+use super::message::{PowMessage, TransmitType};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
-// use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 
 /* Events for the peer to handle, either:
     (1) Local inputs from the terminal
     (2) Remote chain messages from miners in the network
-    (3) Remote transaction messages from peers in the network
 */
 enum EventType {
     StdEvent(String),
-    PowEvent(PowMessage),
-    TxnEvent(TxnMessage)
+    PowEvent(PowMessage)
 }
 
 /* A Peer consists of:
     (1) A channel to handle commands from standard input
     (2) A channel to receive blockchain requests/responses forwarded from the network behaviour
-    (3) A channel to receive transaction messages forwarded from the network behaviour
-    (4) A local blockchain
-    (3) A local transaction pool, identified by their hashes */
+    (4) A local blockchain */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     pow_receiver : UnboundedReceiver<PowMessage>,
-    txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
-    chain : Chain,
-    txn_pool  : HashMap<String, Transaction>
+    chain : Chain
 }
 
 impl Peer {
@@ -60,8 +51,6 @@ impl Peer {
                 tokio::select! {
                     pow_event = self.pow_receiver.recv()
                         => Some(EventType::PowEvent(pow_event.expect("pow event exists"))),
-                    txn_event = self.txn_receiver.recv()
-                        => Some(EventType::TxnEvent(txn_event.expect("txn event exists"))),
                     std_event = self.from_stdin.next_line()
                         => Some(EventType::StdEvent(std_event.expect("can get line").expect("can read line from stdin"))),
                     // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
@@ -73,8 +62,6 @@ impl Peer {
                 match event {
                     EventType::PowEvent(msg)
                         => self.handle_pow_event(&msg),
-                    EventType::TxnEvent(msg)
-                        => self.handle_txn_event(&msg),
                     EventType::StdEvent(cmd)
                         => self.handle_std_event(&cmd).await,
                 }
@@ -111,16 +98,9 @@ impl Peer {
             }
         }
     }
-    fn handle_txn_event(&mut self, msg: &TxnMessage) {
-        /* TO DO  */
-    }
     // Stdin event for a local user command.
     async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
-            // /* TO DO  */
-            // cmd if cmd.starts_with("txn") => {
-
-            // }
             // `redial`, dial all discovered peers
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()
@@ -288,13 +268,10 @@ pub async fn set_up_peer() -> Peer {
     let ( pow_sender // used to send messages to response_rcv
         , pow_receiver) // used to receive the messages sent by response_sender.
         = mpsc::unbounded_channel();
-    let ( txn_sender // used to send messages to response_rcv
-        , txn_receiver) // used to receive the messages sent by response_sender.
-        = mpsc::unbounded_channel();
 
     // Swarm, with our network behaviour
     let swarm
-        = swarm::set_up_blockchain_swarm(pow_sender, txn_sender).await;
+        = swarm::set_up_blockchain_swarm(pow_sender).await;
 
     // Async Reader for StdIn, which reads the stream line by line.
     let from_stdin
@@ -317,10 +294,8 @@ pub async fn set_up_peer() -> Peer {
     println!("\nYour Peer Id: {}\n", swarm.local_peer_id().to_string());
     Peer { from_stdin
         , pow_receiver
-        , txn_receiver
         , swarm
         , chain
-        , txn_pool: HashMap::new()
     }
 }
 

@@ -11,7 +11,7 @@
 use chrono::{DateTime, Utc};
 use log::info;
 use serde::{Deserialize, Serialize};
-use to_binary::{BinaryString};
+use to_binary::BinaryString;
 
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "0";
@@ -102,7 +102,7 @@ impl std::fmt::Display for Chain {
 pub struct Block {
     // position in the chain for sequentiality and quick access
     pub idx: u64,
-    // core content e.g. a list of transactions
+    // core content
     pub data: String,
     // cryptographic hash of the block (contents + metadata) that uniquely identifies it and ensures integrity
     pub hash: String,
@@ -180,8 +180,8 @@ impl Block {
 
         // retrieve hash result
         let hash : [u8; 32] = hasher
-        .finalize() // : Sha256 -> GenericArray<u8, U32>
-        .into(); //  .into() : GenericArray<u8, U32> -> [u8; 32].
+        .finalize() // Sha256 -> GenericArray<u8, U32>
+        .into(); // GenericArray<u8, U32> -> [u8; 32].
 
         bytes_to_hexstr(&hash)
     }

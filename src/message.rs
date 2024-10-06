@@ -1,8 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 use super::chain;
-use super::transaction;
-
 
 // Messages can be intended for (1) all peers or (2) a specific peer.
 #[derive(Debug, Serialize, Deserialize)]
@@ -25,14 +23,6 @@ pub enum PowMessage {
         transmit_type : TransmitType, // always ToAll
         data : chain::Block
     }
-    // NewBlockProposal {
-    //   transmit_type : TransmitType, // always ToAll
-    //   data : block::Block
-    // },
-    // NewBlockValidation {
-    //   transmit_type : TransmitType, // always ToAll
-    //   data : block::Block
-    // }
 }
 
 impl std::fmt::Display for PowMessage {
@@ -45,15 +35,5 @@ impl std::fmt::Display for PowMessage {
         PowMessage::NewBlock { transmit_type, data }
             => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, data),
         }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum TxnMessage {
-    NewTransaction {
-        txn      : transaction::Transaction
-    },
-    ResolvedTransaction {
-        txn_hash : String
     }
 }
