@@ -17,18 +17,6 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(sender: String, sender_pbk : Vec<u8>, receiver: String, amount: u64, timestamp: i64, hash: String, sig: Vec<u8>) -> Self {
-        Transaction {
-            sender,
-            sender_pbk,
-            receiver,
-            amount,
-            timestamp,
-            hash,
-            sig
-        }
-    }
-
     pub fn hash(sender: &String, sender_pk : &Vec<u8>, receiver: &String, amount: u64, timestamp: i64) -> String {
         let mut hasher: Sha256 = Sha256::new();
         let message: String = format!("{}:{}:{}:{}:{}", sender, hex::encode(sender_pk), receiver, amount, timestamp);
@@ -50,7 +38,7 @@ impl Transaction {
 
         let sig = keys.sign(&hash.as_bytes()).expect("Signing failed");
 
-        Transaction::new(sender, sender_pbk, receiver, amount, timestamp, hash, sig)
+        Transaction{ sender, sender_pbk, receiver, amount, timestamp, hash, sig }
     }
 
     pub fn verify_transaction(txn: Transaction) -> bool {
