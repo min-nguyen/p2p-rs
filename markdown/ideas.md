@@ -2,7 +2,7 @@
 - [x] messages for new transactions
 - [x] temporary command `txn` for storing a test transaction in the pool
 - [x] command `show txns` to show transaction pool
-- [ ] represent sender_pbk and sig as hex strings for consistency, or atleast by [u8; 32] and [u8; 64]
+- [ ] change Transaction fields `sender_pbk` and `sig` from type `Vec<u8>`  as hex strings for consistency, or atleast by [u8; 32] and [u8; 64]. If choosing the latter, then change Block field `hash` from `String` to `[u8; 32]`, and then implement a `pretty()` function for chains and blocks which only shows the hex repr.
 - [ ] change command `txn` for broadcasting new transactions
 - [ ] handling new transactions by storing them in the peer
 
