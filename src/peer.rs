@@ -17,10 +17,10 @@ use std::collections::{HashMap};
 
 use super::file;
 use super::chain::{self, Chain};
-use super::transaction::{self, Transaction};
+use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
-// use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
+// use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 
 /* Events for the peer to handle, either:
     (1) Local inputs from the terminal
@@ -35,15 +35,17 @@ enum EventType {
 
 /* A Peer consists of:
     (1) A channel to handle commands from standard input
-    (2) A channel to handle requests/responses forwarded from the local network behaviour (but originating from the remote network)
-    (3) A swarm to publish responses and requests to the remote network */
+    (2) A channel to receive blockchain requests/responses forwarded from the network behaviour
+    (3) A channel to receive transaction messages forwarded from the network behaviour
+    (4) A local blockchain
+    (3) A local transaction pool, identified by their hashes */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     pow_receiver : UnboundedReceiver<PowMessage>,
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    txn_pool : HashMap<String, Transaction>
+    txn_pool  : HashMap<String, Transaction>
 }
 
 impl Peer {
@@ -110,17 +112,15 @@ impl Peer {
         }
     }
     fn handle_txn_event(&mut self, msg: &TxnMessage) {
-        /*
-        TO DO
-        */
+        /* TO DO  */
     }
     // Stdin event for a local user command.
     async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
-            //
-            cmd if cmd.starts_with("txn") => {
+            // /* TO DO  */
+            // cmd if cmd.starts_with("txn") => {
 
-            }
+            // }
             // `redial`, dial all discovered peers
            cmd if cmd.starts_with("redial") => {
                 self.handle_cmd_redial()

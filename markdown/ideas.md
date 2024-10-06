@@ -1,4 +1,8 @@
-- [ ] messages for new transactions
+- [x] data types for generating, signing, and verifying transactions
+- [x] messages for new transactions
+- [ ] commands for broadcasting new transactions
+- [ ] handling new transactions by storing them in the peer
+
 - [ ] messages for proposing new blocks
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
