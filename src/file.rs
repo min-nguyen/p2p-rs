@@ -5,9 +5,8 @@
 */
 
 use log::info;
-use serde::{Deserialize, Serialize};
 use tokio::fs;
-use super::block::{Chain, Block};
+use super::chain::{Chain, Block};
 pub const LOCAL_STORAGE_FILE_PATH: &str = "./blocks.json";
 
 // reads all locally stored blocks

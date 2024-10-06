@@ -1,6 +1,6 @@
-#[path = "./../block.rs"]
-mod block;
-use block::{
+#[path = "./../chain.rs"]
+mod chain;
+use chain::{
     Chain, Block
 };
 

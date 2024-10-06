@@ -10,9 +10,15 @@
 */
 
 use libp2p::{
-  floodsub::{Floodsub, FloodsubConfig, FloodsubEvent, Topic},
-  mplex, noise, core::upgrade, identity::Keypair, mdns::{Mdns, MdnsEvent}, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
-  };
+    floodsub::{Floodsub, FloodsubConfig, FloodsubEvent, Topic},
+    mplex, noise,
+    Multiaddr, NetworkBehaviour, PeerId, Transport,
+    core::upgrade,
+    identity::Keypair,
+    mdns::{Mdns, MdnsConfig, MdnsEvent},
+    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
+    tcp::TokioTcpConfig
+};
 
 use once_cell::sync::Lazy;
 use std::collections::HashSet;
@@ -111,6 +117,13 @@ impl NetworkBehaviourEventProcess<FloodsubEvent> for BlockchainBehaviour {
     }
 }
 
+async fn new_mdns_discovery() -> Mdns {
+    let mdns_config: MdnsConfig
+      = MdnsConfig::default();
+    Mdns::new(mdns_config)
+        .await
+        .expect("can create mdns")
+}
 /*  Create a swarm with our Transport, NetworkBehaviour, and PeerID.
     Start to listen to a local IP (port decided by the OS) using our set up. */
 pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<PowMessage>)
@@ -139,10 +152,7 @@ pub async fn set_up_swarm(to_local_peer : mpsc::UnboundedSender<PowMessage>)
         let floodsub: Floodsub
             = Floodsub::from_config(floodsubconfig);
 
-        let mdns
-            = Mdns::new(Default::default())
-                .await
-                .expect("can create mdns");
+        let mdns= new_mdns_discovery().await;
 
         BlockchainBehaviour {floodsub, mdns, to_local_peer}
     };

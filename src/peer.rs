@@ -14,7 +14,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 
 use super::file;
-use super::block::{self, Chain};
+use super::chain::{self, Chain};
 use super::transaction::{self, Transaction};
 use super::message::{PowMessage, TxnMessage, TransmitType};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
@@ -176,7 +176,7 @@ impl Peer {
         }
     }
     fn handle_cmd_reset(&mut self) {
-        self.chain = block::Chain::new();
+        self.chain = chain::Chain::new();
         println!("Current chain reset to a single block")
     }
     fn handle_cmd_mine(&mut self, args: &str) {

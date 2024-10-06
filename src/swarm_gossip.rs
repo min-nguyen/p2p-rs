@@ -5,7 +5,14 @@
 */
 
 use libp2p::{
-  core::{muxing::StreamMuxerBox, transport::Boxed, upgrade}, gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, GossipsubMessage, IdentTopic, MessageAuthenticity, MessageId, Topic, ValidationMode}, identity::Keypair, mdns::{Mdns, MdnsConfig, MdnsEvent}, mplex, noise, swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder}, tcp::TokioTcpConfig, Multiaddr, NetworkBehaviour, PeerId, Transport
+    gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, GossipsubMessage, IdentTopic, MessageAuthenticity, MessageId, Topic, ValidationMode},
+    mplex, noise,
+    Multiaddr, NetworkBehaviour, PeerId, Transport,
+    core::{muxing::StreamMuxerBox, transport::Boxed, upgrade},
+    identity::Keypair,
+    mdns::{Mdns, MdnsConfig, MdnsEvent},
+    swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
+    tcp::TokioTcpConfig
 };
 
 use once_cell::sync::Lazy;
@@ -17,10 +24,10 @@ use std::time::Duration;
 use super::message::{PowMessage, TxnMessage, TransmitType};
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
-pub static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
+static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
-pub static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
-pub static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
+static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
+static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 

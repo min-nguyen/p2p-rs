@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::block;
+use super::chain;
 
 
 // Messages can be intended for (1) all peers or (2) a specific peer.
@@ -18,11 +18,11 @@ pub enum PowMessage {
     },
     ChainResponse {
         transmit_type : TransmitType,
-        data : block::Chain
+        data : chain::Chain
     },
     NewBlock {
         transmit_type : TransmitType, // always ToAll
-        data : block::Block
+        data : chain::Block
     }
     // NewBlockProposal {
     //   transmit_type : TransmitType, // always ToAll
