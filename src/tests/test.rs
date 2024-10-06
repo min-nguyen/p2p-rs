@@ -2,12 +2,8 @@
 mod chain;
 #[path = "./../transaction.rs"]
 mod transaction;
-use chain::{
-    Chain, Block
-};
-use transaction::{
-    Transaction
-};
+use chain::{Chain, Block};
+use transaction::Transaction;
 
 // RUST_LOG=info cargo test
 #[cfg(test)]
