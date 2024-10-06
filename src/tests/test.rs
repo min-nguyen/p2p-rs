@@ -1,13 +1,28 @@
 #[path = "./../chain.rs"]
 mod chain;
+#[path = "./../transaction.rs"]
+mod transaction;
 use chain::{
     Chain, Block
+};
+use transaction::{
+    Transaction
 };
 
 // RUST_LOG=info cargo test
 #[cfg(test)]
 mod block_tests {
+    use libp2p::identity;
+
     use super::*;
+
+    /* transaction tests */
+    #[test]
+    fn test_transaction() {
+      let keys = identity::Keypair::generate_ed25519();
+      let txn = Transaction::random_transaction(keys);
+      assert_eq!(true, Transaction::verify_transaction(txn));
+    }
 
     /* low-level block tests */
     #[test]

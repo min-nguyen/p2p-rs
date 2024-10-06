@@ -1,54 +1,82 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use chrono::{Utc};
+use chrono::Utc;
 use rand::{Rng, thread_rng};
-use libp2p::{PeerId};
+use libp2p::{PeerId, identity::{Keypair, PublicKey}};
 
-/// A struct representing a blockchain transaction.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
-    pub sender: String,          // Address of the sender (could be a public key)
-    pub receiver: String,        // Address of the receiver (could be a public key)
-    pub amount: u64,             // Amount of currency/asset being transferred
-    pub timestamp: i64,          // Unix timestamp when the transaction was created
-    pub signature: String,       // Signature for verifying the authenticity of the transaction
+    pub sender: String,          // peer id of the sender
+    pub sender_pbk: Vec<u8>,     // public key of the sender
+    pub receiver: String,        // peer id of the receiver
+    pub amount: u64,             // amount transferred
+    pub timestamp: i64,          // when the transaction was created
+
+    pub hash: String,            // hash of the above
+    pub sig: Vec<u8>,            // signature of the hash
 }
 
 impl Transaction {
-    /// Create a new transaction
-    pub fn new(sender: String, receiver: String, amount: u64, signature: String) -> Self {
+    pub fn new(sender: String, sender_pbk : Vec<u8>, receiver: String, amount: u64, timestamp: i64, hash: String, sig: Vec<u8>) -> Self {
         Transaction {
             sender,
+            sender_pbk,
             receiver,
             amount,
-            timestamp: Utc::now().timestamp(),
-            signature,
+            timestamp,
+            hash,
+            sig
         }
     }
 
-    /// Generate a hash of the transaction for integrity verification
-    pub fn hash(&self) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(format!("{:?}", self)); // Create a hash of the transaction's string representation
-        let result = hasher.finalize();
-        hex::encode(result) // Convert the hash to a hexadecimal string
+    pub fn hash(sender: &String, sender_pk : &Vec<u8>, receiver: &String, amount: u64, timestamp: i64) -> String {
+        let mut hasher: Sha256 = Sha256::new();
+        let message: String = format!("{}:{}:{}:{}:{}", sender, hex::encode(sender_pk), receiver, amount, timestamp);
+
+        hasher.update(message);
+        hex::encode(hasher.finalize())
     }
 
-    // pub fn random_transaction(sender: PeerId, Pr) -> Self {
-    //   let mut rng = thread_rng();
+    pub fn random_transaction(keys : Keypair) -> Self {
+        let mut rng = thread_rng();
 
-    //   // Generate random sender and receiver
-    //   let receiver = format!("0x{}", random_string(40));
+        let sender = PeerId::from(keys.public()).to_string();
+        let sender_pbk: Vec<u8> = keys.public().into_protobuf_encoding();
 
-    //   // Generate a random amount between 1 and 1000
-    //   let amount = rng.gen_range(1..1001);
+        let receiver = format!("0x{}", random_string(40));
+        let amount = rng.gen_range(1..1001);
+        let timestamp = Utc::now().timestamp();
+        let hash = Self::hash(&sender, &sender_pbk, &receiver, amount, timestamp);
 
-    //   // Get the current timestamp
-    //   let timestamp = Utc::now().timestamp() as u64; // Unix timestamp
+        let sig = keys.sign(&hash.as_bytes()).expect("Signing failed");
 
-    //   // Generate a random signature (for demonstration, this would usually be a proper cryptographic signature)
-    //   let signature = random_string(64); // Random string to simulate a signature
+        Transaction::new(sender, sender_pbk, receiver, amount, timestamp, hash, sig)
+    }
 
-    //   Transaction::new(sender.to_string(), receiver, amount, timestamp, signature)
-    // }
+    pub fn verify_transaction(txn: Transaction) -> bool {
+        let hash = Transaction::hash(&txn.sender, &txn.sender_pbk, &txn.receiver, txn.amount, txn.timestamp);
+        // check message integrity
+        if hash != txn.hash{
+            eprintln!("Couldn't verify transaction! invalid hash.");
+            return false
+        }
+        // verify message signature
+        let pk = PublicKey::from_protobuf_encoding(&txn.sender_pbk).expect("can decode sender public key");
+        if !(pk.verify(hash.as_bytes(), &txn.sig)){
+            eprintln!("Couldn't verify transaction! invalid signature.");
+            return false
+        }
+        eprintln!("Transaction verified!");
+        true
+    }
+}
+
+fn random_string(len: usize) -> String {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    let rng = rand::thread_rng();
+    rng.sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
 }

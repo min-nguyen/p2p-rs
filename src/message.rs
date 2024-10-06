@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::chain;
+use super::transaction;
 
 
 // Messages can be intended for (1) all peers or (2) a specific peer.
@@ -48,4 +49,11 @@ impl std::fmt::Display for PowMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TxnMessage (String);
+pub enum TxnMessage {
+    NewTransaction {
+        txn      : transaction::Transaction
+    },
+    ResolvedTransaction {
+        txn_hash : String
+    }
+}

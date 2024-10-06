@@ -5,6 +5,7 @@
     ---
 */
 
+
 use libp2p::{
     PeerId,
     futures::StreamExt,
@@ -12,6 +13,7 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
+use std::collections::{HashMap};
 
 use super::file;
 use super::chain::{self, Chain};
@@ -41,7 +43,7 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    txn_pool : Vec<Transaction>
+    txn_pool : HashMap<String, Transaction>
 }
 
 impl Peer {
@@ -116,7 +118,7 @@ impl Peer {
     async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
             //
-            cmd if cmd.starts_with("trans") => {
+            cmd if cmd.starts_with("txn") => {
 
             }
             // `redial`, dial all discovered peers
@@ -318,7 +320,7 @@ pub async fn set_up_peer() -> Peer {
         , txn_receiver
         , swarm
         , chain
-        , txn_pool: vec![]
+        , txn_pool: HashMap::new()
     }
 }
 

@@ -21,6 +21,8 @@ use tokio::sync::mpsc;
 use log::{debug, error, info};
 use std::time::Duration;
 
+use crate::transaction::{self, Transaction};
+
 use super::message::{PowMessage, TxnMessage, TransmitType};
 
 static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
