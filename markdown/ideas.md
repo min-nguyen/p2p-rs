@@ -1,8 +1,9 @@
 - [x] data types for generating, signing, and verifying transactions
 - [x] messages for new transactions
-- [x] temporary command for storing a test transactions
+- [x] temporary command `txn` for storing a test transaction in the pool
+- [x] command `show txns` to show transaction pool
 - [ ] represent sender_pbk and sig as hex strings for consistency, or atleast by [u8; 32] and [u8; 64]
-- [ ] commands for broadcasting new transactions
+- [ ] change command `txn` for broadcasting new transactions
 - [ ] handling new transactions by storing them in the peer
 
 - [ ] messages for proposing new blocks
