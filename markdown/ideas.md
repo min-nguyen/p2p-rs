@@ -1,5 +1,6 @@
 - [x] data types for generating, signing, and verifying transactions
 - [x] messages for new transactions
+- [ ] temporary command for storing a test transactions
 - [ ] commands for broadcasting new transactions
 - [ ] handling new transactions by storing them in the peer
 

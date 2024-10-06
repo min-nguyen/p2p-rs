@@ -1,19 +1,30 @@
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use chrono::Utc;
+use chrono::{Utc, DateTime};
 use rand::{Rng, thread_rng};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     pub sender: String,          // peer id of the sender
-    pub sender_pbk: Vec<u8>,     // public key of the sender
+    pub sender_pbk: Vec<u8>,     // 32-byte public key of the sender
     pub receiver: String,        // peer id of the receiver
     pub amount: u64,             // amount transferred
-    pub timestamp: i64,          // when the transaction was created
+    pub timestamp: i64,          // creation date
 
-    pub hash: String,            // hash of the above
-    pub sig: Vec<u8>,            // signature of the hash
+    pub hash: String,            // 32-byte hash of the above
+    pub sig: Vec<u8>,            // 64-byte signature of the hash
+}
+
+impl std::fmt::Display for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let datetime: DateTime<Utc>
+            = DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp");
+        let sig: String
+            = hex::encode(self.sig.clone());
+        write!(f, "Transaction {{ sender: {}, receiver: {}, amount: {}, date-time: {}, sig: {:?} }}"
+        , self.sender, self.receiver, self.amount, datetime, sig)
+    }
 }
 
 impl Transaction {
@@ -37,7 +48,7 @@ impl Transaction {
         let hash = Self::hash(&sender, &sender_pbk, &receiver, amount, timestamp);
 
         let sig = keys.sign(&hash.as_bytes()).expect("Signing failed");
-
+        println!("sig length: {}", sig.len());
         Transaction{ sender, sender_pbk, receiver, amount, timestamp, hash, sig }
     }
 

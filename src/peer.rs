@@ -111,24 +111,36 @@ impl Peer {
             }
         }
     }
+    /* TODO */
     fn handle_txn_event(&mut self, msg: &TxnMessage) {
-        /* TO DO  */
+        // match msg {
+        //     TxnMessage::NewTransaction { txn } => {
+                    // we should verify the txn here before adding it to the pool
+        //     }
+        //     TxnMessage::ResolvedTransaction { txn_hash } => {
+        //
+        //     }
+        // }
     }
     // Stdin event for a local user command.
     async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
-            // /* TO DO  */
-            // cmd if cmd.starts_with("txn") => {
-
-            // }
-            // `redial`, dial all discovered peers
-           cmd if cmd.starts_with("redial") => {
-                self.handle_cmd_redial()
-            },
+            // `txn`, creates a random transaction
+            // TO-DO: make this broadcast a transaction instead
+            cmd if cmd.starts_with("txn") => {
+                let txn = Transaction::random_transaction(swarm::LOCAL_KEYS.clone());
+                let txn_hash = txn.hash.clone();
+                match self.txn_pool.insert(txn_hash, txn){
+                    Some(old_txn) => {
+                        println!("New transaction added to pool.\nOld existing transaction removed:{}", old_txn);
+                    },
+                    None => println!("New transaction added to pool.")
+                }
+            }
             // `reset`, deletes the current local chain and writes a new one with a single block.
-           cmd if cmd.starts_with("reset") => {
+            cmd if cmd.starts_with("reset") => {
                 self.handle_cmd_reset()
-           }
+            }
             // `load`, loads a chain from a local file.
             cmd if cmd.starts_with("load") => {
                 self.handle_cmd_load().await
@@ -150,8 +162,12 @@ impl Peer {
             // `show <chain | peers>` lists the local chain or the discovered & connected peers
             cmd if cmd.starts_with("show") => {
                 let args = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
-                self.handle_cmd_ls(args);
+                self.handle_cmd_show(args);
             }
+            // `redial`, dial all discovered peers
+            cmd if cmd.starts_with("redial") => {
+                self.handle_cmd_redial()
+            },
             cmd if cmd.starts_with("help") => {
                  print_user_commands();
              },
@@ -223,13 +239,14 @@ impl Peer {
             }
         }
     }
-    fn handle_cmd_ls(&mut self, args: &str) {
+    fn handle_cmd_show(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
                 println!("Command error: `show` missing an argument `chain` or `peers`")
             }
             "chain"   => {
-                self.chain.0.iter().for_each(|r| println!("{:?}", r))
+                println!("Current chain:\n");
+                self.chain.0.iter().for_each(|block| println!("{}", block))
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)
@@ -239,8 +256,12 @@ impl Peer {
                 println!("Connected Peers ({})", conn_peers.len());
                 conn_peers.iter().for_each(|p| println!("{}", p));
             }
+            "txns"   => {
+                println!("Current transaction pool:\n");
+                self.txn_pool.iter().for_each(|txn| println!("{}", txn.1))
+            }
             _ => {
-                println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers`")
             }
         }
     }

@@ -105,7 +105,7 @@ pub struct Block {
     // core content
     pub data: String,
     // cryptographic hash of the block (contents + metadata) that uniquely identifies it and ensures integrity
-    pub hash: String,
+    pub hash: String, // 32-bytes
 
     // header
     // records when block was created
@@ -148,9 +148,9 @@ impl Block {
     let mut genesis =  Block {
         idx: 0,
         data: String::from("genesis"),
-        hash: bytes_to_hexstr(&ZERO_U32),
+        hash: _32bytes_to_hexstr(ZERO_U32),
         timestamp: Utc::now().timestamp(),
-        prev_hash: bytes_to_hexstr(&ZERO_U32),
+        prev_hash: _32bytes_to_hexstr(ZERO_U32),
         nonce: 0 ,
     };
     genesis.hash = Self::hash_block(&genesis);
@@ -183,7 +183,7 @@ impl Block {
         .finalize() // Sha256 -> GenericArray<u8, U32>
         .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        bytes_to_hexstr(&hash)
+        _32bytes_to_hexstr(hash)
     }
 
   // Validate a block */
@@ -222,10 +222,11 @@ impl Block {
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash (hex): {}}}", self.idx, self.data, self.hash)
+        let date_time = DateTime::from_timestamp(self.timestamp, 0).expect("Can convert timestamp");
+        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash: {}, \n\t date-time: {}, \n\t nonce: {} \t}}", self.idx, self.data, self.hash, date_time, self.nonce)
     }
 }
 
-pub fn bytes_to_hexstr(hash: &[u8]) -> String {
+pub fn _32bytes_to_hexstr(hash: [u8; 32]) -> String {
     hex::encode(&hash)
 }
