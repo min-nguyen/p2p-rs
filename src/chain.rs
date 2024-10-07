@@ -104,15 +104,14 @@ pub struct Block {
     pub idx: u64,
     // core content
     pub data: String,
-    // cryptographic hash of the block (contents + metadata) that uniquely identifies it and ensures integrity
-    pub hash: String, // 32-bytes
-
-    // header
-    // records when block was created
+    // block creation timestamp
     pub timestamp: i64,
-    // reference to the previous block's hash to ensure chain integrity
+    // previous block's hash
     pub prev_hash: String,
-    // random value controlled by block creator, used in PoW algorithm to find a valid block hash
+
+    // 256-bit hash of the above data, uniquely identifying this block
+    pub hash: String, // 32-bytes
+    // random value adjusted by block creator, used in PoW to find a valid block hash
     pub nonce: u64,
 }
 
