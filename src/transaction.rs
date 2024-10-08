@@ -5,7 +5,7 @@ use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
 use rand::{Rng, thread_rng};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
-use super
+use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
@@ -31,17 +31,17 @@ impl std::fmt::Display for Transaction {
 impl Transaction {
     pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount: u64, timestamp: i64) -> String {
         let mut hasher: Sha256 = Sha256::new();
-        let message: String = format!("{}:{}:{}:{}:{}", sender, hex::encode(sender_pk), receiver, amount, timestamp);
+        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
 
         hasher.update(message);
-        hex::encode(hasher.finalize())
+        encode_hex(hasher.finalize())
     }
 
     pub fn random_transaction(keys : Keypair) -> Self {
         let mut rng: rand::prelude::ThreadRng = thread_rng();
 
         let sender: String = PeerId::from(keys.public()).to_string();
-        let sender_pbk: String = hex::encode(keys.public().into_protobuf_encoding());
+        let sender_pbk: String = encode_pubk(keys.public());
 
         let receiver: String = format!("0x{}", random_string(40));
         let amount: u64 = rng.gen_range(1..1001);
@@ -50,7 +50,7 @@ impl Transaction {
 
         let sig: String =
             match keys.sign(&hash.as_bytes()){
-                Ok (sig_u8s) => hex::encode(sig_u8s),
+                Ok (sig_u8s) => encode_hex(sig_u8s),
                 Err (e) => {
                     eprintln!("Signing failed. Couldn't decode public key from hex-string to byte vector: {}", e);
                     panic!()
@@ -68,24 +68,23 @@ impl Transaction {
             return false
         }
         // verify message signature
-        let pbk_u8s: Vec<u8> = match hex::decode(txn.sender_pbk) {
-            Ok (pks_u8s) => pks_u8s,
-            Err (e) => {
-                eprintln!("Verify transaction failed. Couldn't decode public key from hex-string to byte vector: {}", e);
-                return false
-            }
-        };
-        let pk: PublicKey
-            = PublicKey::from_protobuf_encoding(pbk_u8s.as_slice()).expect("can decode sender public key");
+        let pubk: PublicKey =
+            match decode_pubk(&txn.sender_pbk, 32) {
+                Ok (pubk) => pubk,
+                Err (e) => {
+                    eprintln!("Verify transaction failed. Couldn't decode public key: {}", e);
+                    return false
+                }
+            };
         let sig_u8s: Vec<u8> =
-            match hex::decode(txn.sig) {
+            match decode_hex(&txn.sig, 64) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
                     eprintln!("Verify transaction failed. Couldn't decode public key from hex-string to byte vector: {}", e);
                     return false
                 }
             };
-        if !(pk.verify(hash.as_bytes(), sig)){
+        if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
             eprintln!("Couldn't verify transaction! invalid signature.");
             return false
         }

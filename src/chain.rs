@@ -13,10 +13,11 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 
+use super::util::{encode_hex, ZERO_U32};
+
+
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "0";
-// 32 byte (256-bit) array of zeros
-pub const ZERO_U32 : [u8; 32] = [0; 32];
 
 /* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -147,9 +148,9 @@ impl Block {
     let mut genesis =  Block {
         idx: 0,
         data: String::from("genesis"),
-        hash: _32bytes_to_hexstr(ZERO_U32),
+        hash: encode_hex(ZERO_U32),
         timestamp: Utc::now().timestamp(),
-        prev_hash: _32bytes_to_hexstr(ZERO_U32),
+        prev_hash: encode_hex(ZERO_U32.to_vec()),
         nonce: 0 ,
     };
     genesis.hash = Self::hash_block(&genesis);
@@ -182,7 +183,7 @@ impl Block {
         .finalize() // Sha256 -> GenericArray<u8, U32>
         .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        _32bytes_to_hexstr(hash)
+        encode_hex(hash.to_vec())
     }
 
   // Validate a block */
