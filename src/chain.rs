@@ -180,8 +180,8 @@ impl Block {
 
         // retrieve hash result
         let hash : [u8; 32] = hasher
-        .finalize() // Sha256 -> GenericArray<u8, U32>
-        .into(); // GenericArray<u8, U32> -> [u8; 32].
+            .finalize() // Sha256 -> GenericArray<u8, U32>
+            .into(); // GenericArray<u8, U32> -> [u8; 32].
 
         encode_hex(hash.to_vec())
     }

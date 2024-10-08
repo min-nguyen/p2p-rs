@@ -14,8 +14,8 @@ use chain::Chain;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    let (x, y) = (util::encode_hex([0;32]), util::encode_hex([0]));
-    println!("{}, {}, {:?}, {:?}", x, y, util::decode_hex(&x, 32), util::decode_hex(&y, 32));
+    // let (x, y) = (util::encode_hex(util::ZERO_U64), util::encode_hex([0; 64]));
+    // println!("{}, {}, {:?}, {:?}", x, y, util::decode_hex(&x, 64).unwrap().len(), util::decode_hex(&y, 32));
 
     run_p2p().await;
     // dummy_chain(10)

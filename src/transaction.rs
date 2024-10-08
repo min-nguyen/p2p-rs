@@ -7,16 +7,19 @@ use rand::{Rng, thread_rng};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
 use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
 
+const PUBK_U8S_LEN : usize = 36;
+const SIG_U8S_LEN : usize = 64;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Transaction {
     pub sender: String,          // peer id of the sender
-    pub sender_pbk: String,      // 32-byte public key of the sender, assuming ed25519
+    pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
     pub receiver: String,        // peer id of the receiver
     pub amount: u64,             // amount transferred
     pub timestamp: i64,          // creation date
 
     pub hash: String,            // 32-byte hash of the above data, assuming sha256
-    pub sig: String,             // 64-byte signature of the hash, assuming ed25519
+    pub sig: String,             // 32-byte signature of the hash, assuming ed25519
 }
 
 impl std::fmt::Display for Transaction {
@@ -29,24 +32,16 @@ impl std::fmt::Display for Transaction {
 }
 
 impl Transaction {
-    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount: u64, timestamp: i64) -> String {
-        let mut hasher: Sha256 = Sha256::new();
-        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
-
-        hasher.update(message);
-        encode_hex(hasher.finalize())
-    }
-
     pub fn random_transaction(keys : Keypair) -> Self {
         let mut rng: rand::prelude::ThreadRng = thread_rng();
 
         let sender: String = PeerId::from(keys.public()).to_string();
-        let sender_pbk: String = encode_pubk(keys.public());
+        let sender_pubk: String = encode_pubk(keys.public());
 
         let receiver: String = format!("0x{}", random_string(40));
         let amount: u64 = rng.gen_range(1..1001);
         let timestamp: i64 = Utc::now().timestamp();
-        let hash: String = Self::compute_sha256(&sender, &sender_pbk, &receiver, amount, timestamp);
+        let hash: String = Self::compute_sha256(&sender, &sender_pubk, &receiver, amount, timestamp);
 
         let sig: String =
             match keys.sign(&hash.as_bytes()){
@@ -56,12 +51,11 @@ impl Transaction {
                     panic!()
                 }
             };
-        println!("sig length: {}", sig.len());
-        Transaction{ sender, sender_pbk, receiver, amount, timestamp, hash, sig }
+        Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
 
     pub fn verify_transaction(txn: Transaction) -> bool {
-        let hash = Transaction::compute_sha256(&txn.sender, &txn.sender_pbk, &txn.receiver, txn.amount, txn.timestamp);
+        let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
             eprintln!("Verify transaction failed. Invalid hash.");
@@ -69,7 +63,7 @@ impl Transaction {
         }
         // verify message signature
         let pubk: PublicKey =
-            match decode_pubk(&txn.sender_pbk, 32) {
+            match decode_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
                 Ok (pubk) => pubk,
                 Err (e) => {
                     eprintln!("Verify transaction failed. Couldn't decode public key: {}", e);
@@ -77,19 +71,27 @@ impl Transaction {
                 }
             };
         let sig_u8s: Vec<u8> =
-            match decode_hex(&txn.sig, 64) {
+            match decode_hex(&txn.sig, SIG_U8S_LEN) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
-                    eprintln!("Verify transaction failed. Couldn't decode public key from hex-string to byte vector: {}", e);
+                    eprintln!("Verify transaction failed. Couldn't decode signature: {}", e);
                     return false
                 }
             };
         if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
-            eprintln!("Couldn't verify transaction! invalid signature.");
+            eprintln!("Verify transaction failed. Invalid signature.");
             return false
         }
         eprintln!("Transaction verified!");
         true
+    }
+
+    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount: u64, timestamp: i64) -> String {
+        let mut hasher: Sha256 = Sha256::new();
+        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
+
+        hasher.update(message);
+        encode_hex(hasher.finalize())
     }
 }
 

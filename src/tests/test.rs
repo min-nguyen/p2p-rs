@@ -2,22 +2,44 @@
 mod chain;
 #[path = "./../transaction.rs"]
 mod transaction;
+#[path = "./../util.rs"]
+mod util;
 use chain::{Chain, Block};
 use transaction::Transaction;
+use util::{ZERO_U32, ZERO_U64, encode_hex};
 
 // RUST_LOG=info cargo test
 #[cfg(test)]
 mod block_tests {
-    use libp2p::identity;
+    use libp2p::{core::PublicKey, identity::{self, Keypair}};
+    use util::encode_pubk;
 
     use super::*;
 
     /* transaction tests */
     #[test]
-    fn test_transaction() {
+    fn test_valid_transaction() {
       let keys = identity::Keypair::generate_ed25519();
-      let txn = Transaction::random_transaction(keys);
-      assert_eq!(true, Transaction::verify_transaction(txn));
+      let valid_txn = Transaction::random_transaction(keys);
+      assert_eq!(true, Transaction::verify_transaction(valid_txn));
+    }
+
+    #[test]
+    fn test_invalid_transaction() {
+      let keys = identity::Keypair::generate_ed25519();
+      let valid_txn: Transaction = Transaction::random_transaction(keys);
+
+      let invalid_hash = Transaction {hash : encode_hex(ZERO_U32), .. valid_txn.clone()};
+      assert_eq!(false, Transaction::verify_transaction(invalid_hash));
+
+      let invalid_pubk = Transaction { sender_pubk : encode_pubk(identity::Keypair::generate_ed25519().public()), .. valid_txn.clone()};
+      assert_eq!(false, Transaction::verify_transaction(invalid_pubk));
+
+      let invalid_siglen = Transaction {sig: encode_hex(ZERO_U32), .. valid_txn.clone()};
+      assert_eq!(false, Transaction::verify_transaction(invalid_siglen));
+
+      let invalid_sig = Transaction {sig: encode_hex(ZERO_U64), .. valid_txn.clone()};
+      assert_eq!(false, Transaction::verify_transaction(invalid_sig));
     }
 
     /* low-level block tests */
@@ -37,10 +59,10 @@ mod block_tests {
       let invalid_idx = Block {idx : 0, .. valid_block.clone()};
       assert_eq!(false, Block::valid_block(&gen, &invalid_idx));
 
-      let invalid_prev_hash = Block { prev_hash : hex::encode([0;32]), .. valid_block.clone() };
+      let invalid_prev_hash = Block { prev_hash : encode_hex(ZERO_U32), .. valid_block.clone() };
       assert_eq!(false, Block::valid_block(&gen, &invalid_prev_hash));
 
-      let invalid_hash = Block {hash :  hex::encode([0;32]), .. valid_block.clone()};
+      let invalid_hash = Block {hash : encode_hex(ZERO_U32), .. valid_block.clone()};
       assert_eq!(false, Block::valid_block(&gen, &invalid_hash));
 
       let invalid_difficulty_prefix = Block {hash :  hex::encode([1;32]), .. valid_block.clone()};
