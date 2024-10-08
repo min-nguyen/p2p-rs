@@ -1,4 +1,5 @@
 pub mod file;
+pub mod u8s;
 pub mod peer;
 pub mod chain;
 pub mod transaction;

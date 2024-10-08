@@ -109,8 +109,8 @@ pub struct Block {
     // previous block's hash
     pub prev_hash: String,
 
-    // 256-bit hash of the above data, uniquely identifying this block
-    pub hash: String, // 32-bytes
+    // 32-byte hash of the above data, assuming sha256
+    pub hash: String,
     // random value adjusted by block creator, used in PoW to find a valid block hash
     pub nonce: u64,
 }
@@ -127,7 +127,7 @@ impl Block {
         let mut nonce: u64 = 0;
         loop {
             let hash: String
-                = Self::compute_hash(idx, data, now.timestamp(), &prev_hash, nonce);
+                = Self::compute_sha256(idx, data, now.timestamp(), &prev_hash, nonce);
             let BinaryString(binary_repr)
                 = BinaryString::from_hex(&hash).expect("Can convert hex string to binary");
 
@@ -158,10 +158,10 @@ impl Block {
 
   // Compute the hex-string of a sha256 hash (i.e. a 32-byte array) of a block
   pub fn hash_block (block : &Block)  -> String {
-        Self::compute_hash(block.idx, block.data.as_str(), block.timestamp, &block.prev_hash, block.nonce)
+        Self::compute_sha256(block.idx, block.data.as_str(), block.timestamp, &block.prev_hash, block.nonce)
   }
 
-  fn compute_hash (idx: u64, data: &str, timestamp: i64, prev_hash: &String,  nonce: u64)  -> String {
+  fn compute_sha256 (idx: u64, data: &str, timestamp: i64, prev_hash: &String,  nonce: u64)  -> String {
         use sha2::{Sha256, Digest};
 
         // create a sha256 hasher instance
@@ -169,11 +169,11 @@ impl Block {
 
         // translate the block from a json value -> string -> byte array &[u8], used as input data to the hasher
         let block_json: serde_json::Value = serde_json::json!({
-        "idx": idx,
-        "data": data,
-        "timestamp": timestamp,
-        "prev_hash": prev_hash,
-        "nonce": nonce
+            "idx": idx,
+            "data": data,
+            "timestamp": timestamp,
+            "prev_hash": prev_hash,
+            "nonce": nonce
         });
         hasher.update(block_json.to_string().as_bytes());
 
@@ -224,8 +224,4 @@ impl std::fmt::Display for Block {
         let date_time = DateTime::from_timestamp(self.timestamp, 0).expect("Can convert timestamp");
         write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash: {}, \n\t date-time: {}, \n\t nonce: {} \t}}", self.idx, self.data, self.hash, date_time, self.nonce)
     }
-}
-
-pub fn _32bytes_to_hexstr(hash: [u8; 32]) -> String {
-    hex::encode(&hash)
 }
