@@ -8,7 +8,8 @@
 - [x] implement tests for valid and invalid transactions
 - [ ] change command `txn` for broadcasting new transactions
 - [ ] handling new transactions by storing them in the peer
-
+- [ ] research how to use **lifetimes** to return references
+also:
 - [ ] messages for proposing new blocks
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
