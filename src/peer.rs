@@ -13,7 +13,7 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::file;
 use super::chain::{self, Chain};
@@ -45,7 +45,7 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    txn_pool  : HashMap<String, Transaction>
+    txn_pool  : HashSet<Transaction>
 }
 
 impl Peer {
@@ -118,13 +118,13 @@ impl Peer {
                 println!("Received new transaction:\n{}", txn);
                 if Transaction::verify_transaction(&txn) {
                     println!("Transaction verified! Adding to pool");
-                    self.txn_pool.insert(txn.hash.clone(), txn);
+                    self.txn_pool.insert(txn);
                 }
                 else{
                     println!("Transaction not verified. Ignoring.");
                 }
             }
-            TxnMessage::ResolvedTransaction { txn_hash } => {
+            TxnMessage::ResolvedTransaction { txn } => {
 
             }
         }
@@ -179,7 +179,7 @@ impl Peer {
     fn handle_cmd_txn(&mut self, arg: &str) {
         let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
         println!("Adding new (random) transaction to pool and broadcasting to all. \n{}", txn);
-        self.txn_pool.insert(txn.hash.clone(), txn.clone());
+        self.txn_pool.insert(txn.clone());
         let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
     }
@@ -207,7 +207,13 @@ impl Peer {
     fn handle_cmd_mine(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `mine` missing an argument [data]");
+                println!("Mining from pool.");
+                if let Some(txn) = self.txn_pool.iter().peekable().next().clone(){
+
+                    //
+                    self.chain.make_new_valid_block(txn.to_json());
+
+                }
             },
             data => {
                 self.chain.make_new_valid_block(data);
@@ -265,7 +271,7 @@ impl Peer {
             }
             "txns"   => {
                 println!("Current transaction pool:\n");
-                self.txn_pool.iter().for_each(|txn| println!("{}", txn.1))
+                self.txn_pool.iter().for_each(|txn| println!("{}", txn))
             }
             _ => {
                 println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers`")
@@ -348,7 +354,7 @@ pub async fn set_up_peer() -> Peer {
         , txn_receiver
         , swarm
         , chain
-        , txn_pool: HashMap::new()
+        , txn_pool: HashSet::new()
     }
 }
 

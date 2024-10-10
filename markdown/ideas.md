@@ -8,14 +8,15 @@
 - [x] implement tests for valid and invalid transactions
 - [x] change command `txn` for broadcasting new transactions
 - [x] handling new transactions by storing them in the pool
-- [ ] extend command `mine`  for mining new blocks based on transactions in the pool
-- [ ] messages for proposing new blocks
-- [ ] data for storing number of validations for a given block
+- [ ] make command `mine [data]` with no `[data]` argument for mining a new block from the first transaction in the pool
+also:
+- [ ] data structure for storing new block proposals and number of validations, before adding it to the chain
+- [ ] messages for sending new blocks proposals
+- [ ] messages for responding with signed validations of blocks
 - [ ] handling `n` peer validations of blocks by adding block to current chain
 also:
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
-- [ ] messages for responding with signed validations of blocks
 also:
 - [ ] research how to use **lifetimes** to return references
 

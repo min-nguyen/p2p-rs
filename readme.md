@@ -28,15 +28,15 @@ RUST_LOG=info cargo run --bin main
 ┌── Description:
 │     • Reset current chain to a single block.
 
-  *Mine new block*:
-└── Usage: `mine [data]`
-┌── Description:
-│     • Mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
-
   *Create new transaction*:
 └── Usage: `txn [data]`
 ┌── Description:
 │     • Create a (random) transaction with the amount set to the given data, adding it to the pool, and broadcasting it to other peers.
+
+  *Mine new block*:
+└── Usage: `mine [data]`
+┌── Description:
+│     • Mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`

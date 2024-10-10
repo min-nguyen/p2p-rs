@@ -10,7 +10,7 @@ use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct Transaction {
     pub sender: String,          // peer id of the sender
     pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
@@ -50,7 +50,6 @@ impl Transaction {
             };
         Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
-
     pub fn verify_transaction(txn: &Transaction) -> bool {
         let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
@@ -85,7 +84,6 @@ impl Transaction {
     pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {
         let mut hasher: Sha256 = Sha256::new();
         let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
-
         hasher.update(message);
         encode_hex(hasher.finalize())
     }

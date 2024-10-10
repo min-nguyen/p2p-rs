@@ -186,6 +186,8 @@ impl Block {
         encode_hex(hash.to_vec())
     }
 
+    fn to_json ()
+
   // Validate a block */
   pub fn valid_block(last_block: &Block, block: &Block) -> bool {
     // * standard correctness checks:

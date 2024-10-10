@@ -51,9 +51,9 @@ impl std::fmt::Display for PowMessage {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum TxnMessage {
     NewTransaction {
-        txn      : transaction::Transaction
+        txn : transaction::Transaction
     },
     ResolvedTransaction {
-        txn_hash : String
+        txn : transaction::Transaction
     }
 }
