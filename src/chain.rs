@@ -13,11 +13,10 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 
-use super::util::{encode_hex, ZERO_U32};
-
-
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "0";
+// 32 byte (256-bit) array of zeros
+pub const ZERO_U32 : [u8; 32] = [0; 32];
 
 /* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -105,14 +104,15 @@ pub struct Block {
     pub idx: u64,
     // core content
     pub data: String,
-    // block creation timestamp
-    pub timestamp: i64,
-    // previous block's hash
-    pub prev_hash: String,
-
-    // 32-byte hash of the above data, assuming sha256
+    // cryptographic hash of the block (contents + metadata) that uniquely identifies it and ensures integrity
     pub hash: String,
-    // random value adjusted by block creator, used in PoW to find a valid block hash
+
+    // header
+    // records when block was created
+    pub timestamp: i64,
+    // reference to the previous block's hash to ensure chain integrity
+    pub prev_hash: String,
+    // random value controlled by block creator, used in PoW algorithm to find a valid block hash
     pub nonce: u64,
 }
 
@@ -128,7 +128,7 @@ impl Block {
         let mut nonce: u64 = 0;
         loop {
             let hash: String
-                = Self::compute_sha256(idx, data, now.timestamp(), &prev_hash, nonce);
+                = Self::compute_hash(idx, data, now.timestamp(), &prev_hash, nonce);
             let BinaryString(binary_repr)
                 = BinaryString::from_hex(&hash).expect("Can convert hex string to binary");
 
@@ -142,15 +142,14 @@ impl Block {
             nonce += 1;
         }
     }
-
   // Genesis block, the very first block in a chain which never references any previous blocks.
   pub fn genesis() -> Block {
     let mut genesis =  Block {
         idx: 0,
         data: String::from("genesis"),
-        hash: encode_hex(ZERO_U32),
+        hash: bytes_to_hexstr(&ZERO_U32),
         timestamp: Utc::now().timestamp(),
-        prev_hash: encode_hex(ZERO_U32.to_vec()),
+        prev_hash: bytes_to_hexstr(&ZERO_U32),
         nonce: 0 ,
     };
     genesis.hash = Self::hash_block(&genesis);
@@ -159,10 +158,10 @@ impl Block {
 
   // Compute the hex-string of a sha256 hash (i.e. a 32-byte array) of a block
   pub fn hash_block (block : &Block)  -> String {
-        Self::compute_sha256(block.idx, block.data.as_str(), block.timestamp, &block.prev_hash, block.nonce)
+        Self::compute_hash(block.idx, block.data.as_str(), block.timestamp, &block.prev_hash, block.nonce)
   }
 
-  fn compute_sha256 (idx: u64, data: &str, timestamp: i64, prev_hash: &String,  nonce: u64)  -> String {
+  fn compute_hash (idx: u64, data: &str, timestamp: i64, prev_hash: &String,  nonce: u64)  -> String {
         use sha2::{Sha256, Digest};
 
         // create a sha256 hasher instance
@@ -170,23 +169,21 @@ impl Block {
 
         // translate the block from a json value -> string -> byte array &[u8], used as input data to the hasher
         let block_json: serde_json::Value = serde_json::json!({
-            "idx": idx,
-            "data": data,
-            "timestamp": timestamp,
-            "prev_hash": prev_hash,
-            "nonce": nonce
+        "idx": idx,
+        "data": data,
+        "timestamp": timestamp,
+        "prev_hash": prev_hash,
+        "nonce": nonce
         });
         hasher.update(block_json.to_string().as_bytes());
 
         // retrieve hash result
         let hash : [u8; 32] = hasher
-            .finalize() // Sha256 -> GenericArray<u8, U32>
-            .into(); // GenericArray<u8, U32> -> [u8; 32].
+        .finalize() // Sha256 -> GenericArray<u8, U32>
+        .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        encode_hex(hash.to_vec())
+        bytes_to_hexstr(&hash)
     }
-
-    fn to_json ()
 
   // Validate a block */
   pub fn valid_block(last_block: &Block, block: &Block) -> bool {
@@ -224,7 +221,10 @@ impl Block {
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let date_time = DateTime::from_timestamp(self.timestamp, 0).expect("Can convert timestamp");
-        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash: {}, \n\t date-time: {}, \n\t nonce: {} \t}}", self.idx, self.data, self.hash, date_time, self.nonce)
+        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash (hex): {}}}", self.idx, self.data, self.hash)
     }
+}
+
+pub fn bytes_to_hexstr(hash: &[u8]) -> String {
+    hex::encode(&hash)
 }

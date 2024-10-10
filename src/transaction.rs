@@ -3,7 +3,6 @@ use core::panic;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
-use rand::{Rng, thread_rng};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
 use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
 

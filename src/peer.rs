@@ -205,29 +205,33 @@ impl Peer {
         println!("Current chain reset to a single block")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
-        match args {
-            _ if args.is_empty() => {
-                println!("Mining from pool.");
-                if let Some(txn) = self.txn_pool.iter().peekable().next().clone(){
-
-                    //
-                    self.chain.make_new_valid_block(txn.to_json());
-
+            let opt_data: Option<String> =
+                // Retrieve data as the next transaction (as a string) from the pool
+                if args.is_empty()  {
+                    self.txn_pool.iter().peekable().next().clone().map(|txn|
+                        {   println!("Retrieving transaction from the pool: \n{}", txn);
+                            // assuming we can always safely serialize a transaction (which should be the case)..
+                            serde_json::to_string(txn).unwrap()
+                        })
+                // Use data as the provided cmd args
+                } else {
+                    Some (args.to_string())
+                };
+            match opt_data {
+                None => eprintln!("No transactions in the pool to mine for."),
+                Some(data) => {
+                    self.chain.make_new_valid_block(&data);
+                    let last_block = self.chain.get_last_block().to_owned();
+                    println!("Mined and wrote new block: {:?}", last_block);
+                    println!("Broadcasting new block.");
+                    swarm::publish_pow_msg(
+                        PowMessage::NewBlock {
+                            transmit_type: TransmitType::ToAll,
+                            data: last_block
+                        }
+                    , &mut self.swarm);
                 }
-            },
-            data => {
-                self.chain.make_new_valid_block(data);
-                let last_block = self.chain.get_last_block().to_owned();
-                println!("Mined and wrote new block: {:?}", last_block);
-                println!("Broadcasting new block");
-                swarm::publish_pow_msg(
-                    PowMessage::NewBlock {
-                        transmit_type: TransmitType::ToAll,
-                        data: last_block
-                    }
-                , &mut self.swarm);
             }
-        }
     }
     fn handle_cmd_req(&mut self, args: &str) {
         match args {

@@ -17,9 +17,12 @@
 │     • Reset current chain to a single block.
 
   *Mine new block*:
-└── Usage: `mine [data]`
+└── Usage: `mine ?[data]`
 ┌── Description:
-│     • Mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
+|     • If no arguments are provided:
+|       -  mine a block from the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
+│     • If an an argument is provided:
+|       -  mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
 
   *Create new transaction*:
 └── Usage: `txn [data]`
@@ -32,7 +35,7 @@
 │     • `"all"`      - Request chain from all peers
 │     • `[peer-id]`  - Request chain from a specific peer
 
-  *Show peers/chain/transaction pool *:
+  *Show peers/chain/transaction pool*:
 └── Usage: `show <"peers" | "chain" | "txns">`
 ┌── Options:
 │     • `"peers"`   - Show a list of discovered and connected peers

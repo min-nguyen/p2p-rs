@@ -8,15 +8,23 @@
 - [x] implement tests for valid and invalid transactions
 - [x] change command `txn` for broadcasting new transactions
 - [x] handling new transactions by storing them in the pool
-- [ ] make command `mine [data]` with no `[data]` argument for mining a new block from the first transaction in the pool
-also:
+- [x] make command `mine [data]` with no `[data]` argument for mining a new block from the first transaction in the pool
+- [ ] delete mined transactions from the pool
+    - [ ] after mining a new block, delete the transaction from the pool
+    - [ ] after receiving a new mined block, removing the containing transaction from the pool IF:
+            1. the block.data can deserialize as a Transaction
+            2. the block.data is also a valid Transaction
+
+in parallel:
 - [ ] data structure for storing new block proposals and number of validations, before adding it to the chain
 - [ ] messages for sending new blocks proposals
 - [ ] messages for responding with signed validations of blocks
 - [ ] handling `n` peer validations of blocks by adding block to current chain
+
 also:
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
+
 also:
 - [ ] research how to use **lifetimes** to return references
 
