@@ -28,64 +28,7 @@ also:
 also:
 - [ ] research how to use **lifetimes** to return references
 
-----
-# Communication Algorithm
-
-1. Transaction Broadcasting
-
-    Originating Node: A node creates a new transaction (e.g., Alice sends 5 coins to Bob).
-        Broadcasts: The node signs the transaction and broadcasts it to its connected peers.
-    Receiving Nodes: All neighboring nodes receive this transaction.
-        Verify: Each node verifies the transaction’s validity (e.g., checking signatures, ensuring Alice has enough balance).
-        Re-Broadcast: If valid, the receiving nodes re-broadcast the transaction to their peers, propagating the transaction throughout the network.
-    Storing: The verified transaction is stored in a local "transaction pool" or "mempool," waiting to be included in a new block.
-
-2. Block Mining (Proof-of-Work Process)
-
-    Miner Nodes: Nodes capable of mining (typically referred to as "miners") periodically check the transaction pool for new transactions.
-        Select Transactions: The miner node selects a subset of unconfirmed transactions from its pool.
-        Construct Block: The node constructs a new candidate block containing the selected transactions.
-        Find Proof-of-Work: The node begins the Proof-of-Work process (finding a valid nonce that satisfies the difficulty condition).
-
-3. Block Broadcasting
-
-    Successful Miner: Once a miner successfully finds a valid nonce, it broadcasts the new block to its connected peers.
-    Receiving Nodes: Each neighboring node receives the new block.
-        Verify Block: Each node checks:
-            The block’s Proof-of-Work (valid nonce).
-            The validity of the included transactions (no double-spends, correct balances, etc.).
-        Update Blockchain: If valid, the node updates its local blockchain by adding the new block.
-        Re-Broadcast: The node re-broadcasts the new block to its peers, propagating it throughout the network.
-
-4. Handling Conflicts (Fork Resolution)
-
-    Chain Split: If a node receives a competing block (e.g., a different block mined at the same height), it stores it temporarily.
-        Fork Handling: Nodes follow the longest-chain rule (or the heaviest-chain rule if defined differently). The chain with the most cumulative difficulty is considered the "main" chain.
-    Chain Request: If the new block causes a fork or indicates that the node’s local chain is out-of-date, the node requests missing blocks from its peers to catch up.
-        Synchronize: The node synchronizes its local blockchain by requesting and receiving missing blocks until it has the longest (or heaviest) chain.
-
-5. Consensus and Propagation
-
-    Consensus Achieved: Once a block is accepted and added to the local chain, the node considers the transactions in the block to be confirmed.
-        Transaction Pool Update: Transactions that were part of the confirmed block are removed from the transaction pool.
-        Broadcast Updates: Nodes may periodically broadcast their current block height or chain tip to indicate their progress to peers.
-
-6. Handling New Transactions After a Block
-
-    Receive New Transactions: Nodes continue receiving new transactions.
-        Verify: Each transaction is verified individually and, if valid, added to the transaction pool.
-    Start New Mining Round: Miners restart the mining process with the new pool of unconfirmed transactions.
-
-7. Peer Discovery and Synchronization
-
-    Discovery: Nodes periodically discover new peers and update their list of connected nodes.
-    Chain Synchronization: New nodes joining the network typically request the latest block or chain state from peers to synchronize.
-
-8. Recovery from Network Partitions
-
-    Rejoin After Partition: If a network partition occurs (e.g., due to node disconnects or network failures), nodes that rejoin may need to re-sync their chains.
-    Chain Requests: These nodes request the latest blocks from peers to catch up and rejoin the consensus.
-----
+----------------------
 
  +-----------------------+                   +-----------------------+
  |     Node (Miner 1)    |                   |     Node (Miner 2)    |
@@ -112,6 +55,7 @@ also:
  | - Updates Ledger       |                  | - Updates Ledger       |
  +-----------------------+                   +-----------------------+
 
+----------------------
 
 1. Gossipsub with Reliable Transport
 
