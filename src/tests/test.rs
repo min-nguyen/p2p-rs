@@ -20,26 +20,26 @@ mod block_tests {
     #[test]
     fn test_valid_transaction() {
       let keys = identity::Keypair::generate_ed25519();
-      let valid_txn = Transaction::random_transaction(keys);
-      assert_eq!(true, Transaction::verify_transaction(valid_txn));
+      let valid_txn = Transaction::random_transaction("£0".to_string(), keys);
+      assert_eq!(true, Transaction::verify_transaction(&valid_txn));
     }
 
     #[test]
     fn test_invalid_transaction() {
       let keys = identity::Keypair::generate_ed25519();
-      let valid_txn: Transaction = Transaction::random_transaction(keys);
+      let valid_txn: Transaction = Transaction::random_transaction("£0".to_string(), keys);
 
       let invalid_hash = Transaction {hash : encode_hex(ZERO_U32), .. valid_txn.clone()};
-      assert_eq!(false, Transaction::verify_transaction(invalid_hash));
+      assert_eq!(false, Transaction::verify_transaction(&invalid_hash));
 
       let invalid_pubk = Transaction { sender_pubk : encode_pubk(identity::Keypair::generate_ed25519().public()), .. valid_txn.clone()};
-      assert_eq!(false, Transaction::verify_transaction(invalid_pubk));
+      assert_eq!(false, Transaction::verify_transaction(&invalid_pubk));
 
       let invalid_siglen = Transaction {sig: encode_hex(ZERO_U32), .. valid_txn.clone()};
-      assert_eq!(false, Transaction::verify_transaction(invalid_siglen));
+      assert_eq!(false, Transaction::verify_transaction(&invalid_siglen));
 
       let invalid_sig = Transaction {sig: encode_hex(ZERO_U64), .. valid_txn.clone()};
-      assert_eq!(false, Transaction::verify_transaction(invalid_sig));
+      assert_eq!(false, Transaction::verify_transaction(&invalid_sig));
     }
 
     /* low-level block tests */

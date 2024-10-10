@@ -15,7 +15,7 @@ pub struct Transaction {
     pub sender: String,          // peer id of the sender
     pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
     pub receiver: String,        // peer id of the receiver
-    pub amount: u64,             // amount transferred
+    pub amount: String,          // amount transferred, a string for testing
     pub timestamp: i64,          // creation date
 
     pub hash: String,            // 32-byte hash of the above data, assuming sha256
@@ -32,16 +32,13 @@ impl std::fmt::Display for Transaction {
 }
 
 impl Transaction {
-    pub fn random_transaction(keys : Keypair) -> Self {
-        let mut rng: rand::prelude::ThreadRng = thread_rng();
-
+    pub fn random_transaction(amount: String, keys : Keypair) -> Self {
         let sender: String = PeerId::from(keys.public()).to_string();
         let sender_pubk: String = encode_pubk(keys.public());
 
         let receiver: String = format!("0x{}", random_string(40));
-        let amount: u64 = rng.gen_range(1..1001);
         let timestamp: i64 = Utc::now().timestamp();
-        let hash: String = Self::compute_sha256(&sender, &sender_pubk, &receiver, amount, timestamp);
+        let hash: String = Self::compute_sha256(&sender, &sender_pubk, &receiver, &amount, timestamp);
 
         let sig: String =
             match keys.sign(&hash.as_bytes()){
@@ -54,8 +51,8 @@ impl Transaction {
         Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
 
-    pub fn verify_transaction(txn: Transaction) -> bool {
-        let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, txn.amount, txn.timestamp);
+    pub fn verify_transaction(txn: &Transaction) -> bool {
+        let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
             eprintln!("Verify transaction failed. Invalid hash.");
@@ -82,11 +79,10 @@ impl Transaction {
             eprintln!("Verify transaction failed. Invalid signature.");
             return false
         }
-        eprintln!("Transaction verified!");
         true
     }
 
-    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount: u64, timestamp: i64) -> String {
+    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {
         let mut hasher: Sha256 = Sha256::new();
         let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
 

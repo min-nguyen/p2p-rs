@@ -6,16 +6,18 @@
 - [x] implement utility for encoding/decoding from hex strings to hashs and public keys
 - [x] integrate above utility into chain.rs and transaction.rs
 - [x] implement tests for valid and invalid transactions
-- [ ] change command `txn` for broadcasting new transactions
-- [ ] handling new transactions by storing them in the peer
-- [ ] research how to use **lifetimes** to return references
-also:
+- [x] change command `txn` for broadcasting new transactions
+- [x] handling new transactions by storing them in the pool
+- [ ] extend command `mine`  for mining new blocks based on transactions in the pool
 - [ ] messages for proposing new blocks
+- [ ] data for storing number of validations for a given block
+- [ ] handling `n` peer validations of blocks by adding block to current chain
+also:
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
 - [ ] messages for responding with signed validations of blocks
-- [ ] data for storing number of validations for a given block
-- [ ] handling `n` peer validations of blocks by adding block to current chain
+also:
+- [ ] research how to use **lifetimes** to return references
 
  +-----------------------+                   +-----------------------+
  |     Node (Miner 1)    |                   |     Node (Miner 2)    |

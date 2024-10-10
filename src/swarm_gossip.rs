@@ -16,6 +16,7 @@ use libp2p::{
 };
 
 use once_cell::sync::Lazy;
+use serde::Serialize;
 use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use log::{debug, error, info};
@@ -27,7 +28,7 @@ pub static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519())
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));
 
 static CHAIN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("chain"));
-static TRANSACTION_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
+static TXN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
@@ -71,22 +72,23 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
     fn inject_event(&mut self, event: GossipsubEvent) {
         match event {
             GossipsubEvent::Message{propagation_source, message, ..} => {
+                    info!("Received {:?} from {:?}", message, propagation_source);
                     if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
-                    info!("Received {:?} from {:?}", pow_msg, propagation_source);
-                    match pow_msg {
-                            PowMessage::ChainResponse { ref transmit_type, .. }
-                            | PowMessage::ChainRequest { ref transmit_type, .. }
-                            | PowMessage::NewBlock { ref transmit_type, .. } =>
-                            match transmit_type {
-                                TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
-                                    => send_local_peer(&self.pow_sender, pow_msg),
-                                TransmitType::ToAll
-                                    => send_local_peer(&self.pow_sender, pow_msg),
-                                _   => info!("Ignoring received message -- not for us.")
+                        match pow_msg {
+                                PowMessage::ChainResponse { ref transmit_type, .. }
+                                | PowMessage::ChainRequest { ref transmit_type, .. }
+                                | PowMessage::NewBlock { ref transmit_type, .. } =>
+                                match transmit_type {
+                                    TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
+                                        => send_local_peer(&self.pow_sender, pow_msg),
+                                    TransmitType::ToAll
+                                        => send_local_peer(&self.pow_sender, pow_msg),
+                                    _   => info!("Ignoring received message -- not for us.")
+                                }
                             }
-                        }
                     }
                     else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
+
                         send_local_peer(&self.txn_sender, txn_msg)
                     }
             }
@@ -159,8 +161,11 @@ pub async fn set_up_blockchain_swarm(
 
         BlockchainBehaviour {mdns, gossipsub, pow_sender, txn_sender}
     };
-
     match behaviour.gossipsub.subscribe(&CHAIN_TOPIC)  {
+        Ok(b) => info!("gossipsub.subscribe() returned {}", b),
+        Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
+    };
+    match behaviour.gossipsub.subscribe(&TXN_TOPIC)  {
         Ok(b) => info!("gossipsub.subscribe() returned {}", b),
         Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
     };
@@ -185,7 +190,7 @@ fn filter_dup_transactions(message: &gossipsub::GossipsubMessage) -> MessageId {
     let GossipsubMessage{  data, topic, ..} = message;
 
     // filter out duplicate transactions by hashing only on the payload (i.e. the transaction).
-    if *topic == TRANSACTION_TOPIC.hash(){
+    if *topic == TXN_TOPIC.hash(){
       data.hash(&mut hasher);
     }
     // allow duplicates of other message payloads (e.g. several requests).
@@ -201,15 +206,29 @@ fn send_local_peer<T>(sender: &UnboundedSender<T>, msg: T){
     }
 }
 
-pub fn publish_message(msg: PowMessage, swarm: &mut Swarm<BlockchainBehaviour>){
-    let json = serde_json::to_string(&msg).expect("can jsonify message");
+pub fn publish_pow_msg(msg: PowMessage, swarm: &mut Swarm<BlockchainBehaviour>){
+    publish_msg(msg, CHAIN_TOPIC.clone(), swarm)
+}
+
+pub fn publish_txn_msg(msg: TxnMessage, swarm: &mut Swarm<BlockchainBehaviour>){
+    publish_msg(msg, TXN_TOPIC.clone(), swarm)
+}
+
+fn publish_msg<T : Serialize>(msg: T, topic : IdentTopic, swarm: &mut Swarm<BlockchainBehaviour>){
+    let s: String = match serde_json::to_string(&msg) {
+        Ok(json) => json,
+        Err(e) => {
+            eprintln!("Couldn't jsonify message, {}", e);
+            return ()
+        }
+    };
     let res = swarm
             .behaviour_mut()
             .gossipsub
-            .publish(CHAIN_TOPIC.clone(), json.as_bytes());
+            .publish(topic, s.as_bytes());
     match res {
         Err(e)   => eprintln!("publish_message() error: {:?}", e),
-        Ok (msg_id) => info!("publish_message() successful msg_id = {}", msg_id)
+        Ok (_) => info!("publish_message() successful.")
     }
 }
 

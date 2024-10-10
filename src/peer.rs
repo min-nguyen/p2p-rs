@@ -72,9 +72,9 @@ impl Peer {
             if let Some(event) = evt {
                 match event {
                     EventType::PowEvent(msg)
-                        => self.handle_pow_event(&msg),
+                        => self.handle_pow_event(msg),
                     EventType::TxnEvent(msg)
-                        => self.handle_txn_event(&msg),
+                        => self.handle_txn_event(msg),
                     EventType::StdEvent(cmd)
                         => self.handle_std_event(&cmd).await,
                 }
@@ -82,7 +82,7 @@ impl Peer {
         }
     }
     // Blockchain event.
-    fn handle_pow_event(&mut self, msg: &PowMessage) {
+    fn handle_pow_event(&mut self, msg: PowMessage) {
         println!("Received message:\n {}", msg);
         match msg {
             PowMessage::ChainRequest { sender_peer_id, .. } => {
@@ -91,10 +91,10 @@ impl Peer {
                     data: self.chain.clone(),
                 };
                 println!("Sent response to {}", sender_peer_id);
-                swarm::publish_message(resp, &mut  self.swarm)
+                swarm::publish_pow_msg(resp, &mut  self.swarm)
             },
             PowMessage::ChainResponse{ data , ..} => {
-                if self.chain.sync_chain(data){
+                if self.chain.sync_chain(&data){
                     println!("Updated current chain to a remote peer's longer chain")
                 }
                 else {
@@ -102,7 +102,7 @@ impl Peer {
                 }
             },
             PowMessage::NewBlock { data, .. } => {
-                match self.chain.try_push_block(data){
+                match self.chain.try_push_block(&data){
                     Ok(()) =>
                         println!("Extended current chain by a remote peer's new block"),
                     Err(e) =>
@@ -112,31 +112,26 @@ impl Peer {
         }
     }
     /* TODO */
-    fn handle_txn_event(&mut self, msg: &TxnMessage) {
-        // match msg {
-        //     TxnMessage::NewTransaction { txn } => {
-                    // we should verify the txn here before adding it to the pool
-        //     }
-        //     TxnMessage::ResolvedTransaction { txn_hash } => {
-        //
-        //     }
-        // }
+    fn handle_txn_event(&mut self, msg: TxnMessage) {
+        match msg {
+            TxnMessage::NewTransaction { txn } => {
+                println!("Received new transaction:\n{}", txn);
+                if Transaction::verify_transaction(&txn) {
+                    println!("Transaction verified! Adding to pool");
+                    self.txn_pool.insert(txn.hash.clone(), txn);
+                }
+                else{
+                    println!("Transaction not verified. Ignoring.");
+                }
+            }
+            TxnMessage::ResolvedTransaction { txn_hash } => {
+
+            }
+        }
     }
     // Stdin event for a local user command.
     async fn handle_std_event(&mut self, cmd: &str) {
         match cmd {
-            // `txn`, creates a random transaction
-            // TO-DO: make this broadcast a transaction instead
-            cmd if cmd.starts_with("txn") => {
-                let txn = Transaction::random_transaction(swarm::LOCAL_KEYS.clone());
-                let txn_hash = txn.hash.clone();
-                match self.txn_pool.insert(txn_hash, txn){
-                    Some(old_txn) => {
-                        println!("New transaction added to pool.\nOld existing transaction removed:{}", old_txn);
-                    },
-                    None => println!("New transaction added to pool.")
-                }
-            }
             // `reset`, deletes the current local chain and writes a new one with a single block.
             cmd if cmd.starts_with("reset") => {
                 self.handle_cmd_reset()
@@ -149,6 +144,13 @@ impl Peer {
             cmd if cmd.starts_with("save") => {
                 self.handle_cmd_save().await
             }
+            // `redial`, dial all discovered peers
+            cmd if cmd.starts_with("redial") => {
+                self.handle_cmd_redial()
+            },
+            cmd if cmd.starts_with("help") => {
+                 print_user_commands();
+            },
             //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
             cmd if cmd.starts_with("req") => {
                 let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
@@ -164,17 +166,22 @@ impl Peer {
                 let args = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
                 self.handle_cmd_show(args);
             }
-            // `redial`, dial all discovered peers
-            cmd if cmd.starts_with("redial") => {
-                self.handle_cmd_redial()
-            },
-            cmd if cmd.starts_with("help") => {
-                 print_user_commands();
-             },
+            // `txn [data]`, broadcasts a random transaction with the "amount" set to [data]
+            cmd if cmd.starts_with("txn") => {
+                let arg = cmd.strip_prefix("txn").expect("can strip `txn`").trim();
+                self.handle_cmd_txn(arg);
+            }
             _ => {
                 println!("Unknown command: \"{}\" \nWrite `help` to show available commands.", cmd);
             }
         }
+    }
+    fn handle_cmd_txn(&mut self, arg: &str) {
+        let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
+        println!("Adding new (random) transaction to pool and broadcasting to all. \n{}", txn);
+        self.txn_pool.insert(txn.hash.clone(), txn.clone());
+        let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
+        swarm::publish_txn_msg(txn_msg, &mut self.swarm);
     }
     async fn handle_cmd_load(&mut self){
         match file::read_chain().await {
@@ -207,7 +214,7 @@ impl Peer {
                 let last_block = self.chain.get_last_block().to_owned();
                 println!("Mined and wrote new block: {:?}", last_block);
                 println!("Broadcasting new block");
-                swarm::publish_message(
+                swarm::publish_pow_msg(
                     PowMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
                         data: last_block
@@ -227,7 +234,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request to all");
-                swarm::publish_message(req, &mut self.swarm);
+                swarm::publish_pow_msg(req, &mut self.swarm);
             }
             peer_id => {
                 let req = PowMessage::ChainRequest {
@@ -235,7 +242,7 @@ impl Peer {
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
                 println!("Broadcasting request for \"{}\"", peer_id);
-                swarm::publish_message(req, &mut self.swarm);
+                swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
     }

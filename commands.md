@@ -19,7 +19,12 @@
   *Mine new block*:
 └── Usage: `mine [data]`
 ┌── Description:
-│     • Mine and add a new block to the chain, broadcasting this to other peers.
+│     • Mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
+
+  *Create new transaction*:
+└── Usage: `txn [data]`
+┌── Description:
+│     • Create a (random) transaction with the amount set to the given data, adding it to the pool, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
@@ -27,11 +32,12 @@
 │     • `"all"`      - Request chain from all peers
 │     • `[peer-id]`  - Request chain from a specific peer
 
-  *Show chain or peers*:
-└── Usage: `show <"peers" | "chain">`
+  *Show peers/chain/transaction pool *:
+└── Usage: `show <"peers" | "chain" | "txns">`
 ┌── Options:
 │     • `"peers"`   - Show a list of discovered and connected peers
 │     • `"chain"`   - Show current chain
+│     • `"txns"`    - Show transaction pool
 
   *Redial*:
 └── Usage: `redial`
