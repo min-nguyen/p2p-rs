@@ -19,7 +19,7 @@ use super::file;
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
-use super::swarm_gossip::{self as swarm, BlockchainBehaviour};
+use super::swarm::{self as swarm, BlockchainBehaviour};
 // use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 
 /* Events for the peer to handle, either:

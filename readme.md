@@ -31,7 +31,12 @@ RUST_LOG=info cargo run --bin main
   *Mine new block*:
 └── Usage: `mine [data]`
 ┌── Description:
-│     • Mine and add a new block to the chain, broadcasting this to other peers.
+│     • Mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
+
+  *Create new transaction*:
+└── Usage: `txn [data]`
+┌── Description:
+│     • Create a (random) transaction with the amount set to the given data, adding it to the pool, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
@@ -39,11 +44,12 @@ RUST_LOG=info cargo run --bin main
 │     • `"all"`      - Request chain from all peers
 │     • `[peer-id]`  - Request chain from a specific peer
 
-  *Show chain or peers*:
-└── Usage: `show <"peers" | "chain">`
+  *Show peers/chain/transaction pool *:
+└── Usage: `show <"peers" | "chain" | "txns">`
 ┌── Options:
 │     • `"peers"`   - Show a list of discovered and connected peers
 │     • `"chain"`   - Show current chain
+│     • `"txns"`    - Show transaction pool
 
   *Redial*:
 └── Usage: `redial`
@@ -65,13 +71,13 @@ Manages the core peer logic, providing the main application loop and interfaces 
 - Manages a Swarm object for peer communication within the network.
 - Manages standard input events for command-line interactions.
 
-#### `swarm_gossip.rs`
+#### `swarm.rs`
 Contains the network logic using GossipSub as the communication protocol and Mdns as the peer discovery protocol.
 - Configures PeerId, Keypair, and Topic(s) for the network.
 - Sets up NetworkBehaviour to define how immediate peer discovery and message events are handled.
 - Sets up Swarm that wraps around and executes the NetworkBehaviour.
 
-#### `block.rs`
+#### `chain.rs`
 Provides the blockchain data structures and the Proof-of-Work consensus algorithm.
 - Defines Chain and Block types.
 - Implements methods for hashing, mining, validating, and managing blocks.

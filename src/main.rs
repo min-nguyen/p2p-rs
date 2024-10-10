@@ -5,8 +5,7 @@ pub mod peer;
 pub mod chain;
 pub mod transaction;
 pub mod message;
-pub mod swarm_flood;
-pub mod swarm_gossip;
+pub mod swarm;
 
 use chain::Chain;
 
