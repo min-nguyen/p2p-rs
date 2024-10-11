@@ -12,7 +12,6 @@ RUST_LOG=info cargo run --bin main
 
 #### Commands Overview
 ```sh
-─────────────────────────────────────────────
   *Load chain*:
 └── Usage: `load`
 ┌── Description:
@@ -28,22 +27,31 @@ RUST_LOG=info cargo run --bin main
 ┌── Description:
 │     • Reset current chain to a single block.
 
-  *Mine new block*:
-└── Usage: `mine [data]`
+  *Create new transaction*:
+└── Usage: `txn [data]`
 ┌── Description:
-│     • Mine and add a new block to the chain, broadcasting this to other peers.
+│     • Create a (random) transaction with the amount set to the given data, adding it to the pool, and broadcasting it to other peers.
+
+  *Mine new block*:
+└── Usage: `mine ?[data]`
+┌── Description:
+|     • If no arguments are provided:
+|       -  mine a block containing the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
+│     • If an argument is provided:
+|       -  mine a block containing the arbitrary given data, adding it to the chain, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
 ┌── Options:
-│     • `"all"`      - Request chain from all peers
-│     • `[peer-id]`  - Request chain from a specific peer
+│     • `"all"`      - Request chain from all peers, and synchronise to the most up-to-date chain
+│     • `[peer-id]`  - Request chain from a specific peer, and synchronise to the most up-to-date chain
 
-  *Show chain or peers*:
-└── Usage: `show <"peers" | "chain">`
+  *Show peers/chain/transaction pool*:
+└── Usage: `show <"peers" | "chain" | "pool">`
 ┌── Options:
-│     • `"peers"`   - Show a list of discovered and connected peers
+│     • `"peers"`   - Show list of discovered and connected peers
 │     • `"chain"`   - Show current chain
+│     • `"pool"`    - Show current transaction pool
 
   *Redial*:
 └── Usage: `redial`
@@ -62,27 +70,35 @@ RUST_LOG=info cargo run --bin main
 
 #### `peer.rs`
 Manages the core peer logic, providing the main application loop and interfaces for sending/receiving messages.
-- Manages a Swarm object for peer communication within the network.
-- Manages standard input events for command-line interactions.
+- Manages a Swarm object (for communicating with peers in the network).
+- Manages std input events (for command-line interactions).
+- Manages a local Chain object (which it both adds new mined blocks to and synchronises with other peers' chains).
+- Manages a local Transaction pool (which it may mine new blocks for).
 
-#### `swarm_gossip.rs`
+#### `swarm.rs`
 Contains the network logic using GossipSub as the communication protocol and Mdns as the peer discovery protocol.
 - Configures PeerId, Keypair, and Topic(s) for the network.
-- Sets up NetworkBehaviour to define how immediate peer discovery and message events are handled.
-- Sets up Swarm that wraps around and executes the NetworkBehaviour.
+- Sets up NetworkBehaviour (that defines how peer discovery and message events are handled).
+- Sets up Swarm (that executes the NetworkBehaviour).
 
-#### `block.rs`
-Provides the blockchain data structures and the Proof-of-Work consensus algorithm.
-- Defines Chain and Block types.
-- Implements methods for hashing, mining, validating, and managing blocks.
+#### `chain.rs`
+Provides the blockchain and Proof-of-Work consensus algorithm.
+- Chain and Block types.
+- Methods for hashing, mining, validating, and managing blocks.
+
+#### `transaction.rs`
+Provides the transaction form.
+- Transaction type.
+- Methods for generating and validating transactions.
 
 #### `message.rs`
-Specifies message formats used for communication between nodes in the network.
-- Encodes request/response messages and broadcasts for new blocks.
+Provides the message forms communicated between peers.
+- Messages for requesting and responding with chains or new blocks.
+- Messages for broadcasting new transactions.
 
 #### `file.rs`
-Handles reading and writing the blockchain data to and from local storage.
-- Manages file operations for loading and saving the blockchain state (`blocks.json`).
+Provides auxiliary access to local storage.
+- Functions for loading and saving the blockchain state (from `blocks.json`).
 
 
 ---

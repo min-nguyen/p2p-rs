@@ -16,22 +16,31 @@
 ┌── Description:
 │     • Reset current chain to a single block.
 
-  *Mine new block*:
-└── Usage: `mine [data]`
+  *Create new transaction*:
+└── Usage: `txn [data]`
 ┌── Description:
-│     • Mine and add a new block to the chain, broadcasting this to other peers.
+│     • Create a (random) transaction with the amount set to the given data, adding it to the pool, and broadcasting it to other peers.
+
+  *Mine new block*:
+└── Usage: `mine ?[data]`
+┌── Description:
+|     • If no arguments are provided:
+|       -  mine a block containing the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
+│     • If an argument is provided:
+|       -  mine a block containing the given data, adding it to the chain, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
 ┌── Options:
-│     • `"all"`      - Request chain from all peers
-│     • `[peer-id]`  - Request chain from a specific peer
+│     • `"all"`      - Request chain from all peers, and synchronise to the most up-to-date chain
+│     • `[peer-id]`  - Request chain from a specific peer, and synchronise to the most up-to-date chain
 
-  *Show chain or peers*:
-└── Usage: `show <"peers" | "chain">`
+  *Show peers/chain/transaction pool*:
+└── Usage: `show <"peers" | "chain" | "pool">`
 ┌── Options:
-│     • `"peers"`   - Show a list of discovered and connected peers
+│     • `"peers"`   - Show list of discovered and connected peers
 │     • `"chain"`   - Show current chain
+│     • `"pool"`    - Show current transaction pool
 
   *Redial*:
 └── Usage: `redial`

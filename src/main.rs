@@ -1,10 +1,11 @@
+
+pub mod util;
 pub mod file;
 pub mod peer;
 pub mod chain;
 pub mod transaction;
 pub mod message;
-pub mod swarm_flood;
-pub mod swarm_gossip;
+pub mod swarm;
 
 use chain::Chain;
 
@@ -12,8 +13,8 @@ use chain::Chain;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    let (x, y) = (hex::encode([0;32]), hex::encode([0]));
-    println!("{}, {}, {:?}, {:?}", x, y, hex::decode(&x), hex::decode(&y));
+    // let (x, y) = (util::encode_hex(util::ZERO_U64), util::encode_hex([0; 64]));
+    // println!("{}, {}, {:?}, {:?}", x, y, util::decode_hex(&x, 64).unwrap().len(), util::decode_hex(&y, 32));
 
     run_p2p().await;
     // dummy_chain(10)

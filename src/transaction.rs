@@ -1,62 +1,88 @@
+use core::panic;
+
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use chrono::Utc;
-use rand::{Rng, thread_rng};
+use chrono::{Utc, DateTime};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
+use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+const PUBK_U8S_LEN : usize = 36;
+const SIG_U8S_LEN : usize = 64;
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct Transaction {
     pub sender: String,          // peer id of the sender
-    pub sender_pbk: Vec<u8>,     // public key of the sender
+    pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
     pub receiver: String,        // peer id of the receiver
-    pub amount: u64,             // amount transferred
-    pub timestamp: i64,          // when the transaction was created
+    pub amount: String,          // amount transferred, a string for testing
+    pub timestamp: i64,          // creation date
 
-    pub hash: String,            // hash of the above
-    pub sig: Vec<u8>,            // signature of the hash
+    pub hash: String,            // 32-byte hash of the above data, assuming sha256
+    pub sig: String,             // 32-byte signature of the hash, assuming ed25519
+}
+
+impl std::fmt::Display for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let datetime: DateTime<Utc>
+            = DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp");
+        write!(f, "Transaction {{ sender: {}, receiver: {}, amount: {}, date-time: {}, sig: {:?} }}"
+        , self.sender, self.receiver, self.amount, datetime, self.sig)
+    }
 }
 
 impl Transaction {
-    pub fn hash(sender: &String, sender_pk : &Vec<u8>, receiver: &String, amount: u64, timestamp: i64) -> String {
-        let mut hasher: Sha256 = Sha256::new();
-        let message: String = format!("{}:{}:{}:{}:{}", sender, hex::encode(sender_pk), receiver, amount, timestamp);
+    pub fn random_transaction(amount: String, keys : Keypair) -> Self {
+        let sender: String = PeerId::from(keys.public()).to_string();
+        let sender_pubk: String = encode_pubk(keys.public());
 
-        hasher.update(message);
-        hex::encode(hasher.finalize())
+        let receiver: String = format!("0x{}", random_string(40));
+        let timestamp: i64 = Utc::now().timestamp();
+        let hash: String = Self::compute_sha256(&sender, &sender_pubk, &receiver, &amount, timestamp);
+
+        let sig: String =
+            match keys.sign(&hash.as_bytes()){
+                Ok (sig_u8s) => encode_hex(sig_u8s),
+                Err (e) => {
+                    eprintln!("Signing failed. Couldn't decode public key from hex-string to byte vector: {}", e);
+                    panic!()
+                }
+            };
+        Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
-
-    pub fn random_transaction(keys : Keypair) -> Self {
-        let mut rng = thread_rng();
-
-        let sender = PeerId::from(keys.public()).to_string();
-        let sender_pbk: Vec<u8> = keys.public().into_protobuf_encoding();
-
-        let receiver = format!("0x{}", random_string(40));
-        let amount = rng.gen_range(1..1001);
-        let timestamp = Utc::now().timestamp();
-        let hash = Self::hash(&sender, &sender_pbk, &receiver, amount, timestamp);
-
-        let sig = keys.sign(&hash.as_bytes()).expect("Signing failed");
-
-        Transaction{ sender, sender_pbk, receiver, amount, timestamp, hash, sig }
-    }
-
-    pub fn verify_transaction(txn: Transaction) -> bool {
-        let hash = Transaction::hash(&txn.sender, &txn.sender_pbk, &txn.receiver, txn.amount, txn.timestamp);
+    pub fn validate_transaction(txn: &Transaction) -> Result<(), String> {
+        let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
-            eprintln!("Couldn't verify transaction! invalid hash.");
-            return false
+            return Err("Invalid hash.".to_string())
         }
-        // verify message signature
-        let pk = PublicKey::from_protobuf_encoding(&txn.sender_pbk).expect("can decode sender public key");
-        if !(pk.verify(hash.as_bytes(), &txn.sig)){
-            eprintln!("Couldn't verify transaction! invalid signature.");
-            return false
+        // check message signature
+        let pubk: PublicKey =
+            match decode_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
+                Ok (pubk) => pubk,
+                Err (e) => {
+                    return Err (format!("Couldn't decode public key: {}", e));
+                }
+            };
+        let sig_u8s: Vec<u8> =
+            match decode_hex(&txn.sig, SIG_U8S_LEN) {
+                Ok (sig_u8s) => sig_u8s,
+                Err (e) => {
+                    return Err (format!("Couldn't decode signature: {}", e));
+                }
+            };
+        if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
+            return Err ("Invalid signature.".to_string())
         }
-        eprintln!("Transaction verified!");
-        true
+        Ok (())
     }
+
+    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {
+        let mut hasher: Sha256 = Sha256::new();
+        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
+        hasher.update(message);
+        encode_hex(hasher.finalize())
+    }
+
 }
 
 fn random_string(len: usize) -> String {

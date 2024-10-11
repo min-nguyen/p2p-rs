@@ -1,14 +1,35 @@
 - [x] data types for generating, signing, and verifying transactions
 - [x] messages for new transactions
-- [ ] commands for broadcasting new transactions
-- [ ] handling new transactions by storing them in the peer
+- [x] temporary command `txn` for storing a test transaction in the pool
+- [x] command `show txns` to show transaction pool
+- [x] change Transaction fields `sender_pbk` and `sig` from type `Vec<u8>`  as hex strings for consistency
+- [x] implement utility for encoding/decoding from hex strings to hashs and public keys
+- [x] integrate above utility into chain.rs and transaction.rs
+- [x] implement tests for valid and invalid transactions
+- [x] change command `txn` for broadcasting new transactions
+- [x] handling new transactions by storing them in the pool
+- [x] make command `mine [data]` with no `[data]` argument for mining a new block from the first transaction in the pool
+- [x] handle receiving new blocks by first verifying the transaction inside the block
+- [ ] correct the order of pattern-matching when validating a new block wrt the local chain
+   - [ ] handle each pattern-match correctly
+- [x] delete mined transactions from the pool
+    - [x] after mining a new block, delete the transaction from the pool
+    - [x] after receiving a new mined block and validating it, removing the containing transaction from the pool if its there.
 
-- [ ] messages for proposing new blocks
+in parallel:
+- [ ] data structure for storing new block proposals and number of validations, before adding it to the chain
+- [ ] messages for sending new blocks proposals
+- [ ] messages for responding with signed validations of blocks
+- [ ] handling `n` peer validations of blocks by adding block to current chain
+
+also:
 - [ ] data for storing peers' public keys
 - [ ] messages for sending public keys
-- [ ] messages for responding with signed validations of blocks
-- [ ] data for storing number of validations for a given block
-- [ ] handling `n` peer validations of blocks by adding block to current chain
+
+also:
+- [ ] research how to use **lifetimes** to return references
+
+----------------------
 
  +-----------------------+                   +-----------------------+
  |     Node (Miner 1)    |                   |     Node (Miner 2)    |
@@ -35,6 +56,7 @@
  | - Updates Ledger       |                  | - Updates Ledger       |
  +-----------------------+                   +-----------------------+
 
+----------------------
 
 1. Gossipsub with Reliable Transport
 

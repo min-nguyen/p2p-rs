@@ -113,9 +113,11 @@ In the application of Blockchain to Cryptocurrency:
   - Local Wallets store your private keys and transaction data directly on your device (computer or mobile).
   - Remote wallets store your private keys on a server controlled by a third party (e.g., exchanges or web-based wallets).
 
+# Consensus Algrotihm
+
+A consensus algorithm is used in blockchain networks to validate transactions and hence agree on new blocks to be added to the chain.
+
 ## Proof-of-Work (PoW)
-- The consensus algorithm is used to validate these financial transactions.
-Consensus Algorithm
 
 One possible consensus algorithm for cryptocurrency is **Proof-of-Work (PoW)**:
 
@@ -143,3 +145,22 @@ One possible consensus algorithm for cryptocurrency is **Proof-of-Work (PoW)**:
      - The network's "main chain" is the longest valid chain owned by any node.
      - The nodes must communicate with each other to determine this.
      - In case of a tie (e.g., two blocks found at the same time), the network waits until more blocks are mined, and one chain becomes longer.
+
+## Proof-of-Stake
+
+Proof-of-Stake (PoS) is a consensus mechanism used in blockchain networks to validate transactions, create new blocks, and add them to the chain.
+
+- **PoS Algorithm**:
+1. Nodes make transactions. The PoS algorithm puts all these transactions in a pool.
+2. All the nodes contending to become validator for the next block raise a stake.
+    - This stake is combined with other factors like ‘coin-age’ or ‘randomized block selection’ to select the validator.
+3. The validator verifies all the transactions, endorsing them as legitimate, and groups it into a block which they publish.
+    - Their stake still remains locked and the forging reward is also not granted yet.
+    - This is so that the nodes on the network can ‘OK’ the new block.
+4. If the block is ‘OK’-ed by other validators, the validator gets the stake back and the reward too.
+   - Different PoS will use different methods for verfiying the block.
+     In sharding, a shard block is a block that contains transactions specifically processed by a shard of validators.
+     1. a validator verifies a transaction by adding it to a shard block.
+     2. after a shard block is created, a group of 128 validators will checks the transactions within it
+     3. once all validators have attested to the shard block, if at least 2/3rds of the validators agree that the transactions within it are valid, it is confirmed overall and added to the chian.
+5. If the block is not verified by other validators on the network, the validator(s) responsible for attesting to the validity of block loses their stake.
