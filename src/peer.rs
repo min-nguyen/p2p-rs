@@ -227,15 +227,16 @@ impl Peer {
         let opt_data: Option<String> =
             // Retrieve data as the next transaction (as a string) from the pool
             if args.is_empty()  {
-                peek_at_pool(&mut self.txn_pool)
+                extract_from_pool(&mut self.txn_pool)
                 .map(|txn|
                     {   // assuming we can always safely serialize a transaction (which should be the case)..
-                        println!("Retrieved transaction from the pool:\n\t{}", txn);
-                        serde_json::to_string(txn).unwrap()
+                        println!("Retrieved and removed transaction from the pool:\n\t{}", txn);
+                        serde_json::to_string(&txn).unwrap()
                     }
                 )
+            }
             // Use data as the provided cmd args
-            } else {
+            else {
                 Some (args.to_string())
             };
         match opt_data {
@@ -244,10 +245,6 @@ impl Peer {
                 self.chain.make_new_valid_block(&data);
                 let last_block = self.chain.get_last_block().to_owned();
                 println!("Mined and pushed new block to chain: {:?}", last_block);
-
-                if remove_from_pool(&mut self.txn_pool, &last_block) {
-                    println!("Deleted mined transaction from the local pool.")
-                }
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
@@ -393,7 +390,16 @@ fn remove_from_pool(txn_pool : &mut HashSet<Transaction>, block: &Block) -> bool
     }
     false
 }
-
+fn extract_from_pool(txn_pool: &mut HashSet<Transaction>) -> Option<Transaction> {
+    if let Some(txn) = txn_pool.iter().next() {
+        // txn_pool.remove(&txn); //  doesn't work: we immutably borrowing txn_pool, via &txn, while mutably borrowing it, via txn_pool.remove(..)
+        let txn_to_return = txn.clone(); // clone the value, so that we stop immutably borrowing txn_pool
+        txn_pool.remove(&txn_to_return);
+        Some(txn_to_return)
+    } else {
+        None // If the pool is empty
+    }
+}
 fn peek_at_pool<'a>(txn_pool : &'a mut HashSet<Transaction>) -> Option<&'a Transaction> {
     txn_pool.iter().peekable().next()
 }
