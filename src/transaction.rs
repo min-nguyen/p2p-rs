@@ -1,5 +1,6 @@
 use core::panic;
 
+use log::error;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
@@ -43,7 +44,7 @@ impl Transaction {
             match keys.sign(&hash.as_bytes()){
                 Ok (sig_u8s) => encode_hex(sig_u8s),
                 Err (e) => {
-                    eprintln!("Signing failed. Couldn't decode public key from hex-string to byte vector: {}", e);
+                    error!("Signing failed. Couldn't decode public key from hex-string to byte vector: {}", e);
                     panic!()
                 }
             };

@@ -32,12 +32,13 @@ static TXN_TOPIC: Lazy<IdentTopic> = Lazy::new(|| Topic::new("transactions"));
 
 const MAX_MESSAGE_SIZE : usize = 10 * 1_048_576;     // 10mb
 
-// We create a custom network behaviour that combines Gossipsub and Mdns.
+// Custom network behaviour that combines Gossipsub and Mdns
 #[derive(NetworkBehaviour)]
 pub struct BlockchainBehaviour {
   pub gossipsub: gossipsub::Gossipsub,
   pub mdns: Mdns,
-  // ** Relevant only to a specific local peer that we are setting up
+
+  // ** relevant only to a specific local peer that we are setting up
   #[behaviour(ignore)]
   pow_sender: mpsc::UnboundedSender<PowMessage>,
   #[behaviour(ignore)]
@@ -88,7 +89,6 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                             }
                     }
                     else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
-
                         send_local_peer(&self.txn_sender, txn_msg)
                     }
             }
@@ -163,11 +163,11 @@ pub async fn set_up_blockchain_swarm(
     };
     match behaviour.gossipsub.subscribe(&CHAIN_TOPIC)  {
         Ok(b) => info!("gossipsub.subscribe() returned {}", b),
-        Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
+        Err(e) => error!("gossipsub.subscribe() error: {:?}", e)
     };
     match behaviour.gossipsub.subscribe(&TXN_TOPIC)  {
         Ok(b) => info!("gossipsub.subscribe() returned {}", b),
-        Err(e) => eprintln!("gossipsub.subscribe() error: {:?}", e)
+        Err(e) => error!("gossipsub.subscribe() error: {:?}", e)
     };
 
     // Swarm
@@ -218,7 +218,7 @@ fn publish_msg<T : Serialize>(msg: T, topic : IdentTopic, swarm: &mut Swarm<Bloc
     let s: String = match serde_json::to_string(&msg) {
         Ok(json) => json,
         Err(e) => {
-            eprintln!("Couldn't jsonify message, {}", e);
+            error!("Couldn't jsonify message, {}", e);
             return ()
         }
     };
@@ -227,7 +227,7 @@ fn publish_msg<T : Serialize>(msg: T, topic : IdentTopic, swarm: &mut Swarm<Bloc
             .gossipsub
             .publish(topic, s.as_bytes());
     match res {
-        Err(e)   => eprintln!("publish_message() error: {:?}", e),
+        Err(e) => error!("publish_message() error: {:?}", e),
         Ok (_) => info!("publish_message() successful.")
     }
 }

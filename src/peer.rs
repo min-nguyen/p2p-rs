@@ -37,7 +37,7 @@ enum EventType {
     (2) A channel to receive blockchain requests/responses forwarded from the network behaviour
     (3) A channel to receive transaction messages forwarded from the network behaviour
     (4) A local blockchain
-    (3) A local transaction pool, identified by their hashes */
+    (3) A local transaction pool */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     pow_receiver : UnboundedReceiver<PowMessage>,
