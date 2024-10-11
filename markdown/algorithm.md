@@ -39,8 +39,10 @@
         Each neighboring node receives the new block.
         1. **Verify Block:**
             Each node checks:
-            1. The validity of the block itself, e.g. correct index, hash, valid nonce.
-            2. The validity of the each transaction (no double-spends, correct balances, etc.), regardless of whether it is in its local pool
+            1. The validity of the block's transactions, regardless of whether it is in its local pool
+               - Integrity: If the hash is correct
+               - Authenticity: If the signature is correct
+            2. The validity of the block itself , hash, valid nonce.
         2. **Update Blockchain:**
             - **They are out-of-date**
                 If the block is out-of-date, meaning the received block has a height less than the height of the current chain

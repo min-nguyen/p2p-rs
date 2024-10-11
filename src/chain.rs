@@ -98,20 +98,18 @@ impl std::fmt::Display for Chain {
 */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Block {
-    // position in the chain for sequentiality and quick access
+    // position in the chain
     pub idx: u64,
     // core content
     pub data: String,
-    // cryptographic hash of the block (contents + metadata) that uniquely identifies it and ensures integrity
-    pub hash: String,
-
-    // header
-    // records when block was created
+    // block creation time
     pub timestamp: i64,
-    // reference to the previous block's hash to ensure chain integrity
+    // reference to the previous block's hash
     pub prev_hash: String,
-    // random value controlled by block creator, used in PoW algorithm to find a valid block hash
+    // arbitrary value controlled by miner to find a valid block hash
     pub nonce: u64,
+    // hash of the above
+    pub hash: String,
 }
 
 
@@ -120,46 +118,37 @@ impl Block {
   pub fn mine_block(idx: u64, data: &str, prev_hash: &String) -> Block {
         let now: DateTime<Utc> = Utc::now();
         info!("mining block for:\n
-                Block {{ idx: {}, data: {}, hash: ?, timestamp: {}, prev_hash: {}, nonce: ? }}"
+                Block {{ idx: {}, data: {}, timestamp: {}, prev_hash: {}, nonce: ?, hash: ? }}"
                 , idx, data, now, prev_hash);
 
         let mut nonce: u64 = 0;
         loop {
             let hash: String
                 = Self::compute_hash(idx, data, now.timestamp(), &prev_hash, nonce);
-            let BinaryString(binary_repr)
-                = BinaryString::from_hex(&hash).expect("Can convert hex string to binary");
+            let BinaryString(hash_bin)
+                = BinaryString::from_hex(&hash).expect("can convert hex string to binary");
 
-            if binary_repr.starts_with(DIFFICULTY_PREFIX) {
+            if hash_bin.starts_with(DIFFICULTY_PREFIX) {
                 info!(
-                    "mine_block(): mined! \n nonce: {}, hash (bytes repr): {:?},  hash (hex repr): {},  hash (binary repr): {}"
-                    , nonce, hash, hex::encode(&hash), binary_repr
+                    "mine_block(): mined! \n nonce: {}, hash: {}, hash (bin repr): {}"
+                    , nonce, hash, hash_bin
                 );
-                return Self { idx, data : data.to_string(), hash, timestamp: now.timestamp(), prev_hash: prev_hash.clone(), nonce  }
+                return Self { idx, data : data.to_string(), timestamp: now.timestamp(), prev_hash: prev_hash.clone(), nonce, hash  }
             }
             nonce += 1;
         }
     }
+
   // Genesis block, the very first block in a chain which never references any previous blocks.
   pub fn genesis() -> Block {
-    let mut genesis =  Block {
-        idx: 0,
-        data: String::from("genesis"),
-        hash: bytes_to_hexstr(&ZERO_U32),
-        timestamp: Utc::now().timestamp(),
-        prev_hash: bytes_to_hexstr(&ZERO_U32),
-        nonce: 0 ,
-    };
-    genesis.hash = Self::hash_block(&genesis);
-    genesis
+    let (idx, data, timestamp, prev_hash, nonce)
+        = (0, "genesis".to_string(), Utc::now().timestamp(), bytes_to_hexstr(&ZERO_U32), 0);
+    let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
+    Block { idx, data, timestamp, prev_hash, nonce, hash }
   }
 
   // Compute the hex-string of a sha256 hash (i.e. a 32-byte array) of a block
-  pub fn hash_block (block : &Block)  -> String {
-        Self::compute_hash(block.idx, block.data.as_str(), block.timestamp, &block.prev_hash, block.nonce)
-  }
-
-  fn compute_hash (idx: u64, data: &str, timestamp: i64, prev_hash: &String,  nonce: u64)  -> String {
+  fn compute_hash (idx: u64, data: &str, timestamp: i64, prev_hash: &String, nonce: u64)  -> String {
         use sha2::{Sha256, Digest};
 
         // create a sha256 hasher instance
@@ -167,11 +156,11 @@ impl Block {
 
         // translate the block from a json value -> string -> byte array &[u8], used as input data to the hasher
         let block_json: serde_json::Value = serde_json::json!({
-        "idx": idx,
-        "data": data,
-        "timestamp": timestamp,
-        "prev_hash": prev_hash,
-        "nonce": nonce
+            "idx": idx,
+            "data": data,
+            "timestamp": timestamp,
+            "prev_hash": prev_hash,
+            "nonce": nonce
         });
         hasher.update(block_json.to_string().as_bytes());
 
@@ -190,16 +179,6 @@ impl Block {
     if block.prev_hash != last_block.hash {
         return Err(format!("Invalid block! block with idx: {} has wrong previous hash", block.idx))
     }
-    //    - check if block's idx is the increment of the previous block's idx
-    if block.idx != last_block.idx + 1 {
-        return Err(format!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
-        , block.idx, last_block.idx))
-    }
-    //    - check if block's hash is indeed the correct hash of itself.
-    if block.hash != Block::hash_block(&block) {
-        return Err(format!("Invalid block! block with idx {} stores a hash {} different from its real hash {}"
-        , last_block.idx, block.hash, Block::hash_block(&block)))
-    }
     // * proof-of-work check:
     //    - check if block's (binary formatted) hash has a valid number of leading zeros
     let BinaryString(hash_binary)
@@ -207,6 +186,17 @@ impl Block {
     if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
         return Err(format!("Invalid block! block with idx {} has hash binary {}, which does need meet the difficulty target {}"
         , last_block.idx, hash_binary, DIFFICULTY_PREFIX))
+    }
+    //    - check if block's idx is the increment of the previous block's idx
+    if block.idx != last_block.idx + 1 {
+        return Err(format!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
+        , block.idx, last_block.idx))
+    }
+    //    - check if block's hash is indeed the correct hash of itself.
+    let computed_hash = Self::compute_hash(block.idx, &block.data, block.timestamp, &block.prev_hash, block.nonce);
+    if block.hash != computed_hash {
+        return Err(format!("Invalid block! block with idx {} stores a hash {} different from its computed hash {}"
+        , last_block.idx, block.hash, computed_hash))
     }
     Ok(())
   }

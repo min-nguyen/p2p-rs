@@ -38,7 +38,7 @@ impl Transaction {
 
         let receiver: String = format!("0x{}", random_string(40));
         let timestamp: i64 = Utc::now().timestamp();
-        let hash: String = Self::compute_sha256(&sender, &sender_pubk, &receiver, &amount, timestamp);
+        let hash: String = Self::compute_hash(&sender, &sender_pubk, &receiver, &amount, timestamp);
 
         let sig: String =
             match keys.sign(&hash.as_bytes()){
@@ -50,8 +50,16 @@ impl Transaction {
             };
         Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
+
+    fn compute_hash(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {
+        let mut hasher: Sha256 = Sha256::new();
+        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
+        hasher.update(message);
+        encode_hex(hasher.finalize())
+    }
+
     pub fn validate_transaction(txn: &Transaction) -> Result<(), String> {
-        let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
+        let hash: String = Transaction::compute_hash(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
             return Err("Invalid hash.".to_string())
@@ -76,14 +84,6 @@ impl Transaction {
         }
         Ok (())
     }
-
-    pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {
-        let mut hasher: Sha256 = Sha256::new();
-        let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
-        hasher.update(message);
-        encode_hex(hasher.finalize())
-    }
-
 }
 
 fn random_string(len: usize) -> String {
