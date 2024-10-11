@@ -38,7 +38,7 @@ impl Chain {
     // Try to append an arbitrary block
     pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), &str>{
         let last_block: &Block = self.get_last_block();
-        if Block::valid_block(last_block, &new_block) {
+        if Block::validate_block(last_block, &new_block) {
             info!("try_push_block(): added new block");
             self.0.push(new_block.clone());
             Ok (())
@@ -53,14 +53,14 @@ impl Chain {
         self.0.last().expect("Chain must be non-empty")
     }
 
-    // Validate entire chain (ignoring the genesis block)
-    pub fn valid_chain(chain: &Chain) -> bool {
+    // Validate entire chain from tail to head, ignoring the genesis block
+    pub fn validate_chain(chain: &Chain) -> bool {
         for i in 1..chain.0.len() {
             let err: String = format!("Block idx not found: {}", &((i-1).to_string()));
             let prev: &Block = chain.0.get(i - 1).expect(&err);
             let err: String = format!("Block idx not found: {}", &((i).to_string()));
             let curr: &Block = chain.0.get(i).expect(&err);
-            if !Block::valid_block(prev, curr){
+            if !Block::validate_block(prev, curr){
                 return false
             }
         }
@@ -69,7 +69,7 @@ impl Chain {
 
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
     pub fn sync_chain(&mut self, remote: &Chain) -> bool {
-        match(Chain::valid_chain(&self), Chain::valid_chain(&remote))  {
+        match(Chain::validate_chain(&self), Chain::validate_chain(&remote))  {
             (true, true) => {
             if self.0.len() >= remote.0.len() {
                 false
@@ -186,7 +186,7 @@ impl Block {
     }
 
   // Validate a block */
-  pub fn valid_block(last_block: &Block, block: &Block) -> bool {
+  pub fn validate_block(last_block: &Block, block: &Block) -> bool {
     // * standard correctness checks:
     //    - check if block's header correctly stores the previous block's hash
     if block.prev_hash != last_block.hash {
@@ -214,7 +214,7 @@ impl Block {
             , last_block.idx, hash_binary, DIFFICULTY_PREFIX) ;
         return false
     }
-    info!("valid_block(): block is indeed valid!");
+    info!("validate_block(): block is indeed valid!");
     true
   }
 }

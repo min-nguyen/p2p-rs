@@ -49,19 +49,19 @@ impl Transaction {
             };
         Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
-    pub fn verify_transaction(txn: &Transaction) -> bool {
+    pub fn validate_transaction(txn: &Transaction) -> bool {
         let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
-            eprintln!("Verify transaction failed. Invalid hash.");
+            eprintln!("Validating transaction failed. Invalid hash.");
             return false
         }
-        // verify message signature
+        // check message signature
         let pubk: PublicKey =
             match decode_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
                 Ok (pubk) => pubk,
                 Err (e) => {
-                    eprintln!("Verify transaction failed. Couldn't decode public key: {}", e);
+                    eprintln!("Validating transaction failed. Couldn't decode public key: {}", e);
                     return false
                 }
             };
@@ -69,12 +69,12 @@ impl Transaction {
             match decode_hex(&txn.sig, SIG_U8S_LEN) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
-                    eprintln!("Verify transaction failed. Couldn't decode signature: {}", e);
+                    eprintln!("Validating transaction failed. Couldn't decode signature: {}", e);
                     return false
                 }
             };
         if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
-            eprintln!("Verify transaction failed. Invalid signature.");
+            eprintln!("Validating transaction failed. Invalid signature.");
             return false
         }
         true

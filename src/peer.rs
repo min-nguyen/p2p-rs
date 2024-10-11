@@ -116,8 +116,8 @@ impl Peer {
         match msg {
             TxnMessage::NewTransaction { txn } => {
                 println!("Received new transaction:\n{}", txn);
-                if Transaction::verify_transaction(&txn) {
-                    println!("Transaction verified! Adding to pool");
+                if Transaction::validate_transaction(&txn) {
+                    println!("Transaction valid! Adding to pool");
                     self.txn_pool.insert(txn);
                 }
                 else{
