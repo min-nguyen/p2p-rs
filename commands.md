@@ -20,9 +20,9 @@
 └── Usage: `mine ?[data]`
 ┌── Description:
 |     • If no arguments are provided:
-|       -  mine a block from the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
-│     • If an an argument is provided:
-|       -  mine a block with the given data, adding it to the chain, and broadcasting it to other peers.
+|       -  mine a block containing the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
+│     • If an argument is provided:
+|       -  mine a block containing the given data, adding it to the chain, and broadcasting it to other peers.
 
   *Create new transaction*:
 └── Usage: `txn [data]`
@@ -36,11 +36,11 @@
 │     • `[peer-id]`  - Request chain from a specific peer
 
   *Show peers/chain/transaction pool*:
-└── Usage: `show <"peers" | "chain" | "txns">`
+└── Usage: `show <"peers" | "chain" | "pool">`
 ┌── Options:
 │     • `"peers"`   - Show a list of discovered and connected peers
 │     • `"chain"`   - Show current chain
-│     • `"txns"`    - Show transaction pool
+│     • `"pool"`    - Show transaction pool
 
   *Redial*:
 └── Usage: `redial`

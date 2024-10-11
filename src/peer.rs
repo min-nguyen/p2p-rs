@@ -16,7 +16,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::{HashMap, HashSet};
 
 use super::file;
-use super::chain::{self, Chain};
+use super::chain::{self, Chain, Block};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
 use super::swarm::{self as swarm, BlockchainBehaviour};
@@ -47,6 +47,7 @@ pub struct Peer {
     chain : Chain,
     txn_pool  : HashSet<Transaction>
 }
+
 
 impl Peer {
     /* Main loop -- Defines the logic for how the peer:
@@ -118,10 +119,13 @@ impl Peer {
                 match self.chain.try_push_block(&block){
                     Ok(()) =>{
                         println!("Successfully validated block itself.\n\
-                                 Extended current chain by a remote peer's new block")
+                                 Extended current chain by a remote peer's new block");
+                        if remove_from_pool(&mut self.txn_pool, &block){
+                            println!("Deleted mined transaction from the local pool.");
+                        }
                     }
                     Err(e) =>
-                        println!("Retained current chain and ignored remote peer's new block: {}", e)
+                        println!("Retained current chain and ignored remote peer's new block:\n\t{}", e)
                 }
             }
         }
@@ -193,10 +197,12 @@ impl Peer {
     }
     fn handle_cmd_txn(&mut self, arg: &str) {
         let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
-        println!("Adding new (random) transaction to pool and broadcasting to all. \n{}", txn);
+
         self.txn_pool.insert(txn.clone());
+        println!("Added new transaction to pool. \n{}\t", txn);
         let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
+        println!("Broadcasted new transaction to to all.");
     }
     async fn handle_cmd_load(&mut self){
         match file::read_chain().await {
@@ -204,15 +210,13 @@ impl Peer {
                 self.chain = chain;
                 println!("Loaded chain from local file")
             }
-            Err(e) => eprintln!("Error loading chain from local file: {}", e),
+            Err(e) => eprintln!("Error loading chain from local file:\n\t{}", e),
         }
     }
     async fn handle_cmd_save(&mut self ){
         match file::write_chain(&self.chain).await {
-            Ok(()) => {
-                println!("Saved chain to local file")
-            },
-            Err(e) => eprintln!("Error saving chain to local file: {}", e),
+            Ok(()) => println!("Saved chain to local file"),
+            Err(e) => eprintln!("Error saving chain to local file:\n\t{}", e),
         }
     }
     fn handle_cmd_reset(&mut self) {
@@ -220,33 +224,40 @@ impl Peer {
         println!("Current chain reset to a single block")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
-            let opt_data: Option<String> =
-                // Retrieve data as the next transaction (as a string) from the pool
-                if args.is_empty()  {
-                    self.txn_pool.iter().peekable().next().clone().map(|txn|
-                        {   println!("Retrieving transaction from the pool: \n{}", txn);
-                            // assuming we can always safely serialize a transaction (which should be the case)..
-                            serde_json::to_string(txn).unwrap()
-                        })
-                // Use data as the provided cmd args
-                } else {
-                    Some (args.to_string())
-                };
-            match opt_data {
-                None => eprintln!("No transactions in the pool to mine for."),
-                Some(data) => {
-                    self.chain.make_new_valid_block(&data);
-                    let last_block = self.chain.get_last_block().to_owned();
-                    println!("Mined and pushed new block to chain: {:?}", last_block);
-                    println!("Broadcasting new block.");
-                    swarm::publish_pow_msg(
-                        PowMessage::NewBlock {
-                            transmit_type: TransmitType::ToAll,
-                            block: last_block
-                        }
-                    , &mut self.swarm);
+        let opt_data: Option<String> =
+            // Retrieve data as the next transaction (as a string) from the pool
+            if args.is_empty()  {
+                peek_at_pool(&mut self.txn_pool)
+                .map(|txn|
+                    {   // assuming we can always safely serialize a transaction (which should be the case)..
+                        println!("Retrieved transaction from the pool:\n\t{}", txn);
+                        serde_json::to_string(txn).unwrap()
+                    }
+                )
+            // Use data as the provided cmd args
+            } else {
+                Some (args.to_string())
+            };
+        match opt_data {
+            None => eprintln!("No transactions in the pool to mine for."),
+            Some(data) => {
+                self.chain.make_new_valid_block(&data);
+                let last_block = self.chain.get_last_block().to_owned();
+                println!("Mined and pushed new block to chain: {:?}", last_block);
+
+                if remove_from_pool(&mut self.txn_pool, &last_block) {
+                    println!("Deleted mined transaction from the local pool.")
                 }
+
+                swarm::publish_pow_msg(
+                    PowMessage::NewBlock {
+                        transmit_type: TransmitType::ToAll,
+                        block: last_block
+                    }
+                , &mut self.swarm);
+                println!("Broadcasted new block.");
             }
+        }
     }
     fn handle_cmd_req(&mut self, args: &str) {
         match args {
@@ -274,7 +285,7 @@ impl Peer {
     fn handle_cmd_show(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `show` missing an argument `chain` or `peers`")
+                println!("Command error: `show` missing an argument `chain`, `peers`, or `pool`")
             }
             "chain"   => {
                 println!("Current chain:\n");
@@ -288,12 +299,12 @@ impl Peer {
                 println!("Connected Peers ({})", conn_peers.len());
                 conn_peers.iter().for_each(|p| println!("{}", p));
             }
-            "txns"   => {
+            "pool"   => {
                 println!("Current transaction pool:\n");
                 self.txn_pool.iter().for_each(|txn| println!("{}", txn))
             }
             _ => {
-                println!("Command error: `show` has unrecognised argument(s). Specify `chain` or `peers`")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `peers`, or `pool`")
             }
         }
     }
@@ -331,7 +342,6 @@ impl Peer {
     }
 }
 
-
 pub async fn set_up_peer() -> Peer {
     /* Asynchronous channel, to communicate between different parts of our application.
         1. to_peer is an output channel, provided to network.rs.
@@ -367,7 +377,7 @@ pub async fn set_up_peer() -> Peer {
             }
         };
 
-    println!("\nYour Peer Id: {}\n", swarm.local_peer_id().to_string());
+    println!("\n## Your Peer Id: ##\n{}", swarm.local_peer_id().to_string());
     Peer { from_stdin
         , pow_receiver
         , txn_receiver
@@ -375,6 +385,17 @@ pub async fn set_up_peer() -> Peer {
         , chain
         , txn_pool: HashSet::new()
     }
+}
+
+fn remove_from_pool(txn_pool : &mut HashSet<Transaction>, block: &Block) -> bool {
+    if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
+        return txn_pool.remove(&txn)
+    }
+    false
+}
+
+fn peek_at_pool<'a>(txn_pool : &'a mut HashSet<Transaction>) -> Option<&'a Transaction> {
+    txn_pool.iter().peekable().next()
 }
 
 fn print_user_commands(){

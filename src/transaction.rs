@@ -82,6 +82,7 @@ impl Transaction {
         hasher.update(message);
         encode_hex(hasher.finalize())
     }
+
 }
 
 fn random_string(len: usize) -> String {
