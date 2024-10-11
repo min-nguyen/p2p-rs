@@ -121,11 +121,8 @@ impl Peer {
                     self.txn_pool.insert(txn);
                 }
                 else{
-                    println!("Transaction not verified. Ignoring.");
+                    println!("Transaction not valid. Ignoring.");
                 }
-            }
-            TxnMessage::ResolvedTransaction { txn } => {
-
             }
         }
     }

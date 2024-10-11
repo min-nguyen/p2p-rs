@@ -52,8 +52,5 @@ impl std::fmt::Display for PowMessage {
 pub enum TxnMessage {
     NewTransaction {
         txn : transaction::Transaction
-    },
-    ResolvedTransaction {
-        txn : transaction::Transaction
     }
 }
