@@ -221,7 +221,7 @@ impl Block {
         if block.prev_hash != current_block.hash {
             // hence, we need to either:
             //    i)  request an entirely new up-to-date chain (inefficient but simple)
-            //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain
+            //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
             return Err(format!("Next block {}'s parent {} does not match our current block {}"
             , block.idx, block.prev_hash, current_block.hash))
         }
@@ -235,7 +235,7 @@ impl Block {
     if block.idx > current_block.idx + 1 {
         // hence, we need to either:
         //    i)  request an entirely new up-to-date chain (inefficient but simple)
-        //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain
+        //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
         return Err(format!("Block too new! Block Idx {} is too far ahead of local chain length {}"
         , block.idx, current_block.idx))
     };

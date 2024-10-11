@@ -45,12 +45,16 @@
             2. The validity of the block itself, ignoring our local chain:
                - Pow: If the hash meets the required difficulty prefix
                - Integrity: If the hash is the actual computed hash of the rest of the block block
-        2. **Update Blockchain:**
+        2. _**NEED TO FINISH AND CORRECT THESE STEPS:**_
+            **Update Blockchain:**
             - **They are out-of-date**
                 If the block is out-of-date, meaning the received block has a height less than the height of the current chain
             - **We are out-of-date**
-                If the block indicates that the local chain is out-of-date, meaning the received block has a height index more than 2 than the local chain length,  or equivalently, if the block's parent block cannot be found in the chain.
-                1. The node requests missing blocks from its peers to catch up, synchronizing its local blockchain by requesting and receiving missing blocks until it has the longest (or heaviest) chain.
+                If the bloc indicates that the local chain is out-of-date, meaning the received block has a height index more than 2 than the local chain length.
+                  - The node requests missing blocks to catch up, working backwards until reaching its local current block.
+                  - Once receiving the final block {idx + 1} which should follow our current block {idx},
+                    - If block {idx + 1}'s parent matches our current block, then we have finished updating our chain.
+                    - If block {idx + 1}'s parent does not match our current block, this indicates a **fork**, requiring us  to continue requesting blocks, and replace a suffix of our chain to match up with the longest one.
             - **Both of us are up-to-date, but have diverged**
                 If the block is at the same height as the most recent one:
                     - If it has the same parent, it is a **competing block**.
@@ -61,7 +65,6 @@
                       This indicates a completely divergent chain.
                       The node may:
                         - discard the block as invalid, as it cannot be integrated into its current state.
-                        - store it in a temporary pool of orphan blocks, and then request the missing parent blocks
             - **If the block is valid**:
                 1. The node updates its local blockchain by adding the new block.
                 2. The node removes any confirmed transactions found in its pool (if any at all) that are present in the block.
