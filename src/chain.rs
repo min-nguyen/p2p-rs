@@ -36,16 +36,14 @@ impl Chain {
     }
 
     // Try to append an arbitrary block
-    pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), &str>{
+    pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), String>{
         let last_block: &Block = self.get_last_block();
-        if Block::validate_block(last_block, &new_block) {
-            info!("try_push_block(): added new block");
-            self.0.push(new_block.clone());
-            Ok (())
-        } else {
-            let e ="try_push_block(): could not add new_block - invalid";
-            info!("{}", e);
-            Err (e)
+        match Block::validate_block(last_block, &new_block) {
+            Err (e) => Err (format!("Couldn't push new_block: {}", e)),
+            Ok (()) => {
+                self.0.push(new_block.clone());
+                Ok (())
+            }
         }
     }
 
@@ -54,23 +52,23 @@ impl Chain {
     }
 
     // Validate entire chain from tail to head, ignoring the genesis block
-    pub fn validate_chain(chain: &Chain) -> bool {
+    pub fn validate_chain(chain: &Chain) -> Result<(), String> {
         for i in 1..chain.0.len() {
             let err: String = format!("Block idx not found: {}", &((i-1).to_string()));
             let prev: &Block = chain.0.get(i - 1).expect(&err);
             let err: String = format!("Block idx not found: {}", &((i).to_string()));
             let curr: &Block = chain.0.get(i).expect(&err);
-            if !Block::validate_block(prev, curr){
-                return false
+            if let Err(e) = Block::validate_block(prev, curr){
+                return Err (format!("Couldn't validate chain: {}", e))
             }
         }
-        true
+        Ok (())
     }
 
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
     pub fn sync_chain(&mut self, remote: &Chain) -> bool {
         match(Chain::validate_chain(&self), Chain::validate_chain(&remote))  {
-            (true, true) => {
+            (Ok(()), Ok(())) => {
             if self.0.len() >= remote.0.len() {
                 false
             } else {
@@ -78,8 +76,8 @@ impl Chain {
                 true
             }
             },
-            (false, true) => false,
-            (true, false) => {*self = remote.clone(); true},
+            (Err(_), Ok(())) => false,
+            (Ok(()), Err(_)) => {*self = remote.clone(); true},
             _ => panic!("local and remote chains both invalid")
         }
     }
@@ -89,7 +87,7 @@ impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Chain {{\n")?;
         for block in &self.0 {
-        write!(f, "\t{}\n", block)?
+            write!(f, "\t{}\n", block)?
         };
         write!(f, "}}")
     }
@@ -186,36 +184,31 @@ impl Block {
     }
 
   // Validate a block */
-  pub fn validate_block(last_block: &Block, block: &Block) -> bool {
+  pub fn validate_block(last_block: &Block, block: &Block) -> Result<(), String> {
     // * standard correctness checks:
     //    - check if block's header correctly stores the previous block's hash
     if block.prev_hash != last_block.hash {
-        eprintln!("Invalid block! block with idx: {} has wrong previous hash", block.idx);
-        return false
+        return Err(format!("Invalid block! block with idx: {} has wrong previous hash", block.idx))
     }
     //    - check if block's idx is the increment of the previous block's idx
     if block.idx != last_block.idx + 1 {
-        eprintln!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
-                , block.idx, last_block.idx);
-        return false
+        return Err(format!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
+        , block.idx, last_block.idx))
     }
     //    - check if block's hash is indeed the correct hash of itself.
     if block.hash != Block::hash_block(&block) {
-        eprintln!("Invalid block! block with idx {} stores a hash {} different from its real hash {}"
-            , last_block.idx, block.hash, Block::hash_block(&block)) ;
-        return false
+        return Err(format!("Invalid block! block with idx {} stores a hash {} different from its real hash {}"
+        , last_block.idx, block.hash, Block::hash_block(&block)))
     }
     // * proof-of-work check:
     //    - check if block's (binary formatted) hash has a valid number of leading zeros
     let BinaryString(hash_binary)
       = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
     if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-        eprintln!("Invalid block! block with idx {} has hash binary {}, which does need meet the difficulty target {}"
-            , last_block.idx, hash_binary, DIFFICULTY_PREFIX) ;
-        return false
+        return Err(format!("Invalid block! block with idx {} has hash binary {}, which does need meet the difficulty target {}"
+        , last_block.idx, hash_binary, DIFFICULTY_PREFIX))
     }
-    info!("validate_block(): block is indeed valid!");
-    true
+    Ok(())
   }
 }
 

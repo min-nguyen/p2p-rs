@@ -49,35 +49,31 @@ impl Transaction {
             };
         Transaction{ sender, sender_pubk, receiver, amount, timestamp, hash, sig }
     }
-    pub fn validate_transaction(txn: &Transaction) -> bool {
+    pub fn validate_transaction(txn: &Transaction) -> Result<(), String> {
         let hash: String = Transaction::compute_sha256(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
-            eprintln!("Validating transaction failed. Invalid hash.");
-            return false
+            return Err("Invalid hash.".to_string())
         }
         // check message signature
         let pubk: PublicKey =
             match decode_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
                 Ok (pubk) => pubk,
                 Err (e) => {
-                    eprintln!("Validating transaction failed. Couldn't decode public key: {}", e);
-                    return false
+                    return Err (format!("Couldn't decode public key: {}", e));
                 }
             };
         let sig_u8s: Vec<u8> =
             match decode_hex(&txn.sig, SIG_U8S_LEN) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
-                    eprintln!("Validating transaction failed. Couldn't decode signature: {}", e);
-                    return false
+                    return Err (format!("Couldn't decode signature: {}", e));
                 }
             };
         if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
-            eprintln!("Validating transaction failed. Invalid signature.");
-            return false
+            return Err ("Invalid signature.".to_string())
         }
-        true
+        Ok (())
     }
 
     pub fn compute_sha256(sender: &String, sender_pk : &String, receiver: &String, amount:  &String, timestamp: i64) -> String {

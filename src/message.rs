@@ -19,11 +19,11 @@ pub enum PowMessage {
     },
     ChainResponse {
         transmit_type : TransmitType,
-        data : chain::Chain
+        chain : chain::Chain
     },
     NewBlock {
         transmit_type : TransmitType, // always ToAll
-        data : chain::Block
+        block : chain::Block
     }
     // NewBlockProposal {
     //   transmit_type : TransmitType, // always ToAll
@@ -40,10 +40,10 @@ impl std::fmt::Display for PowMessage {
         match self {
         PowMessage::ChainRequest { transmit_type, sender_peer_id }
             => write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
-        PowMessage::ChainResponse { transmit_type, data }
-            => write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Data: {} \n}}", transmit_type, data),
-        PowMessage::NewBlock { transmit_type, data }
-            => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, data),
+        PowMessage::ChainResponse { transmit_type, chain }
+            => write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Data: {} \n}}", transmit_type, chain),
+        PowMessage::NewBlock { transmit_type, block }
+            => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, block),
         }
     }
 }

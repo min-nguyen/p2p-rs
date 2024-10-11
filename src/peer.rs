@@ -88,23 +88,38 @@ impl Peer {
             PowMessage::ChainRequest { sender_peer_id, .. } => {
                 let resp = PowMessage::ChainResponse {
                     transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                    data: self.chain.clone(),
+                    chain: self.chain.clone(),
                 };
                 println!("Sent response to {}", sender_peer_id);
                 swarm::publish_pow_msg(resp, &mut  self.swarm)
             },
-            PowMessage::ChainResponse{ data , ..} => {
-                if self.chain.sync_chain(&data){
+            PowMessage::ChainResponse{ chain , ..} => {
+                if self.chain.sync_chain(&chain){
                     println!("Updated current chain to a remote peer's longer chain")
                 }
                 else {
                     println!("Retained current chain over a remote peer's chain")
                 }
             },
-            PowMessage::NewBlock { data, .. } => {
-                match self.chain.try_push_block(&data){
-                    Ok(()) =>
-                        println!("Extended current chain by a remote peer's new block"),
+            PowMessage::NewBlock { block, .. } => {
+                // Validate transaction inside the block, *if any*, and return early if invalid
+                if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
+                    match Transaction::validate_transaction(&txn) {
+                        Ok (()) => {
+                            println!("Successfully validated transaction inside the received block.")
+                        }
+                        Err (e) => {
+                            println!("Couldn't validate transaction inside the received block:\n\t{}\nIgnoring new block.", e);
+                            return
+                        }
+                    }
+                }
+                // Validate block itself
+                match self.chain.try_push_block(&block){
+                    Ok(()) =>{
+                        println!("Successfully validated block itself.\n\
+                                 Extended current chain by a remote peer's new block")
+                    }
                     Err(e) =>
                         println!("Retained current chain and ignored remote peer's new block: {}", e)
                 }
@@ -116,12 +131,15 @@ impl Peer {
         match msg {
             TxnMessage::NewTransaction { txn } => {
                 println!("Received new transaction:\n{}", txn);
-                if Transaction::validate_transaction(&txn) {
-                    println!("Transaction valid! Adding to pool");
-                    self.txn_pool.insert(txn);
-                }
-                else{
-                    println!("Transaction not valid. Ignoring.");
+                match Transaction::validate_transaction(&txn) {
+                    Ok (()) => {
+                        println!("Transaction valid! Adding to pool");
+                        self.txn_pool.insert(txn);
+                    }
+                    Err (e) => {
+                        println!("Transaction not valid:\n\t{}\nIgnoring new transaction.", e);
+                        return
+                    }
                 }
             }
         }
@@ -219,12 +237,12 @@ impl Peer {
                 Some(data) => {
                     self.chain.make_new_valid_block(&data);
                     let last_block = self.chain.get_last_block().to_owned();
-                    println!("Mined and wrote new block: {:?}", last_block);
+                    println!("Mined and pushed new block to chain: {:?}", last_block);
                     println!("Broadcasting new block.");
                     swarm::publish_pow_msg(
                         PowMessage::NewBlock {
                             transmit_type: TransmitType::ToAll,
-                            data: last_block
+                            block: last_block
                         }
                     , &mut self.swarm);
                 }
