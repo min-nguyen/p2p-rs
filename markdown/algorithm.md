@@ -55,7 +55,9 @@
                       The node requests the alternate chain starting from the fork point (common ancestor) to compare it with its current chain, and then chooses the longer chain
                     - If it has a different parent and no common ancestor, it is an **orphan**
                       This indicates a completely divergent chain.
-                      The node may discard the block as invalid, as it cannot be integrated into its current state.
+                      The node may:
+                        - discard the block as invalid, as it cannot be integrated into its current state.
+                        - store it in a temporary pool of orphan blocks, and then request the missing parent blocks
             - **If the block is valid**:
                 1. The node updates its local blockchain by adding the new block.
                 2. The node removes any confirmed transactions found in its pool (if any at all) that are present in the block.

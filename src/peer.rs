@@ -13,14 +13,13 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 use super::file;
 use super::chain::{self, Chain, Block};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
 use super::swarm::{self as swarm, BlockchainBehaviour};
-// use super::swarm_flood::{self as swarm, BlockchainBehaviour};
 
 /* Events for the peer to handle, either:
     (1) Local inputs from the terminal
@@ -47,7 +46,6 @@ pub struct Peer {
     chain : Chain,
     txn_pool  : HashSet<Transaction>
 }
-
 
 impl Peer {
     /* Main loop -- Defines the logic for how the peer:
