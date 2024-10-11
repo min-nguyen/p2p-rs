@@ -10,6 +10,7 @@
 - [x] handling new transactions by storing them in the pool
 - [x] make command `mine [data]` with no `[data]` argument for mining a new block from the first transaction in the pool
 - [x] handle receiving new blocks by first verifying the transaction inside the block
+- [ ] custom error data type for validating blocks
 - [ ] correct the order of pattern-matching when validating a new block wrt the local chain
    - [ ] handle each pattern-match correctly
 - [x] delete mined transactions from the pool

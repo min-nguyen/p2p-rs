@@ -174,29 +174,51 @@ impl Block {
 
   // Validate a block */
   pub fn validate_block(last_block: &Block, block: &Block) -> Result<(), String> {
-    // * standard correctness checks:
-    //    - check if block's header correctly stores the previous block's hash
-    if block.prev_hash != last_block.hash {
-        return Err(format!("Invalid block! block with idx: {} has wrong previous hash", block.idx))
-    }
-    // * proof-of-work check:
-    //    - check if block's (binary formatted) hash has a valid number of leading zeros
+    // * validity of block by itself:
+    //    1. check if block's hash (in binary) has a valid number of leading zeros
     let BinaryString(hash_binary)
       = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
     if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-        return Err(format!("Invalid block! block with idx {} has hash binary {}, which does need meet the difficulty target {}"
-        , last_block.idx, hash_binary, DIFFICULTY_PREFIX))
+        return Err(format!("Block fails difficulty check! Hash binary {} does need meet the difficulty target {}"
+        , hash_binary, DIFFICULTY_PREFIX))
     }
-    //    - check if block's idx is the increment of the previous block's idx
-    if block.idx != last_block.idx + 1 {
-        return Err(format!("Invalid block! block with idx {} is not the next block after the last one with idx {}"
-        , block.idx, last_block.idx))
-    }
-    //    - check if block's hash is indeed the correct hash of itself.
+    //    2. check if block's hash is indeed the correct hash of itself.
     let computed_hash = Self::compute_hash(block.idx, &block.data, block.timestamp, &block.prev_hash, block.nonce);
     if block.hash != computed_hash {
-        return Err(format!("Invalid block! block with idx {} stores a hash {} different from its computed hash {}"
-        , last_block.idx, block.hash, computed_hash))
+        return Err(format!("Block is corrupt! Stored hash {} is inconsistent with its computed hash {}"
+        , block.hash, computed_hash))
+    }
+    // * validity of block wrt our chain
+    //    1. if the block is out-of-date
+    if block.idx < last_block.idx  {
+        return Err(format!("Block too old! Block Idx {} is less than the local chain length {}"
+        , block.idx, last_block.idx))
+    }
+    //    2. if our chain is out-of-date by more than 1 block
+    if block.idx > last_block.idx + 1 {
+        return Err(format!("Block too new! Block Idx {} is too far ahead of local chain length {}"
+        , block.idx, last_block.idx))
+    }
+    //    3. if the block and our last block are both up-to-date but different (have diverged)
+    if (block.idx == last_block.idx) && (block.hash != last_block.hash) {
+        //   a. if competing block  has the same parent
+        if block.prev_hash == last_block.prev_hash {
+            return Err(format!("Block is competing! Block Idx {} has same parent {} as local chain's last block's"
+            , block.idx, block.prev_hash))
+        }
+        //   b. if competing block has a different parent, indicating it causes a fork (has a common ancestor) or belongs to a completely different chain
+        if block.prev_hash != last_block.hash {
+            return Err(format!("Block causes possible fork! Block Idx {} has different parent {} as local chain's last block's {}"
+            , block.idx, block.prev_hash, last_block.prev_hash))
+        }
+    }
+    //    4. if our chain is out-of-date by exactly 1 block, i.e. the block's index is the next one we expect
+    if block.idx == last_block.idx + 1 {
+        //  if block indicates a fork i.e. i.e. its parent does not match our chain's last block.
+        //  * HENCE: we need to request a new chain *
+        if block.prev_hash != last_block.hash {
+            return Err(format!("Block causes fork! block with idx: {} has wrong previous hash", block.idx))
+        }
     }
     Ok(())
   }
