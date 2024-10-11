@@ -241,13 +241,13 @@ impl Peer {
             None => eprintln!("No transactions in the pool to mine for."),
             Some(data) => {
                 self.chain.make_new_valid_block(&data);
-                let last_block = self.chain.get_last_block().to_owned();
-                println!("Mined and pushed new block to chain: {:?}", last_block);
+                let current_block = self.chain.get_current_block().to_owned();
+                println!("Mined and pushed new block to chain: {:?}", current_block);
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
-                        block: last_block
+                        block: current_block
                     }
                 , &mut self.swarm);
                 println!("Broadcasted new block.");
