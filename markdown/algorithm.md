@@ -39,37 +39,41 @@
         Each neighboring node receives the new block.
         1. **Verify Block:**
             Each node checks:
-            1. The validity of the block's transactions, regardless of whether it is in its local pool
-               - Integrity: If the hash is correct
-               - Authenticity: If the signature is correct
-            2. The validity of the block itself, ignoring our local chain:
-               - Pow: If the hash meets the required difficulty prefix
-               - Integrity: If the hash is the actual computed hash of the rest of the block block
-        2. _**NEED TO FINISH AND CORRECT THESE STEPS:**_
-            **Update Blockchain:**
+            1. **The validity of the block's transactions**, regardless of whether it is in its local pool
+               - **Integrity**: If the hash is correct
+               - **Authenticity**: If the signature is correct
+            2. **The validity of the block itself**, regardless of whether it can fit into our local chain
+               - **Pow Difficulty**: If the hash meets the required difficulty prefix
+               - **Integrity**: If the hash is the actual computed hash of the rest of the block block
+        2. **Update Blockchain:**
+            Each node checks if the new block, confirmed to be valid, can extend our current chian.
             - **They are out-of-date**
-                If the block is out-of-date, meaning the received block has a height less than the height of the current chain
-            - **We are out-of-date**
-                If the bloc indicates that the local chain is out-of-date, meaning the received block has a height index more than 2 than the local chain length.
-                  - The node requests missing blocks to catch up, working backwards until reaching its local current block.
-                  - Once receiving the final block {idx + 1} which should follow our current block {idx},
-                    - If block {idx + 1}'s parent matches our current block, then we have finished updating our chain.
-                    - If block {idx + 1}'s parent does not match our current block, this indicates a **fork**, requiring us  to continue requesting blocks, and replace a suffix of our chain to match up with the longest one.
+                If the block is out-of-date, meaning the received block has a height less than the height of the current chain.
+                The block is either:
+                  - a **duplicate** of an older block we have, so can be discarded.
+                  - an **orphan**---a different block at the same height of an older block we have---so can be discarded.
             - **Both of us are up-to-date, but have diverged**
                 If the block is at the same height as the most recent one:
                     - If it has the same parent, it is a **competing block**.
                       The node stores it temporarily.
-                    - If it has a different parent but the same ancestor in the chain, it has caused a **fork**
-                      The node requests the alternate chain starting from the fork point (common ancestor) to compare it with its current chain, and then chooses the longer chain
-                    - If it has a different parent and no common ancestor, it is an **orphan**
-                      This indicates a completely divergent chain.
-                      The node may:
-                        - discard the block as invalid, as it cannot be integrated into its current state.
-            - **If the block is valid**:
-                1. The node updates its local blockchain by adding the new block.
-                2. The node removes any confirmed transactions found in its pool (if any at all) that are present in the block.
-        3. **Re-Broadcast:**
-            The node re-broadcasts the new block to its peers, purely for the purpose of propagating it throughout the network.
+                    - If it has a different parent, it belongs to a **forked chain** or a **divergent chain**
+                      - The node either:
+                        - Disregards the alternative chain, as it is at the same height as our current chain.
+                        - Requests the alternative chain all the way back to fork point, if any, temporarily storing and later using it if the next valid block received extends it.
+            - **We are out-of-date by exactly one block.**:
+               If the block is at a height one more than our current chain length:
+                  - If its parent matches our last block, it **directly extends** our chain and can be added, thus updating our chain.
+                  - If its parent does not match our last block, it belongs to a **forked chain**, requiring us  to continue requesting blocks all the way back to to the fork point, and replacing a suffix of our chain with it.
+            - **We are out-of-date by more than one block**
+                If the block indicates that the local chain is out-of-date, meaning the received block has a height index more than 2 than the local chain length.
+                  - The node requests missing blocks to catch up, working backwards until reaching its local current block.
+                  - Once receiving the final block {idx + 1} which should follow our current block {idx},
+                    - If block {idx + 1}'s parent matches our current block, then it **directly extends** our chain and can be added, thus updating our chain.
+                    - If block {idx + 1}'s parent does not match our current block, it belongs to a **forked chain**, requiring us  to continue requesting blocks all the way back to to the fork point, and replacing a suffix of our chain with it.
+        3. **Update Transaction Pool, Re-Broadcast Received New Blocks**
+           For any new blocks added to our chain
+            - The node removes any confirmed transactions found in its pool (if any at all) that are present in the blocks.
+            - The node re-broadcasts the new block to its peers, purely for the purpose of propagating it throughout the network.
 
 5. ## General Block Broadcasting:
 
