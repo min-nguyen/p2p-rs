@@ -17,7 +17,7 @@ use crate::util;
 
 
 // number of leading zeros required for the hashed block for the block to be valid.
-const DIFFICULTY_PREFIX: &str = "0";
+const DIFFICULTY_PREFIX: &str = "00";
 
 #[derive(Debug)]
 pub enum BlockErr {
@@ -35,29 +35,29 @@ pub enum BlockErr {
 pub enum NewBlockErr {
     InvalidBlock(BlockErr),      // error from block's self-validation
     BlockTooOld {
-        block_idx: u64,
-        current_idx: u64
+        block_idx: usize,
+        current_idx: usize
     },                           // block is out-of-date
     DuplicateBlock {
-        block_idx: u64
+        block_idx: usize
     },                           // competing block is a duplicate
     CompetingBlock {
-        block_idx: u64,
+        block_idx: usize,
         parent_hash: String
     },                           // competing block has same parent
     CompetingFork {
-        block_idx: u64,
+        block_idx: usize,
         block_parent_hash: String,
         current_parent_hash: String
     },                           // competing block indicates a fork
     NextBlockInvalidParent {
-        block_idx: u64,
+        block_idx: usize,
         block_parent_hash: String,
         current_hash: String
     },                           // next block's parent doesn't match the current block
     BlockTooNew {
-        block_idx: u64,
-        current_idx: u64
+        block_idx: usize,
+        current_idx: usize
     },                           // block is ahead by more than 1 block
     UnknownError,                // non-exhaustive case (should not happen)
 }
@@ -70,6 +70,18 @@ impl Chain {
     // New chain with a single genesis block
     pub fn new() -> Self {
         Self (vec![Block::genesis()])
+    }
+
+    pub fn get_current_block(&self) -> &Block {
+        self.0.last().expect("Chain must be non-empty")
+    }
+
+    pub fn get_block(&self, idx: usize) -> Option<&Block> {
+        self.0.get(idx)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     // Mine a new valid block from given data
@@ -89,10 +101,6 @@ impl Chain {
                 Ok (())
             }
         }
-    }
-
-    pub fn get_current_block(&self) -> &Block {
-        self.0.last().expect("Chain must be non-empty")
     }
 
     // validate entire chain from tail to head, ignoring the genesis block
@@ -214,7 +222,7 @@ impl std::fmt::Display for Chain {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Block {
     // position in the chain
-    pub idx: u64,
+    pub idx: usize,
     // core content
     pub data: String,
     // block creation time
@@ -230,7 +238,7 @@ pub struct Block {
 
 impl Block {
   // Find a valid nonce and hash to construct a new block
-  pub fn mine_block(idx: u64, data: &str, prev_hash: &String) -> Block {
+  pub fn mine_block(idx: usize, data: &str, prev_hash: &String) -> Block {
         let now: DateTime<Utc> = Utc::now();
         info!("mining block for:\n
                 Block {{ idx: {}, data: {}, timestamp: {}, prev_hash: {}, nonce: ?, hash: ? }}"
@@ -263,7 +271,7 @@ impl Block {
   }
 
   // Compute the hex-string of a sha256 hash (i.e. a 32-byte array) of a block
-  fn compute_hash (idx: u64, data: &str, timestamp: i64, prev_hash: &String, nonce: u64)  -> String {
+  fn compute_hash (idx: usize, data: &str, timestamp: i64, prev_hash: &String, nonce: u64)  -> String {
         use sha2::{Sha256, Digest};
 
         // create a sha256 hasher instance
@@ -296,7 +304,7 @@ impl Block {
             return Err(BlockErr::DifficultyCheckFailed {
                 hash_binary,
                 difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
-            });
+            })
         }
         //    2. check if block's hash is indeed the correct hash of itself.
         let computed_hash = Self::compute_hash(
@@ -324,11 +332,10 @@ impl std::fmt::Display for Block {
     }
 }
 
-#[cfg(test)] // cargo test -- --nocapture
+
+#[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
-    use crate::{{Block, Chain}, util::{encode_bytes_to_hex, ZERO_U32}};
-    // mod chain;
-    // use crate::chain::Block;
+    use crate::{chain::{BlockErr, NewBlockErr}, util::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
 
     /* low-level block tests */
     #[test]
@@ -340,21 +347,55 @@ mod chain_tests {
     }
 
     #[test]
-    fn test_invalid_first_block() {
-      let gen = Block::genesis();
-      let valid_block = Block::mine_block(1, "test", &gen.hash);
+    fn test_invalid_block() {
+      let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
 
-      let invalid_idx = Block {idx : 0, .. valid_block.clone()};
-      assert!(matches!(Chain::validate_new_block(&gen, &invalid_idx), Err(_)));
-
-      let invalid_prev_hash = Block { prev_hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone() };
-      assert!(matches!(Chain::validate_new_block(&gen, &invalid_prev_hash), Err(_)));
+      let invalid_difficulty_prefix = Block {hash : hex::encode([255;32]), .. valid_block.clone()};
+      assert!(matches!(debug(Block::validate_block(&invalid_difficulty_prefix))
+                      , Err(BlockErr::DifficultyCheckFailed{..})));
 
       let invalid_hash = Block {hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone()};
-      assert!(matches!(Chain::validate_new_block(&gen, &invalid_hash), Err(_)));
+      assert!(matches!(debug(Block::validate_block(&invalid_hash))
+                      , Err(BlockErr::HashMismatch{..})));
+    }
 
-      let invalid_difficulty_prefix = Block {hash :  hex::encode([1;32]), .. valid_block.clone()};
-      assert!(matches!(Chain::validate_new_block(&gen, &invalid_difficulty_prefix), Err(_)));
+    #[test]
+    fn test_invalid_new_block() {
+        let mut chain: Chain = Chain::new();
+        for i in 1 .. 10 {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+        println!("{}", chain);
+        let current_block: &Block = chain.get_current_block();
+
+        let out_of_date_block = chain.get_block(5).unwrap();
+        assert!(matches!(debug(Chain::validate_new_block(current_block, out_of_date_block))
+                        , Err(NewBlockErr::BlockTooOld { .. })));
+
+        let duplicate_block = current_block.clone();
+        assert!(matches!(debug(Chain::validate_new_block(current_block, &duplicate_block))
+                        , Err(NewBlockErr::DuplicateBlock { .. })));
+
+        let competing_block = Block::mine_block(current_block.idx, "competing block", &current_block.prev_hash);
+        assert!(matches!(debug(Chain::validate_new_block(&current_block, &competing_block))
+                        , Err(NewBlockErr::CompetingBlock { .. })));
+
+        // let competing_fork = {
+        //     let fork_len = 5;
+        //     let fork_point = chain.len() - fork_len;
+        //     let mut forked_chain = Chain ((chain.0.clone())[..fork_point].to_vec());
+        //     for i in 0 .. fork_len {
+        //         forked_chain.make_new_valid_block(&format!("competing fork block {}", i));
+        //     }
+        //     forked_chain // Block::mine_block(current_block.idx, "competing block", &current_block.prev_hash);
+        // };
+        // println!("{:?}", competing_fork);
+        // assert!(matches!(debug(Chain::validate_new_block(&current_block, &competing_block))
+        //                 , Err(NewBlockErr::CompetingFork { .. })));
+        // let invalid_hash = Block {hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone()};
+        // let invalid_difficulty_prefix = Block {hash :  hex::encode([255;32]), .. valid_block.clone()};
+        // assert!(matches!(debug(Chain::validate_new_block(&current_block, &invalid_difficulty_prefix))
+        //                 , Err(_)));
     }
 
     /* high-level chain tests */

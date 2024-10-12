@@ -30,3 +30,8 @@ pub fn decode_hex_to_bytes(hash_hex: &String, n_bytes : usize) -> Result<Vec<u8>
     }
     Ok(hash_u8s)
 }
+
+pub fn debug<T:std::fmt::Debug>(f : T) -> T{
+    eprintln!("{:?}", f);
+    f
+}
