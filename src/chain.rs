@@ -13,10 +13,11 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 
+use crate::util;
+
+
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "0";
-// 32 byte (256-bit) array of zeros
-pub const ZERO_U32 : [u8; 32] = [0; 32];
 
 #[derive(Debug)]
 pub enum BlockErr {
@@ -256,7 +257,7 @@ impl Block {
   // Genesis block, the very first block in a chain which never references any previous blocks.
   pub fn genesis() -> Block {
     let (idx, data, timestamp, prev_hash, nonce)
-        = (0, "genesis".to_string(), Utc::now().timestamp(), bytes_to_hexstr(&ZERO_U32), 0);
+        = (0, "genesis".to_string(), Utc::now().timestamp(), util::encode_bytes_to_hex(&util::ZERO_U32), 0);
     let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
     Block { idx, data, timestamp, prev_hash, nonce, hash }
   }
@@ -283,7 +284,7 @@ impl Block {
         .finalize() // Sha256 -> GenericArray<u8, U32>
         .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        bytes_to_hexstr(&hash)
+        util::encode_bytes_to_hex(&hash)
     }
 
     // Validate a block as its own entity:
@@ -323,6 +324,54 @@ impl std::fmt::Display for Block {
     }
 }
 
-pub fn bytes_to_hexstr(hash: &[u8]) -> String {
-    hex::encode(&hash)
+#[cfg(test)] // cargo test -- --nocapture
+mod chain_tests {
+    use crate::{{Block, Chain}, util::{encode_bytes_to_hex, ZERO_U32}};
+    // mod chain;
+    // use crate::chain::Block;
+
+    /* low-level block tests */
+    #[test]
+    fn test_valid_first_block() {
+      let gen = Block::genesis();
+      let valid_block = Block::mine_block(1, "test", &gen.hash);
+
+      assert!(matches!(Chain::validate_new_block(&gen, &valid_block), Ok(())));
+    }
+
+    #[test]
+    fn test_invalid_first_block() {
+      let gen = Block::genesis();
+      let valid_block = Block::mine_block(1, "test", &gen.hash);
+
+      let invalid_idx = Block {idx : 0, .. valid_block.clone()};
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_idx), Err(_)));
+
+      let invalid_prev_hash = Block { prev_hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone() };
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_prev_hash), Err(_)));
+
+      let invalid_hash = Block {hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone()};
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_hash), Err(_)));
+
+      let invalid_difficulty_prefix = Block {hash :  hex::encode([1;32]), .. valid_block.clone()};
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_difficulty_prefix), Err(_)));
+    }
+
+    /* high-level chain tests */
+    #[test]
+    fn test_extend_chain_once() {
+      let mut chain: Chain = Chain::new();
+      chain.make_new_valid_block("test");
+      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
+    }
+
+    #[test]
+    fn test_extend_chain_many() {
+      let mut chain: Chain = Chain::new();
+      for _ in 0 .. 10 {
+        chain.make_new_valid_block("test");
+      }
+      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
+    }
+
 }

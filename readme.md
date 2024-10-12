@@ -86,10 +86,18 @@ Provides the blockchain and Proof-of-Work consensus algorithm.
 - Chain and Block types.
 - Methods for hashing, mining, validating, and managing blocks.
 
+```
+cargo test chain -- --no capture
+```
+
 #### `transaction.rs`
 Provides the transaction form.
 - Transaction type.
 - Methods for generating and validating transactions.
+
+```
+cargo test transaction -- --no capture
+```
 
 #### `message.rs`
 Provides the message forms communicated between peers.

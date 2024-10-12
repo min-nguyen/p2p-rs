@@ -8,7 +8,6 @@ pub mod message;
 pub mod swarm;
 
 use chain::{Block, Chain};
-use util::{encode_hex, ZERO_U32};
 
 // RUST_LOG=info cargo run --bin main
 #[tokio::main]

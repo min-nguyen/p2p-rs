@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
-use super::util::{encode_pubk, decode_pubk, encode_hex, decode_hex};
+use super::util::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
 
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
@@ -34,7 +34,7 @@ impl std::fmt::Display for Transaction {
 impl Transaction {
     pub fn random_transaction(amount: String, keys : Keypair) -> Self {
         let sender: String = PeerId::from(keys.public()).to_string();
-        let sender_pubk: String = encode_pubk(keys.public());
+        let sender_pubk: String = encode_pubk_to_hex(keys.public());
 
         let receiver: String = format!("0x{}", random_string(40));
         let timestamp: i64 = Utc::now().timestamp();
@@ -42,7 +42,7 @@ impl Transaction {
 
         let sig: String =
             match keys.sign(&hash.as_bytes()){
-                Ok (sig_u8s) => encode_hex(sig_u8s),
+                Ok (sig_u8s) => encode_bytes_to_hex(sig_u8s),
                 Err (e) => {
                     error!("Signing failed. Couldn't decode public key from hex-string to byte vector: {}", e);
                     panic!()
@@ -55,7 +55,7 @@ impl Transaction {
         let mut hasher: Sha256 = Sha256::new();
         let message: String = format!("{}:{}:{}:{}:{}", sender, sender_pk, receiver, amount, timestamp);
         hasher.update(message);
-        encode_hex(hasher.finalize())
+        encode_bytes_to_hex(hasher.finalize())
     }
 
     pub fn validate_transaction(txn: &Transaction) -> Result<(), String> {
@@ -66,14 +66,14 @@ impl Transaction {
         }
         // check message signature
         let pubk: PublicKey =
-            match decode_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
+            match decode_hex_to_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
                 Ok (pubk) => pubk,
                 Err (e) => {
                     return Err (format!("Couldn't decode public key: {}", e));
                 }
             };
         let sig_u8s: Vec<u8> =
-            match decode_hex(&txn.sig, SIG_U8S_LEN) {
+            match decode_hex_to_bytes(&txn.sig, SIG_U8S_LEN) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
                     return Err (format!("Couldn't decode signature: {}", e));
@@ -95,3 +95,36 @@ fn random_string(len: usize) -> String {
         .map(char::from)
         .collect()
 }
+
+#[cfg(test)]
+mod transaction_tests {
+    use libp2p::identity;
+    use crate::util::{encode_bytes_to_hex, encode_pubk_to_hex, ZERO_U32, ZERO_U64};
+    use crate::transaction::Transaction;
+
+    /* transaction tests */
+    #[test]
+    fn test_valid_transaction() {
+      let keys = identity::Keypair::generate_ed25519();
+      let valid_txn = Transaction::random_transaction("£0".to_string(), keys);
+      assert_eq!(Transaction::validate_transaction(&valid_txn), Ok(()));
+    }
+
+    #[test]
+    fn test_invalid_transaction() {
+      let keys = identity::Keypair::generate_ed25519();
+      let valid_txn: Transaction = Transaction::random_transaction("£0".to_string(), keys);
+
+      let invalid_hash = Transaction {hash : encode_bytes_to_hex(ZERO_U32), .. valid_txn.clone()};
+      assert!(matches!(Transaction::validate_transaction(&invalid_hash), Err(_)));
+
+      let invalid_pubk = Transaction { sender_pubk : encode_pubk_to_hex(identity::Keypair::generate_ed25519().public()), .. valid_txn.clone()};
+      assert!(matches!(Transaction::validate_transaction(&invalid_pubk), Err(_)));
+
+      let invalid_siglen = Transaction {sig: encode_bytes_to_hex(ZERO_U32), .. valid_txn.clone()};
+      assert!(matches!(Transaction::validate_transaction(&invalid_siglen), Err(_)));
+
+      let invalid_sig = Transaction {sig: encode_bytes_to_hex(ZERO_U64), .. valid_txn.clone()};
+      assert!(matches!(Transaction::validate_transaction(&invalid_sig), Err(_)));
+    }
+  }

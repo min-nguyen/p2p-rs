@@ -7,10 +7,6 @@ edition = "2021"
 name = "main"
 path = "./src/main.rs"
 
-[[test]]
-name = "test"
-path = "./src/tests/test.rs"
-
 [dependencies]
 rand = "0.8"
 to-binary = "0.4"
