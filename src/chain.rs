@@ -5,7 +5,6 @@
 // Simple modelling of the PoW consensus mechanism
 //    Every node in the network can add a block, storing data as a string, to the blockchain ledger by mining a valid block locally and then broadcasting that block. As long as it’s a valid block, each node will add the block to its chain and our piece of data become part of a decentralized network.
 //
-//
 /////////////////
 
 use chrono::{DateTime, Utc};
@@ -13,8 +12,7 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 
-use crate::util;
-
+use super::util;
 
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
@@ -43,18 +41,18 @@ pub enum NewBlockErr {
     },                           // competing block is a duplicate
     CompetingBlock {
         block_idx: usize,
-        parent_hash: String
+        block_parent_hash: String
     },                           // competing block has same parent
-    CompetingFork {
+    CompetingBlockInFork {
         block_idx: usize,
         block_parent_hash: String,
         current_parent_hash: String
-    },                           // competing block indicates a fork
-    NextBlockInvalidParent {
+    },                           // competing block has different parent, belonging to a fork (or different chain)
+    NextBlockInFork {
         block_idx: usize,
         block_parent_hash: String,
         current_hash: String
-    },                           // next block's parent doesn't match the current block
+    },                           // next block's parent doesn't match the current block, belonging to a fork (or different chain)
     BlockTooNew {
         block_idx: usize,
         current_idx: usize
@@ -144,13 +142,13 @@ impl Chain {
             if block.prev_hash == current_block.prev_hash {
                 return Err(NewBlockErr::CompetingBlock {
                     block_idx: block.idx,
-                    parent_hash: block.prev_hash.clone(),
+                    block_parent_hash: block.prev_hash.clone(),
                 });
             }
             //   c. competing block is different and has a different parent, indicating their chain has possibly forked
             //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 2
             if block.prev_hash != current_block.prev_hash {
-                return Err(NewBlockErr::CompetingFork {
+                return Err(NewBlockErr::CompetingBlockInFork {
                     block_idx: block.idx,
                     block_parent_hash: block.prev_hash.clone(),
                     current_parent_hash: current_block.prev_hash.clone(),
@@ -164,7 +162,7 @@ impl Chain {
                 // hence, we need to either:
                 //    i)  request an entirely new up-to-date chain (inefficient but simple)
                 //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-                return Err(NewBlockErr::NextBlockInvalidParent {
+                return Err(NewBlockErr::NextBlockInFork {
                     block_idx: block.idx,
                     block_parent_hash: block.prev_hash.clone(),
                     current_hash: current_block.hash.clone(),
@@ -333,86 +331,198 @@ impl std::fmt::Display for Block {
 }
 
 
+/********  TESTS **********/
+
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{chain::{BlockErr, NewBlockErr}, util::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
 
-    /* low-level block tests */
+    /* tests for a block by itself  */
     #[test]
-    fn test_valid_first_block() {
-      let gen = Block::genesis();
-      let valid_block = Block::mine_block(1, "test", &gen.hash);
+    fn test_invalid_block_difficulty_check() {
+        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
 
-      assert!(matches!(Chain::validate_new_block(&gen, &valid_block), Ok(())));
+        let invalid_difficulty_prefix = Block {
+            hash: hex::encode([255; 32]),
+            ..valid_block.clone()
+        };
+
+        // Ensure that the block fails due to a difficulty check error
+        assert!(matches!(
+            Block::validate_block(&invalid_difficulty_prefix),
+            Err(BlockErr::DifficultyCheckFailed { .. })
+        ));
+    }
+    #[test]
+    fn test_invalid_block_hash_mismatch() {
+        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
+
+        let invalid_hash = Block {
+            hash: encode_bytes_to_hex(ZERO_U32),
+            ..valid_block.clone()
+        };
+
+        assert!(matches!(
+            debug(Block::validate_block(&invalid_hash)),
+            Err(BlockErr::HashMismatch { .. })
+        ));
     }
 
-    #[test]
-    fn test_invalid_block() {
-      let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
-
-      let invalid_difficulty_prefix = Block {hash : hex::encode([255;32]), .. valid_block.clone()};
-      assert!(matches!(debug(Block::validate_block(&invalid_difficulty_prefix))
-                      , Err(BlockErr::DifficultyCheckFailed{..})));
-
-      let invalid_hash = Block {hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone()};
-      assert!(matches!(debug(Block::validate_block(&invalid_hash))
-                      , Err(BlockErr::HashMismatch{..})));
-    }
+    /* tests for extending a chain by a new proposed block */
+    const TEST_CHAIN_LEN : usize = 5;
+    const FORK_LEN : usize = 3;
 
     #[test]
-    fn test_invalid_new_block() {
+    fn test_out_of_date_block() {
         let mut chain: Chain = Chain::new();
-        for i in 1 .. 10 {
+        for i in 1..TEST_CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
-        println!("{}", chain);
-        let current_block: &Block = chain.get_current_block();
+        let current_block: Block = chain.get_current_block().clone();
+        let out_of_date_block: &Block = chain.get_block(current_block.idx - 1).unwrap();
 
-        let out_of_date_block = chain.get_block(5).unwrap();
-        assert!(matches!(debug(Chain::validate_new_block(current_block, out_of_date_block))
-                        , Err(NewBlockErr::BlockTooOld { .. })));
-
-        let duplicate_block = current_block.clone();
-        assert!(matches!(debug(Chain::validate_new_block(current_block, &duplicate_block))
-                        , Err(NewBlockErr::DuplicateBlock { .. })));
-
-        let competing_block = Block::mine_block(current_block.idx, "competing block", &current_block.prev_hash);
-        assert!(matches!(debug(Chain::validate_new_block(&current_block, &competing_block))
-                        , Err(NewBlockErr::CompetingBlock { .. })));
-
-        // let competing_fork = {
-        //     let fork_len = 5;
-        //     let fork_point = chain.len() - fork_len;
-        //     let mut forked_chain = Chain ((chain.0.clone())[..fork_point].to_vec());
-        //     for i in 0 .. fork_len {
-        //         forked_chain.make_new_valid_block(&format!("competing fork block {}", i));
-        //     }
-        //     forked_chain // Block::mine_block(current_block.idx, "competing block", &current_block.prev_hash);
-        // };
-        // println!("{:?}", competing_fork);
-        // assert!(matches!(debug(Chain::validate_new_block(&current_block, &competing_block))
-        //                 , Err(NewBlockErr::CompetingFork { .. })));
-        // let invalid_hash = Block {hash : encode_bytes_to_hex(ZERO_U32), .. valid_block.clone()};
-        // let invalid_difficulty_prefix = Block {hash :  hex::encode([255;32]), .. valid_block.clone()};
-        // assert!(matches!(debug(Chain::validate_new_block(&current_block, &invalid_difficulty_prefix))
-        //                 , Err(_)));
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, out_of_date_block)),
+            Err(NewBlockErr::BlockTooOld { .. })
+        ));
     }
-
-    /* high-level chain tests */
     #[test]
-    fn test_extend_chain_once() {
-      let mut chain: Chain = Chain::new();
-      chain.make_new_valid_block("test");
-      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
-    }
+    fn test_duplicate_block() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN{
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+        let current_block: Block = chain.get_current_block().clone();
+        let duplicate_block: Block = current_block.clone();
 
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, &duplicate_block)),
+            Err(NewBlockErr::DuplicateBlock { .. })
+        ));
+    }
     #[test]
-    fn test_extend_chain_many() {
-      let mut chain: Chain = Chain::new();
-      for _ in 0 .. 10 {
-        chain.make_new_valid_block("test");
-      }
-      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
-    }
+    fn test_competing_block() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN{
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+        let current_block: Block = chain.get_current_block().clone();
+        let competing_block: Block = Block::mine_block(current_block.idx, "competing block at {}", &current_block.prev_hash);
 
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, &competing_block)),
+            Err(NewBlockErr::CompetingBlock { .. })
+        ));
+    }
+    #[test]
+    fn test_competing_block_in_fork() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN{
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let current_block: Block = chain.get_current_block().clone();
+        let competing_fork: Chain = {
+            let fork_point = chain.len() - FORK_LEN;
+            let mut chain_prefix = Chain(chain.0.clone()[..fork_point].to_vec());
+            for i in 0..FORK_LEN {
+                chain_prefix.make_new_valid_block(&format!("block {} in fork", i));
+            }
+            chain_prefix
+        };
+        let competing_block_in_fork: &Block = competing_fork.get_current_block();
+
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, competing_block_in_fork)),
+            Err(NewBlockErr::CompetingBlockInFork { .. })
+        ));
+    }
+    #[test]
+    fn test_next_block_in_fork() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let current_block: Block = chain.get_current_block().clone();
+        let mut competing_fork: Chain = {
+            let fork_point = chain.len() - FORK_LEN;
+            let mut chain_prefix = Chain(chain.0.clone()[..fork_point].to_vec());
+            for i in 0..FORK_LEN {
+                chain_prefix.make_new_valid_block(&format!("block {} in fork", i));
+            }
+            chain_prefix
+        };
+        competing_fork.make_new_valid_block("next block in fork");
+        let next_block_in_fork: &Block = competing_fork.get_current_block();
+
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, next_block_in_fork)),
+            Err(NewBlockErr::NextBlockInFork { .. })
+        ));
+    }
+    #[test]
+    fn test_too_ahead_of_date_block() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let current_block: Block = chain.get_current_block().clone();
+        chain.make_new_valid_block("next block in same chain");
+        chain.make_new_valid_block("too-far-ahead block in same chain");
+        let too_ahead_of_date_block: &Block = chain.get_current_block();
+
+        assert!(matches!(
+            Chain::validate_new_block(&current_block, too_ahead_of_date_block),
+            Err(NewBlockErr::BlockTooNew { .. })
+        ));
+    }
+    #[test]
+    fn test_too_ahead_of_date_block_in_fork() {
+        let mut chain: Chain = Chain::new();
+        for i in 1..TEST_CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let current_block: Block = chain.get_current_block().clone();
+        let mut competing_fork: Chain = {
+            let fork_point = chain.len() - FORK_LEN;
+            let mut chain_prefix = Chain(chain.0.clone()[..fork_point].to_vec());
+            for i in 0..FORK_LEN {
+                chain_prefix.make_new_valid_block(&format!("block in fork {}", i));
+            }
+            chain_prefix
+        };
+        competing_fork.make_new_valid_block("next block in fork");
+        competing_fork.make_new_valid_block("too-far-ahead block in fork");
+        let too_ahead_of_date_block_in_fork: &Block = competing_fork.get_current_block();
+
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, too_ahead_of_date_block_in_fork)),
+            Err(NewBlockErr::BlockTooNew { .. })
+        ));
+    }
+    #[test]
+    fn test_next_valid_block() {
+        let mut chain: Chain = Chain::new();
+        let current_block: Block = chain.get_current_block().clone();
+
+        chain.make_new_valid_block(&format!("test next valid block"));
+        let next_valid_block = chain.get_current_block();
+
+        assert!(matches!(
+            debug(Chain::validate_new_block(&current_block, &next_valid_block))
+            , Ok(())));
+    }
+    #[test]
+    fn test_next_valid_blocks() {
+        let mut chain: Chain = Chain::new();
+        for i in 1 .. TEST_CHAIN_LEN {
+          chain.make_new_valid_block(&format!("next valid block {}", i));
+        }
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Ok(())));
+    }
 }
