@@ -48,7 +48,7 @@ mod block_tests {
       let gen = Block::genesis();
       let valid_block = Block::mine_block(1, "test", &gen.hash);
 
-      assert!(matches!(Block::validate_block(&gen, &valid_block), Ok(())));
+      assert!(matches!(Chain::validate_new_block(&gen, &valid_block), Ok(())));
     }
 
     #[test]
@@ -57,16 +57,16 @@ mod block_tests {
       let valid_block = Block::mine_block(1, "test", &gen.hash);
 
       let invalid_idx = Block {idx : 0, .. valid_block.clone()};
-      assert!(matches!(Block::validate_block(&gen, &invalid_idx), Err(_)));
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_idx), Err(_)));
 
       let invalid_prev_hash = Block { prev_hash : encode_hex(ZERO_U32), .. valid_block.clone() };
-      assert!(matches!(Block::validate_block(&gen, &invalid_prev_hash), Err(_)));
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_prev_hash), Err(_)));
 
       let invalid_hash = Block {hash : encode_hex(ZERO_U32), .. valid_block.clone()};
-      assert!(matches!(Block::validate_block(&gen, &invalid_hash), Err(_)));
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_hash), Err(_)));
 
       let invalid_difficulty_prefix = Block {hash :  hex::encode([1;32]), .. valid_block.clone()};
-      assert!(matches!(Block::validate_block(&gen, &invalid_difficulty_prefix), Err(_)));
+      assert!(matches!(Chain::validate_new_block(&gen, &invalid_difficulty_prefix), Err(_)));
     }
 
     /* high-level chain tests */

@@ -38,7 +38,7 @@ impl Chain {
     // Try to append an arbitrary block
     pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), String>{
         let current_block: &Block = self.get_current_block();
-        match Block::validate_block(current_block, &new_block) {
+        match Chain::validate_new_block(current_block, &new_block) {
             Err (e) => Err (format!("Couldn't push new_block: {}", e)),
             Ok (()) => {
                 self.0.push(new_block.clone());
@@ -53,18 +53,76 @@ impl Chain {
 
     // Validate entire chain from tail to head, ignoring the genesis block
     pub fn validate_chain(chain: &Chain) -> Result<(), String> {
-        for i in 1..chain.0.len() {
-            let err: String = format!("Block idx not found: {}", &((i-1).to_string()));
-            let prev: &Block = chain.0.get(i - 1).expect(&err);
+        for i in 0..chain.0.len() - 1{
             let err: String = format!("Block idx not found: {}", &((i).to_string()));
             let curr: &Block = chain.0.get(i).expect(&err);
-            if let Err(e) = Block::validate_block(prev, curr){
+            let err: String = format!("Block idx not found: {}", &((i+1).to_string()));
+            let next: &Block = chain.0.get(i + 1).expect(&err);
+            if let Err(e) = Chain::validate_new_block(curr, next){
                 return Err (format!("Couldn't validate chain: {}", e))
             }
         }
         Ok (())
     }
 
+    pub fn validate_new_block(current_block : &Block, block: &Block) -> Result <(), String> {
+        // * check validity of block by itself
+        if let Err(e) = Block::validate_block(block){
+            return Err(format!("Block invalid: {}", e))
+        }
+
+        // * check validity of block with respect to our chain
+        //    1. if the block is out-of-date with our chain
+        if block.idx < current_block.idx  {
+            return Err(format!("Block too old! Block {} is less than the local chain length {}"
+            , block.idx, current_block.idx))
+        }
+        //    2. if the block is up-to-date (i.e. competes) with our chain
+        if block.idx == current_block.idx {
+            //   a. competing block is a duplicate of ours
+            if block.hash == current_block.hash {
+                return Err(format!("Competing block {} is a duplicate of our current one"
+                , block.idx))
+            }
+            //   b. competing block is different but has the same parent
+            //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
+            if block.prev_hash == current_block.prev_hash {
+                return Err(format!("Competing block {}'s parent {} is the same as our current one block's parent"
+                , block.idx, block.prev_hash))
+            }
+            //   c. competing block is different and also has a different parent, indicating their chain has possibly forked at a common ancestor
+            //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 2
+            if block.prev_hash != current_block.prev_hash {
+                return Err(format!("Competing block {}'s parent {} is different to our current block's parent {}"
+                , block.idx, block.prev_hash, current_block.prev_hash))
+            }
+        }
+        //   3. if the block is ahead-of-date of our chain by exactly 1 block
+        if block.idx == current_block.idx + 1 {
+            //  a. next block's parent does not match our current block.
+            if block.prev_hash != current_block.hash {
+                // hence, we need to either:
+                //    i)  request an entirely new up-to-date chain (inefficient but simple)
+                //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
+                return Err(format!("Next block {}'s parent {} does not match our current block {}"
+                , block.idx, block.prev_hash, current_block.hash))
+            }
+            //  b. next block's parent matches our current block
+            else {
+                // we can safely extend the chain
+                return Ok(())
+            }
+        }
+        //    4. if the block is ahead-of-date of our chain by more than 1 block
+        if block.idx > current_block.idx + 1 {
+            // hence, we need to either:
+            //    i)  request an entirely new up-to-date chain (inefficient but simple)
+            //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
+            return Err(format!("Block too new! Block Idx {} is too far ahead of local chain length {}"
+            , block.idx, current_block.idx))
+        };
+        Err("ERROR! Non-exhaustive pattern matching. Should not happen.".to_string())
+      }
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
     pub fn sync_chain(&mut self, remote: &Chain) -> bool {
         match(Chain::validate_chain(&self), Chain::validate_chain(&remote))  {
@@ -173,7 +231,7 @@ impl Block {
     }
 
   // Validate a block */
-  pub fn validate_block(current_block: &Block, block: &Block) -> Result<(), String> {
+  pub fn validate_block(block: &Block) -> Result<(), String> {
     // * check validity of block as its own entity:
     //    1. check if block's hash (in binary) has a valid number of leading zeros
     let BinaryString(hash_binary)
@@ -187,59 +245,8 @@ impl Block {
     if block.hash != computed_hash {
         return Err(format!("Block is corrupt! Stored hash {} is inconsistent with its computed hash {}"
         , block.hash, computed_hash))
-    }
-
-    // * check validity of block with respect to our chain
-    //    1. if the block is out-of-date with our chain
-    if block.idx < current_block.idx  {
-        return Err(format!("Block too old! Block {} is less than the local chain length {}"
-        , block.idx, current_block.idx))
-    }
-    //    2. if the block is up-to-date (i.e. competes) with our chain
-    if block.idx == current_block.idx {
-        //   a. competing block is a duplicate of ours
-        if block.hash == current_block.hash {
-            return Err(format!("Competing block {} is a duplicate of our current one"
-            , block.idx))
-        }
-        //   b. competing block is different but has the same parent
-        //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
-        if block.prev_hash == current_block.prev_hash {
-            return Err(format!("Competing block {}'s parent {} is the same as our current one block's parent"
-            , block.idx, block.prev_hash))
-        }
-        //   c. competing block is different and also has a different parent, indicating their chain has possibly forked at a common ancestor
-        //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 2
-        if block.prev_hash != current_block.prev_hash {
-            return Err(format!("Competing block {}'s parent {} is different to our current block's parent {}"
-            , block.idx, block.prev_hash, current_block.prev_hash))
-        }
-    }
-    //   3. if the block is ahead-of-date of our chain by exactly 1 block
-    if block.idx == current_block.idx + 1 {
-        //  a. next block's parent does not match our current block.
-        if block.prev_hash != current_block.hash {
-            // hence, we need to either:
-            //    i)  request an entirely new up-to-date chain (inefficient but simple)
-            //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-            return Err(format!("Next block {}'s parent {} does not match our current block {}"
-            , block.idx, block.prev_hash, current_block.hash))
-        }
-        //  b. next block's parent matches our current block
-        else {
-            // we can safely extend the chain
-            return Ok(())
-        }
-    }
-    //    4. if the block is ahead-of-date of our chain by more than 1 block
-    if block.idx > current_block.idx + 1 {
-        // hence, we need to either:
-        //    i)  request an entirely new up-to-date chain (inefficient but simple)
-        //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-        return Err(format!("Block too new! Block Idx {} is too far ahead of local chain length {}"
-        , block.idx, current_block.idx))
     };
-    Err("ERROR! Non-exhaustive pattern matching. Should not happen.".to_string())
+    Ok (())
   }
 }
 
