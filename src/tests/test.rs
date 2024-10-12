@@ -74,7 +74,7 @@ mod block_tests {
     fn test_extend_chain_once() {
       let mut chain: Chain = Chain::new();
       chain.make_new_valid_block("test");
-      assert_eq!(Chain::validate_chain(&chain), Ok(()));
+      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
     }
 
     #[test]
@@ -83,7 +83,7 @@ mod block_tests {
       for _ in 0 .. 10 {
         chain.make_new_valid_block("test");
       }
-      assert_eq!(Chain::validate_chain(&chain), Ok(()));
+      assert!(matches!(Chain::validate_chain(&chain), Ok(())));
     }
 
 }

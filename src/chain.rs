@@ -20,39 +20,45 @@ pub const ZERO_U32 : [u8; 32] = [0; 32];
 
 #[derive(Debug)]
 pub enum BlockErr {
-    InvalidHash,
-    InvalidDifficultyPrefix
+    DifficultyCheckFailed {
+        hash_binary: String,
+        difficulty_prefix: String,
+    },                             // Block's hash does not meet the difficulty target
+    HashMismatch {
+        stored_hash: String,
+        computed_hash: String,
+    },                             // Block's stored hash is inconsistent with its computed hash
 }
 
 #[derive(Debug)]
 pub enum NewBlockErr {
-    InvalidBlock(BlockErr),      // Error from block's self-validation
+    InvalidBlock(BlockErr),      // error from block's self-validation
     BlockTooOld {
         block_idx: u64,
         current_idx: u64
-    },                           // Block is out-of-date
+    },                           // block is out-of-date
     DuplicateBlock {
         block_idx: u64
-    },                           // Competing block is a duplicate
+    },                           // competing block is a duplicate
     CompetingBlock {
         block_idx: u64,
         parent_hash: String
-    },                           // Competing block has the same parent
+    },                           // competing block has same parent
     CompetingFork {
         block_idx: u64,
         block_parent_hash: String,
         current_parent_hash: String
-    },                           // Competing block indicates a fork
+    },                           // competing block indicates a fork
     NextBlockInvalidParent {
         block_idx: u64,
         block_parent_hash: String,
         current_hash: String
-    },                           // Next block's parent doesn't match the current block
+    },                           // next block's parent doesn't match the current block
     BlockTooNew {
         block_idx: u64,
         current_idx: u64
-    },                           // Block is ahead by more than 1 block
-    UnknownError,                // Non-exhaustive case (should not happen)
+    },                           // block is ahead by more than 1 block
+    UnknownError,                // non-exhaustive case (should not happen)
 }
 
 /* Chain */
@@ -76,7 +82,7 @@ impl Chain {
     pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), String>{
         let current_block: &Block = self.get_current_block();
         match Chain::validate_new_block(current_block, &new_block) {
-            Err (e) => Err (format!("Couldn't push new_block: {}", e)),
+            Err (e) => Err (format!("Couldn't push new_block: {:?}", e)),
             Ok (()) => {
                 self.0.push(new_block.clone());
                 Ok (())
@@ -88,50 +94,58 @@ impl Chain {
         self.0.last().expect("Chain must be non-empty")
     }
 
-    // Validate entire chain from tail to head, ignoring the genesis block
-    pub fn validate_chain(chain: &Chain) -> Result<(), String> {
-        for i in 0..chain.0.len() - 1{
-            let err: String = format!("Block idx not found: {}", &((i).to_string()));
-            let curr: &Block = chain.0.get(i).expect(&err);
-            let err: String = format!("Block idx not found: {}", &((i+1).to_string()));
-            let next: &Block = chain.0.get(i + 1).expect(&err);
-            if let Err(e) = Chain::validate_new_block(curr, next){
-                return Err (format!("Couldn't validate chain: {}", e))
+    // validate entire chain from tail to head, ignoring the genesis block
+    pub fn validate_chain(chain: &Chain) -> Result<(), NewBlockErr> {
+        for i in 0..chain.0.len() - 1 {
+            let curr: &Block = chain.0.get(i)
+                .ok_or_else(|| NewBlockErr::UnknownError)?;
+            let next: &Block = chain.0.get(i + 1)
+                .ok_or_else(|| NewBlockErr::UnknownError)?;
+            if let Err(e) = Chain::validate_new_block(curr, next) {
+                return Err(e);
             }
         }
-        Ok (())
+        Ok(())
     }
 
-    pub fn validate_new_block(current_block : &Block, block: &Block) -> Result <(), String> {
+    pub fn validate_new_block(current_block: &Block, block: &Block) -> Result<(), NewBlockErr> {
         // * check validity of block by itself
-        if let Err(e) = Block::validate_block(block){
-            return Err(format!("Block invalid: {}", e))
+        if let Err(e) = Block::validate_block(block) {
+            return Err(NewBlockErr::InvalidBlock(e));
         }
 
         // * check validity of block with respect to our chain
         //    1. if the block is out-of-date with our chain
-        if block.idx < current_block.idx  {
-            return Err(format!("Block too old! Block {} is less than the local chain length {}"
-            , block.idx, current_block.idx))
+        if block.idx < current_block.idx {
+            return Err(NewBlockErr::BlockTooOld {
+                block_idx: block.idx,
+                current_idx: current_block.idx,
+            });
         }
         //    2. if the block is up-to-date (i.e. competes) with our chain
         if block.idx == current_block.idx {
             //   a. competing block is a duplicate of ours
             if block.hash == current_block.hash {
-                return Err(format!("Competing block {} is a duplicate of our current one"
-                , block.idx))
+                return Err(NewBlockErr::DuplicateBlock {
+                    block_idx: block.idx,
+                });
             }
-            //   b. competing block is different but has the same parent
+            //   b. competing block is different and has the same parent
             //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
             if block.prev_hash == current_block.prev_hash {
-                return Err(format!("Competing block {}'s parent {} is the same as our current one block's parent"
-                , block.idx, block.prev_hash))
+                return Err(NewBlockErr::CompetingBlock {
+                    block_idx: block.idx,
+                    parent_hash: block.prev_hash.clone(),
+                });
             }
-            //   c. competing block is different and also has a different parent, indicating their chain has possibly forked at a common ancestor
+            //   c. competing block is different and has a different parent, indicating their chain has possibly forked
             //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 2
             if block.prev_hash != current_block.prev_hash {
-                return Err(format!("Competing block {}'s parent {} is different to our current block's parent {}"
-                , block.idx, block.prev_hash, current_block.prev_hash))
+                return Err(NewBlockErr::CompetingFork {
+                    block_idx: block.idx,
+                    block_parent_hash: block.prev_hash.clone(),
+                    current_parent_hash: current_block.prev_hash.clone(),
+                });
             }
         }
         //   3. if the block is ahead-of-date of our chain by exactly 1 block
@@ -141,13 +155,14 @@ impl Chain {
                 // hence, we need to either:
                 //    i)  request an entirely new up-to-date chain (inefficient but simple)
                 //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-                return Err(format!("Next block {}'s parent {} does not match our current block {}"
-                , block.idx, block.prev_hash, current_block.hash))
-            }
-            //  b. next block's parent matches our current block
-            else {
+                return Err(NewBlockErr::NextBlockInvalidParent {
+                    block_idx: block.idx,
+                    block_parent_hash: block.prev_hash.clone(),
+                    current_hash: current_block.hash.clone(),
+                });
+            } else {
                 // we can safely extend the chain
-                return Ok(())
+                return Ok(());
             }
         }
         //    4. if the block is ahead-of-date of our chain by more than 1 block
@@ -155,11 +170,14 @@ impl Chain {
             // hence, we need to either:
             //    i)  request an entirely new up-to-date chain (inefficient but simple)
             //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-            return Err(format!("Block too new! Block Idx {} is too far ahead of local chain length {}"
-            , block.idx, current_block.idx))
-        };
-        Err("ERROR! Non-exhaustive pattern matching. Should not happen.".to_string())
-      }
+            return Err(NewBlockErr::BlockTooNew {
+                block_idx: block.idx,
+                current_idx: current_block.idx,
+            });
+        }
+
+        Err(NewBlockErr::UnknownError)
+    }
 
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
     pub fn sync_chain(&mut self, remote: &Chain) -> bool {
@@ -268,24 +286,34 @@ impl Block {
         bytes_to_hexstr(&hash)
     }
 
-  // Validate a block */
-  pub fn validate_block(block: &Block) -> Result<(), String> {
-    // * check validity of block as its own entity:
-    //    1. check if block's hash (in binary) has a valid number of leading zeros
-    let BinaryString(hash_binary)
-      = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
-    if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-        return Err(format!("Block fails difficulty check! Hash binary {} does need meet the difficulty target {}"
-        , hash_binary, DIFFICULTY_PREFIX))
+    // Validate a block as its own entity:
+    pub fn validate_block(block: &Block) -> Result<(), BlockErr> {
+        //    1. check if block's hash (in binary) has a valid number of leading zeros
+        let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash)
+            .expect("Can convert hex string to binary");
+        if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
+            return Err(BlockErr::DifficultyCheckFailed {
+                hash_binary,
+                difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
+            });
+        }
+        //    2. check if block's hash is indeed the correct hash of itself.
+        let computed_hash = Self::compute_hash(
+            block.idx,
+            &block.data,
+            block.timestamp,
+            &block.prev_hash,
+            block.nonce,
+        );
+        if block.hash != computed_hash {
+            return Err(BlockErr::HashMismatch {
+                stored_hash: block.hash.clone(),
+                computed_hash,
+            });
+        }
+
+        Ok(())
     }
-    //    2. check if block's hash is indeed the correct hash of itself.
-    let computed_hash = Self::compute_hash(block.idx, &block.data, block.timestamp, &block.prev_hash, block.nonce);
-    if block.hash != computed_hash {
-        return Err(format!("Block is corrupt! Stored hash {} is inconsistent with its computed hash {}"
-        , block.hash, computed_hash))
-    };
-    Ok (())
-  }
 }
 
 impl std::fmt::Display for Block {

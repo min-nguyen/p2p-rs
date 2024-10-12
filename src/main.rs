@@ -7,18 +7,15 @@ pub mod transaction;
 pub mod message;
 pub mod swarm;
 
-use chain::Chain;
+use chain::{Block, Chain};
+use util::{encode_hex, ZERO_U32};
 
 // RUST_LOG=info cargo run --bin main
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
 
-    let mut chain: Chain = Chain::new();
-    chain.make_new_valid_block("test");
-    println!("{:?}", (Chain::validate_chain(&chain)));
-
-    // run_p2p().await;
+    run_p2p().await;
     // dummy_chain(10)
 }
 
