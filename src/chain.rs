@@ -18,6 +18,43 @@ const DIFFICULTY_PREFIX: &str = "0";
 // 32 byte (256-bit) array of zeros
 pub const ZERO_U32 : [u8; 32] = [0; 32];
 
+#[derive(Debug)]
+pub enum BlockErr {
+    InvalidHash,
+    InvalidDifficultyPrefix
+}
+
+#[derive(Debug)]
+pub enum NewBlockErr {
+    InvalidBlock(BlockErr),      // Error from block's self-validation
+    BlockTooOld {
+        block_idx: u64,
+        current_idx: u64
+    },                           // Block is out-of-date
+    DuplicateBlock {
+        block_idx: u64
+    },                           // Competing block is a duplicate
+    CompetingBlock {
+        block_idx: u64,
+        parent_hash: String
+    },                           // Competing block has the same parent
+    CompetingFork {
+        block_idx: u64,
+        block_parent_hash: String,
+        current_parent_hash: String
+    },                           // Competing block indicates a fork
+    NextBlockInvalidParent {
+        block_idx: u64,
+        block_parent_hash: String,
+        current_hash: String
+    },                           // Next block's parent doesn't match the current block
+    BlockTooNew {
+        block_idx: u64,
+        current_idx: u64
+    },                           // Block is ahead by more than 1 block
+    UnknownError,                // Non-exhaustive case (should not happen)
+}
+
 /* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain (pub Vec<Block>);
@@ -123,6 +160,7 @@ impl Chain {
         };
         Err("ERROR! Non-exhaustive pattern matching. Should not happen.".to_string())
       }
+
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
     pub fn sync_chain(&mut self, remote: &Chain) -> bool {
         match(Chain::validate_chain(&self), Chain::validate_chain(&remote))  {
