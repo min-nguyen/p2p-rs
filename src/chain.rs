@@ -12,22 +12,14 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 
-use super::util;
+use super::cryptutil;
 
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
 
-#[derive(Debug)]
-pub enum BlockErr {
-    DifficultyCheckFailed {
-        hash_binary: String,
-        difficulty_prefix: String,
-    },                             // Block's hash does not meet the difficulty target
-    HashMismatch {
-        stored_hash: String,
-        computed_hash: String,
-    },                             // Block's stored hash is inconsistent with its computed hash
-}
+/* Chain */
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Chain (pub Vec<Block>);
 
 #[derive(Debug)]
 pub enum NewBlockErr {
@@ -60,10 +52,6 @@ pub enum NewBlockErr {
     UnknownError,                // non-exhaustive case (should not happen)
 }
 
-/* Chain */
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Chain (pub Vec<Block>);
-
 impl Chain {
     // New chain with a single genesis block
     pub fn new() -> Self {
@@ -90,15 +78,11 @@ impl Chain {
     }
 
     // Try to append an arbitrary block
-    pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), String>{
+    pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), NewBlockErr>{
         let current_block: &Block = self.get_current_block();
-        match Chain::validate_new_block(current_block, &new_block) {
-            Err (e) => Err (format!("Couldn't push new_block: {:?}", e)),
-            Ok (()) => {
-                self.0.push(new_block.clone());
-                Ok (())
-            }
-        }
+        Chain::validate_new_block(current_block, &new_block)?;
+        self.0.push(new_block.clone());
+        Ok(())
     }
 
     // validate entire chain from tail to head, ignoring the genesis block
@@ -233,6 +217,17 @@ pub struct Block {
     pub hash: String,
 }
 
+#[derive(Debug)]
+pub enum BlockErr {
+    DifficultyCheckFailed {
+        hash_binary: String,
+        difficulty_prefix: String,
+    },                             // Block's hash does not meet the difficulty target
+    HashMismatch {
+        stored_hash: String,
+        computed_hash: String,
+    },                             // Block's stored hash is inconsistent with its computed hash
+}
 
 impl Block {
   // Find a valid nonce and hash to construct a new block
@@ -263,7 +258,7 @@ impl Block {
   // Genesis block, the very first block in a chain which never references any previous blocks.
   pub fn genesis() -> Block {
     let (idx, data, timestamp, prev_hash, nonce)
-        = (0, "genesis".to_string(), Utc::now().timestamp(), util::encode_bytes_to_hex(&util::ZERO_U32), 0);
+        = (0, "genesis".to_string(), Utc::now().timestamp(), cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
     let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
     Block { idx, data, timestamp, prev_hash, nonce, hash }
   }
@@ -290,7 +285,7 @@ impl Block {
         .finalize() // Sha256 -> GenericArray<u8, U32>
         .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        util::encode_bytes_to_hex(&hash)
+        cryptutil::encode_bytes_to_hex(&hash)
     }
 
     // Validate a block as its own entity:
@@ -335,7 +330,7 @@ impl std::fmt::Display for Block {
 
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
-    use crate::{chain::{BlockErr, NewBlockErr}, util::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
+    use crate::{chain::{BlockErr, NewBlockErr}, cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
 
     /* tests for a block by itself  */
     #[test]

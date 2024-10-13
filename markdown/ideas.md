@@ -14,6 +14,7 @@
     - [x] after mining a new block, delete the transaction from the pool
     - [x] after receiving a new mined block and validating it, removing the containing transaction from the pool if its there.
 - [x] custom error data type for validating blocks
+- [x] custom error data type for validating transactions
 - [x] correct the order of pattern-matching when validating a new block wrt the local chain
    - [ ] handle each pattern-match correctly
 - [ ] introduce additional data structures for tracking alternative chains and blocks

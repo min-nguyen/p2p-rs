@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
-use super::util::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
+use crate::cryptutil;
+
+use super::cryptutil::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
 
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
@@ -20,6 +22,25 @@ pub struct Transaction {
 
     pub hash: String,            // 32-byte hash of the above data, assuming sha256
     pub sig: String,             // 32-byte signature of the hash, assuming ed25519
+}
+
+#[derive(Debug)]
+pub enum TransactionErr {
+    PubKeyDecodeErr {
+        e: cryptutil::HexDecodeErr
+    },
+    SigDecodeError {
+        e: cryptutil::HexDecodeErr
+    },
+    HashMismatch {
+        stored_hash: String,
+        computed_hash: String,
+    },                           // stored hash is inconsistent with its computed hash
+    SigInvalid {
+        pubk : String,
+        hash : String,
+        sig  : String
+    }                            // hash and signature couldn't be verified with public key
 }
 
 impl std::fmt::Display for Transaction {
@@ -58,29 +79,31 @@ impl Transaction {
         encode_bytes_to_hex(hasher.finalize())
     }
 
-    pub fn validate_transaction(txn: &Transaction) -> Result<(), String> {
+    pub fn validate_transaction(txn: &Transaction) -> Result<(), TransactionErr> {
         let hash: String = Transaction::compute_hash(&txn.sender, &txn.sender_pubk, &txn.receiver, &txn.amount, txn.timestamp);
         // check message integrity
         if hash != txn.hash{
-            return Err("Invalid hash.".to_string())
+            return Err(TransactionErr::HashMismatch { stored_hash: txn.hash.clone(), computed_hash: hash })
         }
         // check message signature
         let pubk: PublicKey =
             match decode_hex_to_pubk(&txn.sender_pubk, PUBK_U8S_LEN) {
                 Ok (pubk) => pubk,
                 Err (e) => {
-                    return Err (format!("Couldn't decode public key: {}", e));
+                    return Err (TransactionErr::PubKeyDecodeErr {e} );
                 }
             };
+
         let sig_u8s: Vec<u8> =
             match decode_hex_to_bytes(&txn.sig, SIG_U8S_LEN) {
                 Ok (sig_u8s) => sig_u8s,
                 Err (e) => {
-                    return Err (format!("Couldn't decode signature: {}", e));
+                    return Err (TransactionErr::SigDecodeError { e })
                 }
             };
+
         if !(pubk.verify(hash.as_bytes(), sig_u8s.as_slice())){
-            return Err ("Invalid signature.".to_string())
+            return Err (TransactionErr::SigInvalid { pubk : txn.sender_pubk.clone(), sig : txn.sig.clone(), hash: txn.hash.clone()})
         }
         Ok (())
     }
@@ -99,15 +122,17 @@ fn random_string(len: usize) -> String {
 #[cfg(test)]
 mod transaction_tests {
     use libp2p::identity;
-    use crate::util::{encode_bytes_to_hex, encode_pubk_to_hex, ZERO_U32, ZERO_U64};
-    use crate::transaction::Transaction;
+    use crate::cryptutil::{debug, encode_bytes_to_hex, encode_pubk_to_hex, ZERO_U32, ZERO_U64};
+    use crate::transaction::{Transaction, TransactionErr};
 
     /* transaction tests */
     #[test]
     fn test_valid_transaction() {
       let keys = identity::Keypair::generate_ed25519();
       let valid_txn = Transaction::random_transaction("£0".to_string(), keys);
-      assert_eq!(Transaction::validate_transaction(&valid_txn), Ok(()));
+      assert!(matches!(
+        Transaction::validate_transaction(&valid_txn),
+        Ok(())));
     }
 
     #[test]
@@ -116,15 +141,23 @@ mod transaction_tests {
       let valid_txn: Transaction = Transaction::random_transaction("£0".to_string(), keys);
 
       let invalid_hash = Transaction {hash : encode_bytes_to_hex(ZERO_U32), .. valid_txn.clone()};
-      assert!(matches!(Transaction::validate_transaction(&invalid_hash), Err(_)));
+      assert!(matches!(
+        debug(Transaction::validate_transaction(&invalid_hash))
+        , Err(TransactionErr::HashMismatch { .. })));
 
       let invalid_pubk = Transaction { sender_pubk : encode_pubk_to_hex(identity::Keypair::generate_ed25519().public()), .. valid_txn.clone()};
-      assert!(matches!(Transaction::validate_transaction(&invalid_pubk), Err(_)));
+      assert!(matches!(
+        debug(Transaction::validate_transaction(&invalid_pubk)),
+        Err(TransactionErr::HashMismatch { .. })));
 
       let invalid_siglen = Transaction {sig: encode_bytes_to_hex(ZERO_U32), .. valid_txn.clone()};
-      assert!(matches!(Transaction::validate_transaction(&invalid_siglen), Err(_)));
+      assert!(matches!(
+        debug(Transaction::validate_transaction(&invalid_siglen)),
+        Err(TransactionErr::SigDecodeError { .. })));
 
       let invalid_sig = Transaction {sig: encode_bytes_to_hex(ZERO_U64), .. valid_txn.clone()};
-      assert!(matches!(Transaction::validate_transaction(&invalid_sig), Err(_)));
+      assert!(matches!(
+        debug(Transaction::validate_transaction(&invalid_sig)),
+        Err(TransactionErr::SigInvalid { .. })));
     }
   }

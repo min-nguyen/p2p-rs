@@ -1,5 +1,5 @@
 
-pub mod util;
+pub mod cryptutil;
 pub mod file;
 pub mod peer;
 pub mod chain;

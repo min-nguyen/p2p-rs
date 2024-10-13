@@ -108,7 +108,7 @@ impl Peer {
                             println!("Successfully validated transaction inside the received block.")
                         }
                         Err (e) => {
-                            println!("Couldn't validate transaction inside the received block:\n\t{}\nIgnoring new block.", e);
+                            println!("Couldn't validate transaction inside the received block:\n\t{:?}\nIgnoring new block.", e);
                             return
                         }
                     }
@@ -123,7 +123,7 @@ impl Peer {
                         }
                     }
                     Err(e) =>
-                        println!("Retained current chain and ignored remote peer's new block:\n\t{}", e)
+                        println!("Retained current chain and ignored remote peer's new block:\n\t{:?}", e)
                 }
             }
         }
@@ -139,7 +139,7 @@ impl Peer {
                         self.txn_pool.insert(txn);
                     }
                     Err (e) => {
-                        println!("Transaction not valid:\n\t{}\nIgnoring new transaction.", e);
+                        println!("Transaction not valid:\n\t{:?}\nIgnoring new transaction.", e);
                         return
                     }
                 }
