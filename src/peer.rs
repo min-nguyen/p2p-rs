@@ -44,7 +44,8 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    txn_pool  : HashSet<Transaction>
+
+    txn_pool : HashSet<Transaction>
 }
 
 impl Peer {
@@ -128,7 +129,7 @@ impl Peer {
             }
         }
     }
-    /* TODO */
+    // Transaction event.
     fn handle_txn_event(&mut self, msg: TxnMessage) {
         match msg {
             TxnMessage::NewTransaction { txn } => {
