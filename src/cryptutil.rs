@@ -1,4 +1,3 @@
-use hex::FromHexError;
 use libp2p::core::PublicKey;
 
 pub const ZERO_U32 : [u8; 32] = [0; 32];
