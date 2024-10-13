@@ -17,12 +17,15 @@
 - [x] custom error data type for validating transactions
 - [x] correct the order of pattern-matching when validating a new block wrt the local chain
    - [ ] handle each pattern-match correctly
-        - [ ] implementing merging forks
+        - [ ] implementing merging fork suffixes
+            - [x] test merging a valid fork suffix
+            - [ ] test merging an invalid fork suffix
         - [ ] introduce additional data structures for tracking alternative chains and blocks
             - [ ] Competing Blocks: deals with competing blocks that have the same parent and are at the same height.
                 - The action here is to log or temporarily store the competing blocks to wait and see which chain grows longer or which block gets confirmed first.
-        - [ ] Chain Fork Logic: deals with competing blocks that have different parents, indicating a divergence earlier in the chain.
-                - The action here is to store the entire forked chain (starting with the block causing the fork) in a temporary pool or fork database to allow for chain reorganization if the new fork grows longer or more valid according to consensus rules (e.g., longest chain, most cumulative work).
+            - [ ] Chain Fork Logic: deals with competing blocks that have different parents, indicating a divergence earlier in the chain.
+                    - The action here is to store the entire forked chain (starting with the block causing the fork) in a temporary pool or fork database to allow for chain reorganization if the new fork grows longer or more valid according to consensus rules (e.g., longest chain, most cumulative work).
+        - [ ] implement requesting new blocks until forming a valid fork suffix
 - [ ] custom error data type for synching chains?
 
 in parallel:
