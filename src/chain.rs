@@ -109,6 +109,8 @@ impl Chain {
         Ok(())
     }
 
+    // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
+    // Note: Can succeed even if resulting in a shorter chian.
     pub fn try_merge_fork(&mut self, fork_suffix: &mut Chain) -> Result<(), ForkSuffixErr>{
         if let Err(e) = Self::validate_subchain(&fork_suffix) {
             return Err(ForkSuffixErr::ForkSuffixInvalidSubChain(e))
@@ -385,7 +387,7 @@ impl std::fmt::Display for Block {
 
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
-    use crate::{chain::{BlockErr, NextBlockErr}, cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
+    use crate::{chain::{BlockErr, ChainErr, ForkSuffixErr, NextBlockErr}, cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
 
     /* tests for a block by itself  */
     #[test]
@@ -417,7 +419,15 @@ mod chain_tests {
             Err(BlockErr::HashMismatch { .. })
         ));
     }
+    #[test]
+    fn test_valid_block() {
+        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
 
+        assert!(matches!(
+            Block::validate_block(&valid_block),
+            Ok(())
+        ));
+    }
     /* tests for extending a chain by a new proposed block */
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
@@ -537,7 +547,7 @@ mod chain_tests {
         ));
     }
     #[test]
-    fn test_next_valid_block() {
+    fn test_valid_next_block() {
         let mut chain: Chain = Chain::new();
         let current_block: Block = chain.get_current_block().clone();
 
@@ -549,7 +559,7 @@ mod chain_tests {
             , Ok(())));
     }
     #[test]
-    fn test_next_valid_blocks() {
+    fn test_valid_chain() {
         let mut chain: Chain = Chain::new();
         for i in 1 .. CHAIN_LEN {
           chain.make_new_valid_block(&format!("next valid block {}", i));
@@ -571,11 +581,18 @@ mod chain_tests {
             fork.make_new_valid_block(&format!("block {} in fork", i));
         }
 
-        // let fork_suffix = fork.0.drain(FORK_PREFIX_LEN);
-        // let v = debug(chain.try_merge_fork(&mut fork));
-        // assert!(matches!(
-        //     debug(Chain::validate_new_block(&current_block, too_ahead_of_date_block_in_fork)),
-        //     Err(NextBlockErr::BlockTooNew { .. })
-        // ));
+        // strip the common prefix between the current chain and the forked chain
+        let mut fork_suffix = {
+            fork.0.drain(0 ..FORK_PREFIX_LEN);
+            fork
+        };
+
+        println!("Chain : {}\n", chain);
+        println!("Fork suffix : {}\n", fork_suffix);
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut fork_suffix)),
+            Ok(())
+        ));
+        println!("Merged chain and fork suffix : {}", chain);
     }
 }
