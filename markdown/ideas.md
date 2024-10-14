@@ -54,6 +54,7 @@
                 }
             ```
         - [ ] implement requesting new blocks until forming a valid fork suffix
+- [ ] make chain struct contain a _private_ vector of blocks
 - [ ] custom error data type for synching chains?
 
 in parallel:

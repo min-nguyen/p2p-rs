@@ -100,7 +100,7 @@ impl Peer {
                 swarm::publish_pow_msg(resp, &mut  self.swarm)
             },
             PowMessage::ChainResponse{ chain , ..} => {
-                if self.chain.sync_chain(&chain){
+                if self.chain.choose_chain(&chain){
                     println!("Remote peer's chain is longer than ours.\n\
                             Updated current chain.")
                 }
@@ -226,7 +226,8 @@ impl Peer {
         let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
         let connected_peers = get_peers(&mut self.swarm).0;
-        println!("Broadcasted new transaction to: {:?} ", connected_peers);
+        println!("Broadcasted new transaction to:\n\
+                 {:?}", connected_peers);
     }
     async fn handle_cmd_load(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
@@ -281,7 +282,10 @@ impl Peer {
                         block: self.chain.get_tip().clone()
                     }
                 , &mut self.swarm);
-                println!("Broadcasted new block.");
+
+                let connected_peers = get_peers(&mut self.swarm).0;
+                println!("Broadcasted new block to:\n\
+                        {:?}", connected_peers);
             }
         }
     }
@@ -295,7 +299,8 @@ impl Peer {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request for all peers to: {:?}", get_peers(&mut self.swarm).0);
+                println!("Broadcasting request for all peers to:\n\
+                        {:?}", get_peers(&mut self.swarm).0);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
             peer_id => {
@@ -303,7 +308,8 @@ impl Peer {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request for \"{}\" to: {:?}", peer_id, get_peers(&mut self.swarm).0);
+                println!("Broadcasting request for \"{}\" to:\n\
+                         {:?}", peer_id, get_peers(&mut self.swarm).0);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
@@ -351,11 +357,11 @@ impl Peer {
     fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
         match swarm_event {
             SwarmEvent::ConnectionEstablished { peer_id, .. }
-                => info!("SwarmEvent: connection established with peer: {:?}", peer_id),
-            SwarmEvent::ConnectionClosed { peer_id, cause: Some(err), .. }
-                => info!("SwarmEvent: connection closed with peer: {:?}, cause: {:?}", peer_id, err),
-            SwarmEvent::ConnectionClosed { peer_id, cause: None, .. }
-                => info!("SwarmEvent: connection closed with peer: {:?}", peer_id),
+                => println!("Connection established with: \n\
+                            \t{:?}", peer_id),
+            SwarmEvent::ConnectionClosed { peer_id, .. }
+                => println!("Connection closed with: \n\
+                            \t{:?}", peer_id),
             SwarmEvent::NewListenAddr { listener_id, address, .. }
                 => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
             SwarmEvent::Dialing(peer_id)

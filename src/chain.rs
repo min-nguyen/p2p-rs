@@ -140,9 +140,7 @@ impl Chain {
     }
 
     /*
-        TO-DO: logic for forks
-
-    // Store a block as part of a fork
+       TO-DO: Store a block as part of a fork
     // pub fn store_fork(&mut self, block: Block) {
     //     ...
     // }
@@ -275,7 +273,7 @@ impl Chain {
     }
 
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
-    pub fn sync_chain(&mut self, remote: &Chain) -> bool {
+    pub fn choose_chain(&mut self, remote: &Chain) -> bool {
         match(Self::validate_chain(&self), Self::validate_chain(&remote))  {
             (Ok(()), Ok(())) => {
             if self.0.len() >= remote.0.len() {

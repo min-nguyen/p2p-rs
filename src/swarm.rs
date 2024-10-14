@@ -21,7 +21,7 @@ use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}};
 use tokio::sync::mpsc::{self, UnboundedSender};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::time::Duration;
 
 use super::message::{PowMessage, TxnMessage, TransmitType};
@@ -53,7 +53,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
             // Event for discovering (a list of) new peers
             MdnsEvent::Discovered(discovered_list) => {
                 for (peer, _addr) in discovered_list {
-                    info!("MdnsEvent: discovered peer: {}", peer);
+                    info!("MdnsEvent: discovered new peer: {}", peer);
                     self.gossipsub.add_explicit_peer(&peer);
                 }
                 // let mesh_peers : Vec<libp2p::PeerId> = self.gossipsub.all_mesh_peers().cloned().collect();
@@ -167,11 +167,11 @@ pub async fn set_up_blockchain_swarm(
     };
     match behaviour.gossipsub.subscribe(&CHAIN_TOPIC)  {
         Ok(b) => info!("gossipsub.subscribe() returned {}", b),
-        Err(e) => error!("gossipsub.subscribe() error: {:?}", e)
+        Err(e) => warn!("gossipsub.subscribe() error: {:?}", e)
     };
     match behaviour.gossipsub.subscribe(&TXN_TOPIC)  {
         Ok(b) => info!("gossipsub.subscribe() returned {}", b),
-        Err(e) => error!("gossipsub.subscribe() error: {:?}", e)
+        Err(e) => warn!("gossipsub.subscribe() error: {:?}", e)
     };
 
     // Swarm
@@ -231,8 +231,8 @@ fn publish_msg<T : Serialize>(msg: T, topic : IdentTopic, swarm: &mut Swarm<Bloc
             .gossipsub
             .publish(topic, s.as_bytes());
     match res {
-        Err(e) => error!("publish_message() error: {:?}", e),
-        Ok (_) => info!("publish_message() successful.")
+        Err(e) => info!("Publish message error: {:?}", e),
+        Ok (_) => info!("Publish message successful.")
     }
 }
 
