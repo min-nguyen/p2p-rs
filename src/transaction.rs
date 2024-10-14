@@ -169,6 +169,9 @@ fn random_string(len: usize) -> String {
         .collect()
 }
 
+/******************
+      TESTS
+********************/
 #[cfg(test)]
 mod transaction_tests {
     use libp2p::identity;

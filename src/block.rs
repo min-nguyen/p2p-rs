@@ -14,6 +14,18 @@ use super::cryptutil;
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
 
+#[derive(Debug)]
+pub enum BlockErr {
+    DifficultyCheckFailed {
+        hash_binary: String,
+        difficulty_prefix: String,
+    },                             // Block's hash does not meet the difficulty target
+    HashMismatch {
+        stored_hash: String,
+        computed_hash: String,
+    },                             // Block's stored hash is inconsistent with its computed hash
+}
+
 /* Block
   Records some or all of the most recent data not yet validated by the network.
 */
@@ -31,18 +43,6 @@ pub struct Block {
     pub nonce: u64,
     // hash of the above
     pub hash: String,
-}
-
-#[derive(Debug)]
-pub enum BlockErr {
-    DifficultyCheckFailed {
-        hash_binary: String,
-        difficulty_prefix: String,
-    },                             // Block's hash does not meet the difficulty target
-    HashMismatch {
-        stored_hash: String,
-        computed_hash: String,
-    },                             // Block's stored hash is inconsistent with its computed hash
 }
 
 impl Block {
@@ -166,7 +166,9 @@ impl std::fmt::Display for Block {
     }
 }
 
-/********  TESTS **********/
+/******************
+      TESTS
+********************/
 #[cfg(test)] // cargo test block -- --nocapture
 mod block_tests {
     use crate::{
