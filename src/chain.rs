@@ -89,10 +89,6 @@ impl std::fmt::Display for NextBlockErr {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct Chain {
-//     pub main_chain : Vec<Block>,
-//     pub forks : HashMap<String, Chain>
-// }
 pub struct Chain (pub Vec<Block> );
 
 impl Chain {
@@ -139,14 +135,6 @@ impl Chain {
         Ok(())
     }
 
-    /*
-       TO-DO: Store a block as part of a fork
-    // pub fn store_fork(&mut self, block: Block) {
-    //     ...
-    // }
-
-    */
-
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
     // Note: Can succeed even if resulting in a shorter chain.
     pub fn try_merge_fork(&mut self, fork: &mut Chain) -> Result<(), ForkErr>{
@@ -177,6 +165,15 @@ impl Chain {
             }
         }
     }
+
+
+    /*
+       TO-DO: Store a block as part of a fork
+    // pub fn store_fork(&mut self, block: Block) {
+    //     ...
+    // }
+
+    */
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
