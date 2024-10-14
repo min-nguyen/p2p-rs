@@ -88,7 +88,8 @@ impl Peer {
     }
     // Blockchain event.
     fn handle_pow_event(&mut self, msg: PowMessage) {
-        println!("Received message:\n {}", msg);
+        println!("Received the following message:\n\
+                  {}", msg);
         match msg {
             PowMessage::ChainRequest { sender_peer_id, .. } => {
                 let resp = PowMessage::ChainResponse {
@@ -100,10 +101,12 @@ impl Peer {
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.sync_chain(&chain){
-                    println!("Remote peer's chain is longer than ours.\nUpdated current chain.")
+                    println!("Remote peer's chain is longer than ours.\n\
+                            Updated current chain.")
                 }
                 else {
-                    println!("Remote peer's chain is either invalid or not longer than ours.\nKeeping current chain.")
+                    println!("Remote peer's chain is either invalid or not longer than ours.\n\
+                            Keeping current chain.")
                 }
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
@@ -120,7 +123,9 @@ impl Peer {
                             println!("Successfully validated transaction inside the received block.")
                         }
                         Err (e) => {
-                            println!("Couldn't validate transaction inside the received block, due to:\n\t{:?}\nIgnoring new block.", e);
+                            println!("Couldn't validate transaction inside the received block, due to:\n\
+                                    \t\"{}\"\n\
+                                    Ignoring new block.", e);
                             return
                         }
                     }
@@ -135,40 +140,10 @@ impl Peer {
                         }
                     }
                     Err(e) => {
-                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:");
-                        match  &e {
-                            NextBlockErr::InvalidBlock(err) => {
-                                println!("Invalid block encountered: {:?}", err);
-                            }
-                            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
-                                println!("Block {} is too old compared to current block {}.", block_idx, current_idx);
-                            }
-                            NextBlockErr::DuplicateBlock { block_idx } => {
-                                println!("Duplicate block encountered: Block {} is already in the chain.", block_idx);
-                            }
-                            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                                println!("Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash);
-                            }
-                            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
-                                println!("Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
-                                    block_idx, block_parent_hash, current_parent_hash);
-                                    /* TO DO */
-                            }
-                            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-                                println!("Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
-                                    block_idx, block_parent_hash, current_hash);
-                                    /* TO DO */
-                            }
-                            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
-                                println!("Block {} is too new compared to current block {}.", block_idx, current_idx);
-                                    /* TO DO */
-                            }
-                            NextBlockErr::UnknownError => {
-                                println!("An unknown error occurred while trying to push the block.");
-                                    /* TO DO */
-                            }
-                        };
-                        println!("Keeping current chain.");
+                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
+                                \t\"{}\"\n\
+                                Keeping current chain.", e);
+                        println!("");
                     }
                 }
             }
@@ -185,7 +160,9 @@ impl Peer {
                         self.txn_pool.insert(txn);
                     }
                     Err (e) => {
-                        println!("Transaction not valid:\n\t{:?}\nIgnoring new transaction.", e);
+                        println!("Couldn't validate new transaction, due to:\n\
+                                \t\"{}\"\n\
+                                Ignoring new transaction.", e);
                         return
                     }
                 }
@@ -258,14 +235,16 @@ impl Peer {
                 self.chain = chain;
                 println!("Loaded chain from local file \"{}\"", file_name)
             }
-            Err(e) => eprintln!("Error loading chain from local file:\n\t{}", e),
+            Err(e) => eprintln!("Error loading chain from local file:\n
+                                                \"{}\"", e),
         }
     }
     async fn handle_cmd_save(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
         match file::write_chain(&self.chain, file_name).await {
             Ok(()) => println!("Saved chain to local file \"{}\"", file_name),
-            Err(e) => eprintln!("Error saving chain to local file:\n\t{}", e),
+            Err(e) => eprintln!("Error saving chain to local file:\n\
+                                                \"{}\"", e),
         }
     }
     fn handle_cmd_reset(&mut self) {
@@ -279,7 +258,8 @@ impl Peer {
                 extract_from_pool(&mut self.txn_pool)
                 .map(|txn|
                     {   // assuming we can always safely serialize a transaction (which should be the case)..
-                        println!("Retrieved and removed transaction from the pool:\n\t{}", txn);
+                        println!("Retrieved and removed the following transaction from the pool:\n\
+                                {}", txn);
                         serde_json::to_string(&txn).unwrap()
                     }
                 )
@@ -291,8 +271,9 @@ impl Peer {
         match opt_data {
             None => eprintln!("No transactions in the pool to mine for."),
             Some(data) => {
-                self.chain.mine_then_push_new_block(&data);
-                println!("Mined and pushed new block to chain:\n{}", self.chain.get_tip());
+                self.chain.mine_then_push_block(&data);
+                println!("Mined and pushed the following new block to chain:\n\
+                         {}", self.chain.get_tip());
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
@@ -307,7 +288,7 @@ impl Peer {
     fn handle_cmd_req(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `req` missing an argument, specify \"all\" or [peer_id]");
+                println!("Command error: `req` missing an argument. Specify \"all\" or [peer_id]");
             }
             "all" => {
                 let req = PowMessage::ChainRequest {
@@ -333,7 +314,8 @@ impl Peer {
                 println!("Command error: `show` missing an argument `chain`, `peers`, or `pool`")
             }
             "chain"   => {
-                println!("\nCurrent chain:\n{}", self.chain);
+                println!("\nCurrent chain:\n\
+                            {}", self.chain);
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)

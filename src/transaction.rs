@@ -5,6 +5,7 @@
 */
 
 use core::panic;
+use std::fmt;
 use log::error;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
@@ -16,18 +17,6 @@ use super::cryptutil::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_h
 
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
-
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
-pub struct Transaction {
-    pub sender: String,          // peer id of the sender
-    pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
-    pub receiver: String,        // peer id of the receiver
-    pub amount: String,          // amount transferred, a string for testing
-    pub timestamp: i64,          // creation date
-
-    pub hash: String,            // 32-byte hash of the above data, assuming sha256
-    pub sig: String,             // 32-byte signature of the hash, assuming ed25519
-}
 
 #[derive(Debug)]
 pub enum TransactionErr {
@@ -46,6 +35,45 @@ pub enum TransactionErr {
         hash : String,
         sig  : String
     }                            // hash and signature couldn't be verified with public key
+}
+
+impl fmt::Display for TransactionErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionErr::PubKeyDecodeErr { e } => {
+                write!(f, "Public Key Decode Error: {}", e)
+            }
+            TransactionErr::SigDecodeError { e } => {
+                write!(f, "Signature Decode Error: {}", e)
+            }
+            TransactionErr::HashMismatch { stored_hash, computed_hash } => {
+                write!(
+                    f,
+                    "Hash Mismatch: stored hash ({}) does not match computed hash ({})",
+                    stored_hash, computed_hash
+                )
+            }
+            TransactionErr::SigInvalid { pubk, hash, sig } => {
+                write!(
+                    f,
+                    "Signature Invalid: public key ({}), hash ({}), signature ({})",
+                    pubk, hash, sig
+                )
+            }
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+pub struct Transaction {
+    pub sender: String,          // peer id of the sender
+    pub sender_pubk: String,     // 32-byte (but stored as 36 bytes!) public key of the sender, assuming ed25519
+    pub receiver: String,        // peer id of the receiver
+    pub amount: String,          // amount transferred, a string for testing
+    pub timestamp: i64,          // creation date
+
+    pub hash: String,            // 32-byte hash of the above data, assuming sha256
+    pub sig: String,             // 32-byte signature of the hash, assuming ed25519
 }
 
 impl std::fmt::Display for Transaction {

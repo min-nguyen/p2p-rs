@@ -155,7 +155,7 @@ impl std::fmt::Display for Block {
             Nonce:           {}\n\
             Previous Hash:   {}\n\
             Hash:            {}\n\
-            ================================================\n",
+            ================================================",
             self.idx,
             DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
             self.data,
@@ -194,7 +194,8 @@ mod block_tests {
 
         let invalid_hash = Block {
             hash: encode_bytes_to_hex(ZERO_U32),
-            ..valid_block.clone()
+            ..
+            valid_block.clone()
         };
 
         assert!(matches!(
