@@ -89,45 +89,7 @@ impl std::fmt::Display for NextBlockErr {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct Chain {
-//     pub main_chain : Vec<Block>,
-//     pub forks : HashMap<String, Chain>
-// }
 pub struct Chain (pub Vec<Block> );
-
-
-impl std::fmt::Display for NextBlockErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            NextBlockErr::InvalidBlock(err) => {
-                write!(f, "Invalid block encountered: {:?}", err)
-            }
-            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
-                write!(f, "Block {} is too old compared to current block {}.", block_idx, current_idx)
-            }
-            NextBlockErr::DuplicateBlock { block_idx } => {
-                write!(f, "Duplicate block encountered: Block {} is already in the chain.", block_idx)
-            }
-            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
-            }
-            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
-                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
-                    block_idx, block_parent_hash, current_parent_hash)
-            }
-            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-                write!(f, "Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
-                    block_idx, block_parent_hash, current_hash)
-            }
-            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
-                write!(f, "Block {} is too new compared to current block {}.", block_idx, current_idx)
-            }
-            NextBlockErr::UnknownError => {
-                write!(f, "An unknown error occurred while trying to push the block.")
-            }
-        }
-    }
-}
 
 impl Chain {
     // New chain with a single genesis block
