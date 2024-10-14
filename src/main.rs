@@ -24,7 +24,7 @@ async fn run_p2p(){
 }
 
 fn dummy_chain(len : u32) -> Chain{
-    let mut chain: Chain = Chain::new();
+    let mut chain: Chain = Chain::genesis();
     for _ in 0 .. len {
       chain.make_new_valid_block("test");
     }

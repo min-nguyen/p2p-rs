@@ -17,9 +17,9 @@
 - [x] custom error data type for validating transactions
 - [x] correct the order of pattern-matching when validating a new block wrt the local chain
    - [ ] handle each pattern-match correctly
-        - [ ] implementing merging fork suffixes
+        - [x] implementing merging fork suffixes
             - [x] test merging a valid fork suffix
-            - [ ] test merging an invalid fork suffix
+            - [x] test merging an invalid fork suffix
         - [ ] introduce additional data structures for tracking alternative chains and blocks
             - [ ] Competing Blocks: deals with competing blocks that have the same parent and are at the same height.
                 - The action here is to log or temporarily store the competing blocks to wait and see which chain grows longer or which block gets confirmed first.

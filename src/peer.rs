@@ -219,7 +219,7 @@ impl Peer {
         }
     }
     fn handle_cmd_reset(&mut self) {
-        self.chain = chain::Chain::new();
+        self.chain = chain::Chain::genesis();
         println!("Current chain reset to a single block")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
@@ -365,7 +365,7 @@ pub async fn set_up_peer() -> Peer {
             Err(e) => {
                 eprintln!("\nProblem loading chain from the local file: \"{}\" \n\
                            Instantiating a fresh chain instead. ", e);
-                Chain::new()
+                Chain::genesis()
             }
             Ok(chain) => {
                 println!("\nLoaded chain from local file.\n");
