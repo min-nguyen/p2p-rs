@@ -2,14 +2,14 @@
     # Available Commands #
 ─────────────────────────────────────────────
   *Load chain*:
-└── Usage: `load`
+└── Usage: `load ?[file_name]`
 ┌── Description:
-│     • Load a chain to the application from a (predefined) local file `blocks.json`.
+│     • Load a chain to the application from a specified file name, defaulting to the file name `blocks.json`.
 
   *Save chain*:
-└── Usage: `save`
+└── Usage: `save ?[file_name]`
 ┌── Description:
-│     • Save the current chain to a (predefined) local file `blocks.json`.
+│     • Save the current chain to a specified file name, defaulting to the file name `blocks.json`.
 
   *Reset blockchain*:
 └── Usage: `reset`
