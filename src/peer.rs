@@ -16,10 +16,13 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::HashSet;
 
 use super::file;
-use super::chain::{self, Chain, Block};
+use super::block::Block;
+use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
 use super::swarm::{self as swarm, BlockchainBehaviour};
+
+const DEFAULT_FILE_PATH: &str = "blocks.json";
 
 /* Events for the peer to handle, either:
     (1) Local inputs from the terminal
@@ -44,7 +47,6 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-
     txn_pool : HashSet<Transaction>
 }
 
@@ -156,11 +158,13 @@ impl Peer {
             }
             // `load`, loads a chain from a local file.
             cmd if cmd.starts_with("load") => {
-                self.handle_cmd_load().await
+                let file_name = cmd.strip_prefix("load").expect("can strip `load`").trim();
+                self.handle_cmd_load(file_name).await
             }
             // `save`, saves a chain from a local file.
             cmd if cmd.starts_with("save") => {
-                self.handle_cmd_save().await
+                let file_name = cmd.strip_prefix("save").expect("can strip `save`").trim();
+                self.handle_cmd_save(file_name).await
             }
             // `redial`, dial all discovered peers
             cmd if cmd.starts_with("redial") => {
@@ -171,18 +175,18 @@ impl Peer {
             },
             //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
             cmd if cmd.starts_with("req") => {
-                let args = cmd.strip_prefix("req").expect("can strip `req`").trim();
-                self.handle_cmd_req(args)
+                let arg = cmd.strip_prefix("req").expect("can strip `req`").trim();
+                self.handle_cmd_req(arg)
             }
             // `mine [data]` makes and writes a new block with the given data (and an incrementing id)
             cmd if cmd.starts_with("mine") => {
-                let args = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
-                self.handle_cmd_mine(args)
+                let arg = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
+                self.handle_cmd_mine(arg)
             }
-            // `show <chain | peers>` lists the local chain or the discovered & connected peers
+            // `show <chain | peers | pool >` lists the local chain, discovered & connected peers, or transaction pool
             cmd if cmd.starts_with("show") => {
-                let args = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
-                self.handle_cmd_show(args);
+                let arg = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
+                self.handle_cmd_show(arg);
             }
             // `txn [data]`, broadcasts a random transaction with the "amount" set to [data]
             cmd if cmd.starts_with("txn") => {
@@ -203,23 +207,25 @@ impl Peer {
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
         println!("Broadcasted new transaction to to all.");
     }
-    async fn handle_cmd_load(&mut self){
-        match file::read_chain().await {
+    async fn handle_cmd_load(&mut self, file_name: &str){
+        let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
+        match file::read_chain(file_name).await {
             Ok(chain) => {
                 self.chain = chain;
-                println!("Loaded chain from local file")
+                println!("Loaded chain from local file \"{}\"", file_name)
             }
             Err(e) => eprintln!("Error loading chain from local file:\n\t{}", e),
         }
     }
-    async fn handle_cmd_save(&mut self ){
-        match file::write_chain(&self.chain).await {
-            Ok(()) => println!("Saved chain to local file"),
+    async fn handle_cmd_save(&mut self, file_name: &str){
+        let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
+        match file::write_chain(&self.chain, file_name).await {
+            Ok(()) => println!("Saved chain to local file \"{}\"", file_name),
             Err(e) => eprintln!("Error saving chain to local file:\n\t{}", e),
         }
     }
     fn handle_cmd_reset(&mut self) {
-        self.chain = chain::Chain::new();
+        self.chain = chain::Chain::genesis();
         println!("Current chain reset to a single block")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
@@ -361,14 +367,14 @@ pub async fn set_up_peer() -> Peer {
 
     // Load chain from local file
     let chain: Chain
-        = match file::read_chain().await {
+        = match file::read_chain(DEFAULT_FILE_PATH).await {
             Err(e) => {
-                eprintln!("\nProblem loading chain from the local file: \"{}\" \n\
+                eprintln!("\nProblem loading chain from the default file: \"{}\" \n\
                            Instantiating a fresh chain instead. ", e);
-                Chain::new()
+                Chain::genesis()
             }
             Ok(chain) => {
-                println!("\nLoaded chain from local file.\n");
+                println!("\nLoaded chain from default file \"{}\".\n", DEFAULT_FILE_PATH);
                 chain
             }
         };

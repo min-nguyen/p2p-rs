@@ -7,15 +7,9 @@
 //
 /////////////////
 
-use chrono::{DateTime, Utc};
-use log::info;
 use serde::{Deserialize, Serialize};
-use to_binary::BinaryString;
+use super::block::{self, Block::{self}, BlockErr};
 
-use super::cryptutil;
-
-// number of leading zeros required for the hashed block for the block to be valid.
-const DIFFICULTY_PREFIX: &str = "00";
 
 /* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -24,8 +18,16 @@ pub struct Chain (pub Vec<Block>);
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
-    IsSuffix,                     // chain doesn't start from idx 0
-    SubChainErr(NextBlockErr)     // error between two contiguous blocks in the chain
+    IsFork,                        // chain doesn't start from idx 0
+    InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
+}
+
+// For validating forks of chains
+#[derive(Debug)]
+pub enum ForkErr {
+    ForkStartsAtGenesis,            // fork's first block has index == 0
+    ForkIncompatible,               // fork's first block's parent hash doesn't match any block in the current chain
+    InvalidSubChain(NextBlockErr),  // error between two contiguous blocks in the chain
 }
 
 // For validating whether one block is a valid next block for another.
@@ -60,21 +62,10 @@ pub enum NextBlockErr {
     UnknownError,                // non-exhaustive case (should not happen)
 }
 
-#[derive(Debug)]
-pub enum ForkSuffixErr {
-    ForkSuffixStartsAtGenesis (
-    ),                          // fork suffix's first block has index == 0
-    ForkSuffixIncomplete {
-        fork_head_idx : usize,
-    },                          // fork suffix's first block's parent hash doesn't match any block in the current chain
-    ForkSuffixInvalidSubChain (
-        NextBlockErr
-    ),                          // fork suffix doesn't form a valid chain
-}
 
 impl Chain {
     // New chain with a single genesis block
-    pub fn new() -> Self {
+    pub fn genesis() -> Self {
         Self (vec![Block::genesis()])
     }
 
@@ -110,39 +101,45 @@ impl Chain {
     }
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
-    // Note: Can succeed even if resulting in a shorter chian.
-    pub fn try_merge_fork(&mut self, fork_suffix: &mut Chain) -> Result<(), ForkSuffixErr>{
-        if let Err(e) = Self::validate_subchain(&fork_suffix) {
-            return Err(ForkSuffixErr::ForkSuffixInvalidSubChain(e))
+    // Note: Can succeed even if resulting in a shorter chain.
+    pub fn try_merge_fork(&mut self, fork: &mut Chain) -> Result<(), ForkErr>{
+        if let Err(e) = Self::validate_subchain(&fork) {
+            return Err(ForkErr::InvalidSubChain(e))
         }
 
-        let fork_suffix_head = fork_suffix.get_block_by_idx(0).expect("forked chain must be non-empty");
-        if fork_suffix_head.idx == 0 {
-            return Err(ForkSuffixErr::ForkSuffixStartsAtGenesis())
+        let fork_head = fork.get_block_by_idx(0).expect("fork must be non-empty");
+        if fork_head.idx == 0 {
+            return Err(ForkErr::ForkStartsAtGenesis)
         }
-        match self.get_block_by_hash(&fork_suffix_head.prev_hash) {
+        /* this should behave the same:
+            ```
+            match self.get_block_by_idx(&fork_head.idx - 1) {
+                Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
+            ```
+        */
+        match self.get_block_by_hash(&fork_head.prev_hash) {
+            // if fork branches off from idx n, then keep the first n + 1 blocks
             Some(forkpoint) => {
-                // if forkpoint starts at idx n, then keep the first n + 1 blocks
                 self.0.truncate(forkpoint.idx + 1);
-                self.0.append(&mut fork_suffix.0);
+                self.0.append(&mut fork.0);
                 Ok(())
             }
-            // fork suffix's first block doesn't reference a block in the current chain.
+            // fork's first block doesn't reference a block in the current chain.
             None => {
-                Err(ForkSuffixErr::ForkSuffixIncomplete {fork_head_idx: fork_suffix_head.idx})
+                Err(ForkErr::ForkIncompatible)
             }
         }
     }
 
-    // validate entire chain from tail to head, ignoring the first block
+    // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
         if chain.0.get(0).expect("chain must be non-empty").idx != 0 {
-            return Err(ChainErr::IsSuffix)
+            return Err(ChainErr::IsFork)
         }
         Ok(())
     }
 
-    // validate entire chain from tail to head, ignoring the first block
+    // Validate subchain from head to tail, ignoring the first block
     pub fn validate_subchain(chain: &Chain) -> Result<(), NextBlockErr> {
         for i in 0..chain.0.len() - 1 {
             let curr: &Block = chain.0.get(i)
@@ -156,6 +153,7 @@ impl Chain {
         Ok(())
     }
 
+    // Validating whether one block is a valid next block for another.
     pub fn validate_next_block(current_block: &Block, block: &Block) -> Result<(), NextBlockErr> {
         // * check validity of block by itself
         if let Err(e) = Block::validate_block(block) {
@@ -255,186 +253,21 @@ impl std::fmt::Display for Chain {
     }
 }
 
-/* Block
-  Records some or all of the most recent data not yet validated by the network.
-*/
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Block {
-    // position in the chain
-    pub idx: usize,
-    // core content
-    pub data: String,
-    // block creation time
-    pub timestamp: i64,
-    // reference to the previous block's hash
-    pub prev_hash: String,
-    // arbitrary value controlled by miner to find a valid block hash
-    pub nonce: u64,
-    // hash of the above
-    pub hash: String,
-}
-
-#[derive(Debug)]
-pub enum BlockErr {
-    DifficultyCheckFailed {
-        hash_binary: String,
-        difficulty_prefix: String,
-    },                             // Block's hash does not meet the difficulty target
-    HashMismatch {
-        stored_hash: String,
-        computed_hash: String,
-    },                             // Block's stored hash is inconsistent with its computed hash
-}
-
-impl Block {
-  // Find a valid nonce and hash to construct a new block
-  pub fn mine_block(idx: usize, data: &str, prev_hash: &String) -> Block {
-        let now: DateTime<Utc> = Utc::now();
-        info!("mining block for:\n
-                Block {{ idx: {}, data: {}, timestamp: {}, prev_hash: {}, nonce: ?, hash: ? }}"
-                , idx, data, now, prev_hash);
-
-        let mut nonce: u64 = 0;
-        loop {
-            let hash: String
-                = Self::compute_hash(idx, data, now.timestamp(), &prev_hash, nonce);
-            let BinaryString(hash_bin)
-                = BinaryString::from_hex(&hash).expect("can convert hex string to binary");
-
-            if hash_bin.starts_with(DIFFICULTY_PREFIX) {
-                info!(
-                    "mine_block(): mined! \n nonce: {}, hash: {}, hash (bin repr): {}"
-                    , nonce, hash, hash_bin
-                );
-                return Self { idx, data : data.to_string(), timestamp: now.timestamp(), prev_hash: prev_hash.clone(), nonce, hash  }
-            }
-            nonce += 1;
-        }
-    }
-
-  // Genesis block, the very first block in a chain which never references any previous blocks.
-  pub fn genesis() -> Block {
-    let (idx, data, timestamp, prev_hash, nonce)
-        = (0, "genesis".to_string(), Utc::now().timestamp(), cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
-    let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
-    Block { idx, data, timestamp, prev_hash, nonce, hash }
-  }
-
-  // Compute the hex-string of a sha256 hash (i.e. a 32-byte array) of a block
-  fn compute_hash (idx: usize, data: &str, timestamp: i64, prev_hash: &String, nonce: u64)  -> String {
-        use sha2::{Sha256, Digest};
-
-        // create a sha256 hasher instance
-        let mut hasher: Sha256 = Sha256::new();
-
-        // translate the block from a json value -> string -> byte array &[u8], used as input data to the hasher
-        let block_json: serde_json::Value = serde_json::json!({
-            "idx": idx,
-            "data": data,
-            "timestamp": timestamp,
-            "prev_hash": prev_hash,
-            "nonce": nonce
-        });
-        hasher.update(block_json.to_string().as_bytes());
-
-        // retrieve hash result
-        let hash : [u8; 32] = hasher
-        .finalize() // Sha256 -> GenericArray<u8, U32>
-        .into(); // GenericArray<u8, U32> -> [u8; 32].
-
-        cryptutil::encode_bytes_to_hex(&hash)
-    }
-
-    // Validate a block as its own entity:
-    pub fn validate_block(block: &Block) -> Result<(), BlockErr> {
-        //    1. check if block's hash (in binary) has a valid number of leading zeros
-        let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash)
-            .expect("Can convert hex string to binary");
-        if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            return Err(BlockErr::DifficultyCheckFailed {
-                hash_binary,
-                difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
-            })
-        }
-        //    2. check if block's hash is indeed the correct hash of itself.
-        let computed_hash = Self::compute_hash(
-            block.idx,
-            &block.data,
-            block.timestamp,
-            &block.prev_hash,
-            block.nonce,
-        );
-        if block.hash != computed_hash {
-            return Err(BlockErr::HashMismatch {
-                stored_hash: block.hash.clone(),
-                computed_hash,
-            });
-        }
-
-        Ok(())
-    }
-}
-
-impl std::fmt::Display for Block {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash: {}, \n\t prev_hash: {}, \n\t timestamp: {}, \n\t nonce: {}}}"
-                , self.idx, self.data, self.hash, self.prev_hash, DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"), self.nonce)
-    }
-}
-
 
 /********  TESTS **********/
-
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
-    use crate::{chain::{BlockErr, ChainErr, ForkSuffixErr, NextBlockErr}, cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}, Block, Chain};
+    use crate::{
+        chain::{Chain, ChainErr, ForkErr, NextBlockErr},
+        block::{Block, BlockErr},
+        cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}};
 
-    /* tests for a block by itself  */
-    #[test]
-    fn test_invalid_block_difficulty_check() {
-        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
-
-        let invalid_difficulty_prefix = Block {
-            hash: hex::encode([255; 32]),
-            ..valid_block.clone()
-        };
-
-        // Ensure that the block fails due to a difficulty check error
-        assert!(matches!(
-            Block::validate_block(&invalid_difficulty_prefix),
-            Err(BlockErr::DifficultyCheckFailed { .. })
-        ));
-    }
-    #[test]
-    fn test_invalid_block_hash_mismatch() {
-        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
-
-        let invalid_hash = Block {
-            hash: encode_bytes_to_hex(ZERO_U32),
-            ..valid_block.clone()
-        };
-
-        assert!(matches!(
-            debug(Block::validate_block(&invalid_hash)),
-            Err(BlockErr::HashMismatch { .. })
-        ));
-    }
-    #[test]
-    fn test_valid_block() {
-        let valid_block = Block::mine_block(1, "test", &Block::genesis().hash);
-
-        assert!(matches!(
-            Block::validate_block(&valid_block),
-            Ok(())
-        ));
-    }
-    /* tests for extending a chain by a new proposed block */
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
 
     #[test]
-    fn test_out_of_date_block() {
-        let mut chain: Chain = Chain::new();
+    fn test_block_too_old() {
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
@@ -447,7 +280,7 @@ mod chain_tests {
     }
     #[test]
     fn test_duplicate_block() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN{
             chain.make_new_valid_block(&format!("block {}", i));
         }
@@ -460,7 +293,7 @@ mod chain_tests {
     }
     #[test]
     fn test_competing_block() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN{
             chain.make_new_valid_block(&format!("block {}", i));
         }
@@ -477,43 +310,43 @@ mod chain_tests {
     }
     #[test]
     fn test_competing_block_in_fork() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN{
             chain.make_new_valid_block(&format!("block {}", i));
         }
 
-        let mut fork = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
-        // make competing fork the same length as the current chain
+        // make competing forked_chain the same length as the current chain
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) {
-            fork.make_new_valid_block(&format!("block {} in fork", i));
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(fork.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_current_block())),
             Err(NextBlockErr::CompetingBlockInFork { .. })
         ));
     }
     #[test]
     fn test_next_block_in_fork() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
 
-        let mut fork = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
-        // make competing fork one block longer than the current chain
+        // make competing forked_chain one block longer than the current chain
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 1 {
-            fork.make_new_valid_block(&format!("block {} in fork", i));
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(fork.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_current_block())),
             Err(NextBlockErr::NextBlockInFork { .. })
         ));
     }
     #[test]
-    fn test_too_ahead_of_date_block() {
-        let mut chain: Chain = Chain::new();
+    fn test_block_too_new() {
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
@@ -529,26 +362,26 @@ mod chain_tests {
         ));
     }
     #[test]
-    fn test_too_ahead_of_date_block_in_fork() {
-        let mut chain: Chain = Chain::new();
+    fn test_block_too_new_in_fork() {
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
 
-        let mut fork = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
-        // make competing fork 2 blocks longer than the current chain
+        // make competing forked_chain 2 blocks longer than the current chain
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-            fork.make_new_valid_block(&format!("block {} in fork", i));
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(fork.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_current_block())),
             Err(NextBlockErr::BlockTooNew { .. })
         ));
     }
     #[test]
     fn test_valid_next_block() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         let current_block: Block = chain.get_current_block().clone();
 
         chain.make_new_valid_block(&format!("test next valid block"));
@@ -560,7 +393,7 @@ mod chain_tests {
     }
     #[test]
     fn test_valid_chain() {
-        let mut chain: Chain = Chain::new();
+        let mut chain: Chain = Chain::genesis();
         for i in 1 .. CHAIN_LEN {
           chain.make_new_valid_block(&format!("next valid block {}", i));
         }
@@ -569,30 +402,137 @@ mod chain_tests {
             Ok(())));
     }
     #[test]
-    fn test_valid_fork() {
-        let mut chain: Chain = Chain::new();
+    fn test_valid_fork_longer(){
+        let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
 
-        let mut fork = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
-        // make competing fork 2 blocks longer than the current chain
+        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-            fork.make_new_valid_block(&format!("block {} in fork", i));
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
         }
 
-        // strip the common prefix between the current chain and the forked chain
-        let mut fork_suffix = {
-            fork.0.drain(0 ..FORK_PREFIX_LEN);
-            fork
+        // strip the common prefix between the current and forked chain
+        let mut fork = {
+            forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
+            forked_chain
         };
 
-        println!("Chain : {}\n", chain);
-        println!("Fork suffix : {}\n", fork_suffix);
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[4]---[5]---[6]
+        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
         assert!(matches!(
-            debug(chain.try_merge_fork(&mut fork_suffix)),
+            debug(chain.try_merge_fork(&mut fork)),
             Ok(())
         ));
-        println!("Merged chain and fork suffix : {}", chain);
+        println!("Merged chain and fork : {}", chain);
+        // chain: [0]---[1]---[2]
+        //                     |----[3]---[4]---[5]---[6]
+
+    }
+    #[test]
+    fn test_valid_fork_shorter() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+        // make competing forked_chain 2 blocks longer than the current chain
+        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
+        }
+        // make current chain 2 blocks longer than the forked_chain chain
+        for i in CHAIN_LEN .. forked_chain.len() + 2 {
+            chain.make_new_valid_block(&format!("block {} in fork", i));
+        }
+        // strip the common prefix between the current and forked chain
+        let mut fork = {
+            forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
+            forked_chain
+        };
+
+        // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
+        // fork:               |----[3]---[4]---[5]---[6]
+        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut fork)),
+            Ok(())
+        ));
+        println!("Merged chain and fork : {}", chain);
+        // chain: [0]---[1]---[2]
+        //                     |----[3]---[4]---[5]---[6]
+    }
+    #[test]
+    fn test_fork_starts_at_genesis() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        // try to merge the entire forked chain, rather than the fork.
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
+        }
+
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:  [0]---[1]---[2]---[3]---[4]---[5]---[6]
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut forked_chain)),
+            Err(ForkErr::ForkStartsAtGenesis{ .. })
+        ));
+    }
+    #[test]
+    fn test_fork_incompatible() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
+        }
+
+        // strip the common prefix between the current and forked chain, plus one more block
+        let mut incompatible_fork: Chain = {
+            forked_chain.0.drain(0 ..FORK_PREFIX_LEN + 1);
+            forked_chain
+        };
+
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[?]---[4]---[5]---[6]
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut incompatible_fork)),
+            Err(ForkErr::ForkIncompatible{ .. })
+        ));
+    }
+    #[test]
+    fn test_fork_invalid_subchain() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.make_new_valid_block(&format!("block {}", i));
+        }
+
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.make_new_valid_block(&format!("block {} in fork", i));
+        }
+
+        // strip the common prefix between the current and forked chain, and mutate a block
+        let mut fork_invalid_subchain: Chain = {
+            forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
+            let b: &mut Block = forked_chain.0.last_mut().unwrap();
+            b.data = "corrupt data".to_string();
+            forked_chain
+        };
+
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[4]---[5]---[X]
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut fork_invalid_subchain)),
+            Err(ForkErr::InvalidSubChain{ .. })
+        ));
     }
 }

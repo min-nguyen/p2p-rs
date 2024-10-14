@@ -2,12 +2,13 @@
 pub mod cryptutil;
 pub mod file;
 pub mod peer;
+pub mod block;
 pub mod chain;
 pub mod transaction;
 pub mod message;
 pub mod swarm;
 
-use chain::{Block, Chain};
+use chain::Chain;
 
 // RUST_LOG=info cargo run --bin main
 #[tokio::main]
@@ -24,7 +25,7 @@ async fn run_p2p(){
 }
 
 fn dummy_chain(len : u32) -> Chain{
-    let mut chain: Chain = Chain::new();
+    let mut chain: Chain = Chain::genesis();
     for _ in 0 .. len {
       chain.make_new_valid_block("test");
     }
