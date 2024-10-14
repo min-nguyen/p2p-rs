@@ -1,8 +1,9 @@
 /*
     *Peer*: The peer's logic on the local machine, which the entire application is architected around.
-    ---
-    ---
-    ---
+    - Manages a Swarm object (for communicating with peers in the network).
+    - Manages std input events (for command-line interactions).
+    - Manages a local Chain object (which it both adds new mined blocks to and synchronises with other peers' chains).
+    - Manages a local Transaction pool (which it may mine new blocks for).
 */
 
 
@@ -290,8 +291,7 @@ impl Peer {
                 println!("Command error: `show` missing an argument `chain`, `peers`, or `pool`")
             }
             "chain"   => {
-                println!("Current chain:\n");
-                self.chain.0.iter().for_each(|block| println!("{}", block))
+                println!("\nCurrent chain:\n{}", self.chain);
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)

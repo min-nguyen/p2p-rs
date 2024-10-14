@@ -1,9 +1,13 @@
-use serde::{Deserialize, Serialize};
+/*
+    *Message*: Provides the message forms communicated between peers.
+    - Messages for requesting and responding with chains or new blocks.
+    - Messages for broadcasting new transactions.
+*/
 
+use serde::{Deserialize, Serialize};
 use super::block;
 use super::chain;
 use super::transaction;
-
 
 // Messages can be intended for (1) all peers or (2) a specific peer.
 #[derive(Debug, Serialize, Deserialize)]

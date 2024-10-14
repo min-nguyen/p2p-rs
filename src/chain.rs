@@ -1,17 +1,13 @@
-// /////////////////
-//
-// PoW Implementation
-//
-// Simple modelling of the PoW consensus mechanism
-//    Every node in the network can add a block, storing data as a string, to the blockchain ledger by mining a valid block locally and then broadcasting that block. As long as it’s a valid block, each node will add the block to its chain and our piece of data become part of a decentralized network.
-//
-/////////////////
+/*
+    *Chain*:
+    - Chain and chain error types
+    - Methods for accessing, mining, extending, and validating a chain's blocks with respect to other blocks, chains, or forks.
+*/
 
 use serde::{Deserialize, Serialize};
-use super::block::{self, Block::{self}, BlockErr};
+use super::block::{Block::{self}, BlockErr};
 
 
-/* Chain */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain (pub Vec<Block>);
 
@@ -245,22 +241,21 @@ impl Chain {
 
 impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Chain {{\n")?;
-        for block in &self.0 {
-            write!(f, "\t{}\n", block)?
-        };
-        write!(f, "}}")
+        for (_, block) in self.0.iter().enumerate() {
+            writeln!(f, "{}", "=".repeat(40))?;
+            write!(f, "{}", block )?;
+        }
+        write!(f, "{}", "=".repeat(40))
     }
 }
-
 
 /********  TESTS **********/
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{
         chain::{Chain, ChainErr, ForkErr, NextBlockErr},
-        block::{Block, BlockErr},
-        cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}};
+        block::Block,
+        cryptutil::debug};
 
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
