@@ -1,5 +1,5 @@
 use libp2p::core::PublicKey;
-
+use std::fmt;
 pub const ZERO_U32 : [u8; 32] = [0; 32];
 pub const ZERO_U64 : [u8; 64] = [0; 64];
 
@@ -10,6 +10,20 @@ pub enum HexDecodeErr {
     },
     ToBytes {
         msg: String
+    }
+}
+
+// Implementing the Display trait for HexDecodeErr
+impl fmt::Display for HexDecodeErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HexDecodeErr::ToPubk { msg } => {
+                write!(f, "Hex Decode Error to Public Key: {}", msg)
+            }
+            HexDecodeErr::ToBytes { msg } => {
+                write!(f, "Hex Decode Error to Bytes: {}", msg)
+            }
+        }
     }
 }
 
