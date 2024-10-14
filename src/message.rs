@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::block;
 use super::chain;
 use super::transaction;
 
@@ -23,7 +24,7 @@ pub enum PowMessage {
     },
     NewBlock {
         transmit_type : TransmitType, // always ToAll
-        block : chain::Block
+        block : block::Block
     }
     // NewBlockProposal {
     //   transmit_type : TransmitType, // always ToAll

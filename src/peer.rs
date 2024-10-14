@@ -16,7 +16,8 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::HashSet;
 
 use super::file;
-use super::chain::{self, Chain, Block};
+use super::block::Block;
+use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
 use super::swarm::{self as swarm, BlockchainBehaviour};

@@ -2,12 +2,13 @@
 pub mod cryptutil;
 pub mod file;
 pub mod peer;
+pub mod block;
 pub mod chain;
 pub mod transaction;
 pub mod message;
 pub mod swarm;
 
-use chain::{Block, Chain};
+use chain::Chain;
 
 // RUST_LOG=info cargo run --bin main
 #[tokio::main]

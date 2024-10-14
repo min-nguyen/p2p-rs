@@ -12,15 +12,16 @@ RUST_LOG=info cargo run --bin main
 
 #### Commands Overview
 ```sh
+─────────────────────────────────────────────
   *Load chain*:
-└── Usage: `load`
+└── Usage: `load ?[file_name]`
 ┌── Description:
-│     • Load a chain to the application from a (predefined) local file `blocks.json`.
+│     • Load a chain to the application from a specified file name, defaulting to the file name `blocks.json`.
 
   *Save chain*:
-└── Usage: `save`
+└── Usage: `save ?[file_name]`
 ┌── Description:
-│     • Save the current chain to a (predefined) local file `blocks.json`.
+│     • Save the current chain to a specified file name, defaulting to the file name `blocks.json`.
 
   *Reset blockchain*:
 └── Usage: `reset`
@@ -35,10 +36,10 @@ RUST_LOG=info cargo run --bin main
   *Mine new block*:
 └── Usage: `mine ?[data]`
 ┌── Description:
-|     • If no arguments are provided:
-|       -  mine a block containing the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
+│    • If no arguments are provided:
+│      -  mine a block containing the first transaction in the pool (if any), adding it to the chain, and broadcasting it to other peers.
 │     • If an argument is provided:
-|       -  mine a block containing the arbitrary given data, adding it to the chain, and broadcasting it to other peers.
+│      -  mine a block containing the given data, adding it to the chain, and broadcasting it to other peers.
 
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
@@ -82,12 +83,21 @@ Contains the network logic using GossipSub as the communication protocol and Mdn
 - Sets up Swarm (that executes the NetworkBehaviour).
 
 #### `chain.rs`
-Provides the blockchain and Proof-of-Work consensus algorithm.
-- Chain and Block types.
-- Methods for hashing, mining, validating, and managing blocks.
+Defines the blockchain and Proof-of-Work consensus algorithm.
+- Chain structure, a vector of blocks
+- Methods for accessing, mining, extending, and validating a chain's blocks with respect to other blocks, chains, or forks.
 
-```
+```sh
 cargo test chain -- --no capture
+```
+
+#### `block.rs`
+Provides the block and Proof-of-Work mining algorithm.
+- Block internals
+- Methods for hashing, mining, and validating a block.
+
+```sh
+cargo test block -- --no capture
 ```
 
 #### `transaction.rs`
@@ -95,7 +105,7 @@ Provides the transaction form.
 - Transaction type.
 - Methods for generating and validating transactions.
 
-```
+```sh
 cargo test transaction -- --no capture
 ```
 
