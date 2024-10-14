@@ -16,7 +16,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::HashSet;
 
-use crate::swarm::get_peers;
+use crate::{chain::NextBlockErr, swarm::get_peers};
 
 use super::file;
 use super::block::Block;
@@ -128,9 +128,42 @@ impl Peer {
                             println!("Deleted mined transaction from the local pool.");
                         }
                     }
-                    Err(e) =>
-                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\t{:?}\n\
-                                  Keeping current chain.", e)
+                    Err(e) => {
+                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:");
+                        match  &e {
+                            NextBlockErr::InvalidBlock(err) => {
+                                println!("Invalid block encountered: {:?}", err);
+                            }
+                            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
+                                println!("Block {} is too old compared to current block {}.", block_idx, current_idx);
+                            }
+                            NextBlockErr::DuplicateBlock { block_idx } => {
+                                println!("Duplicate block encountered: Block {} is already in the chain.", block_idx);
+                            }
+                            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
+                                println!("Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash);
+                            }
+                            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
+                                println!("Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
+                                    block_idx, block_parent_hash, current_parent_hash);
+                                // to-do
+                            }
+                            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
+                                println!("Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
+                                    block_idx, block_parent_hash, current_hash);
+                                // to-do
+                            }
+                            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
+                                println!("Block {} is too new compared to current block {}.", block_idx, current_idx);
+                                // to-do
+                            }
+                            NextBlockErr::UnknownError => {
+                                println!("An unknown error occurred while trying to push the block.");
+                                // to-do
+                            }
+                        };
+                        println!("Keeping current chain.");
+                    }
                 }
             }
         }
