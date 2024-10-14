@@ -126,7 +126,7 @@ impl Peer {
                     }
                 }
                 // Validate block itself
-                match self.chain.try_push_block(&block){
+                match self.chain.handle_new_block(&block){
                     Ok(()) =>{
                         println!("Successfully validated the remote peer's new block as a chain extension.\n\
                                  Extended current chain.");
@@ -291,14 +291,13 @@ impl Peer {
         match opt_data {
             None => eprintln!("No transactions in the pool to mine for."),
             Some(data) => {
-                self.chain.make_new_valid_block(&data);
-                let current_block = self.chain.get_tip().to_owned();
-                println!("Mined and pushed new block to chain:\n{}", current_block);
+                self.chain.mine_then_push_new_block(&data);
+                println!("Mined and pushed new block to chain:\n{}", self.chain.get_tip());
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
-                        block: current_block
+                        block: self.chain.get_tip().clone()
                     }
                 , &mut self.swarm);
                 println!("Broadcasted new block.");

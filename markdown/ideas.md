@@ -23,11 +23,35 @@
         - [ ] introduce additional data structures for tracking alternative chains and blocks
             ```rs
             #[derive(Clone, Debug)]
-            pub struct Chain {
-                pub main_chain: Vec<Block>,
-                pub forks: HashMap<String, Vec<Block>>,  // Store forked chains using the fork's starting block hash
-            }
+                pub struct Chain {
+                    pub main_chain: Vec<Block>,
+                    pub forks: HashMap<String, Chain>,  // Store forked chains using the fork's starting block hash
+                   // or   pub forks: HashMap<String, Vec<Block>>,
+                }
 
+                pub fn store_fork(&mut self, block: Block) {
+                    let fork_entry = self.forks.entry(block.prev_hash.clone()).or_insert(Vec::new());
+                    fork_entry.push(block);
+                }
+
+                pub fn handle_new_block(&mut self, new_block: Block) {
+                    let chain_tip = self.current_chain_tip();
+
+                    // The new block extends the main chain
+                    if new_block.prev_hash == chain_tip.hash {
+                        self.add_block_to_main_chain(new_block);
+                    }
+                    // Fork detectedd
+                    else {
+                        self.store_fork(new_block);
+                        if self.is_fork_better_than_main_chain(&new_block) {
+                            ...
+                        }
+                    }
+                }
+
+                pub fn is_fork_better_than_main_chain(&self, new_block: &Block) -> bool {
+                }
             ```
         - [ ] implement requesting new blocks until forming a valid fork suffix
 - [ ] custom error data type for synching chains?
