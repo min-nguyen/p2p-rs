@@ -89,6 +89,10 @@ impl std::fmt::Display for NextBlockErr {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+// pub struct Chain {
+//     pub main_chain : Vec<Block>,
+//     pub forks : HashMap<String, Chain>
+// }
 pub struct Chain (pub Vec<Block> );
 
 impl Chain {

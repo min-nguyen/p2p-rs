@@ -14,14 +14,16 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+use crate::{chain::NextBlockErr, swarm::get_peers};
 
 use super::file;
 use super::block::Block;
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
-use super::swarm::{self as swarm, BlockchainBehaviour, get_peers};
+use super::swarm::{self as swarm, BlockchainBehaviour};
 
 const DEFAULT_FILE_PATH: &str = "blocks.json";
 
@@ -106,6 +108,12 @@ impl Peer {
                     println!("Remote peer's chain is either invalid or not longer than ours.\n\
                             Keeping current chain.")
                 }
+            },
+            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                /* TO DO */
+            },
+            PowMessage::BlockResponse { .. } => {
+                /* TO DO */
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
