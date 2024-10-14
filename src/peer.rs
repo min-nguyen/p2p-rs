@@ -100,10 +100,10 @@ impl Peer {
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.sync_chain(&chain){
-                    println!("Remote peer's chain is longer than ours. Updated current chain.")
+                    println!("Remote peer's chain is longer than ours.\nUpdated current chain.")
                 }
                 else {
-                    println!("Remote peer's chain is either invalid or not longer than ours. Keeping current chain.")
+                    println!("Remote peer's chain is either invalid or not longer than ours.\nKeeping current chain.")
                 }
             },
             PowMessage::NewBlock { block, .. } => {
@@ -129,7 +129,7 @@ impl Peer {
                         }
                     }
                     Err(e) =>
-                        println!("Couldn't validiate the remote peer's new block as an extension to our chain, due to:\n\t{:?}\n\
+                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\t{:?}\n\
                                   Keeping current chain.", e)
                 }
             }
