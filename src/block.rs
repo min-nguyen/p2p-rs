@@ -1,3 +1,9 @@
+/*
+    *Block*: Provides the block and Proof-of-Work mining algorithm.
+    - Block internals and block error types
+    - Methods for hashing, mining, and validating a block.
+*/
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
@@ -126,12 +132,24 @@ impl Block {
 
         Ok(())
     }
+    pub fn pretty_print(&self) {
+        println!("Block {}", self.idx);
+        println!("Timestamp: {}", self.timestamp);
+        println!("Data: {}", self.data);
+        println!("Nonce: {}", self.nonce);
+        println!("Previous Hash: {}", &self.prev_hash);
+        println!("Hash: {}", &self.hash);
+    }
 }
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "Block {{\n\t idx: {}, \n\t data: {}, \n\t hash: {}, \n\t prev_hash: {}, \n\t timestamp: {}, \n\t nonce: {}}}"
-                , self.idx, self.data, self.hash, self.prev_hash, DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"), self.nonce)
+        writeln!(f, "Block {}", self.idx)?;
+        writeln!(f, "Timestamp: {}", DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"))?;
+        writeln!(f, "Data: {}", self.data)?;
+        writeln!(f, "Nonce: {}", self.nonce)?;
+        writeln!(f, "Previous Hash: {}", &self.prev_hash)?;
+        writeln!(f, "Hash: {}", &self.hash)
     }
 }
 

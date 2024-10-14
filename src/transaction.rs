@@ -1,5 +1,10 @@
-use core::panic;
+/*
+    *Transaction*:
+    - Transaction type.
+    - Methods for generating and validating transactions.
+*/
 
+use core::panic;
 use log::error;
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};

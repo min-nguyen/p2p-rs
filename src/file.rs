@@ -1,7 +1,6 @@
 /*
-    *File*:
-    --- Defines the types of core data
-    --- IO for read and writing with it
+    *File*: Provides auxiliary access to local storage.
+    - Functions for loading and saving the blockchain state (from `blocks.json`).
 */
 
 use log::info;

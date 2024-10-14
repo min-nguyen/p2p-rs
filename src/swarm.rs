@@ -1,7 +1,9 @@
-/*  A Swarm for NetworkBehaviour with a GossipSub Messaging Protocol.
-    https://docs.rs/gossipsub/latest/gossipsub/
-
-    GossipSub, unlike FloodSub, can have its max transmit message size be changed.
+/*
+    *Swarm*: Contains the network logic using GossipSub as the communication protocol and Mdns as the peer discovery protocol.
+    (GossipSub, unlike FloodSub, can have its max transmit message size be changed.)
+    - Configures PeerId, Keypair, and Topic(s) for the network.
+    - Sets up NetworkBehaviour (that defines how peer discovery and message events are handled).
+    - Sets up Swarm (that executes the NetworkBehaviour).
 */
 
 use libp2p::{
