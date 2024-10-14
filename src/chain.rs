@@ -242,10 +242,9 @@ impl Chain {
 impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for (_, block) in self.0.iter().enumerate() {
-            writeln!(f, "{}", "=".repeat(40))?;
             write!(f, "{}", block )?;
         }
-        write!(f, "{}", "=".repeat(40))
+        writeln!(f)
     }
 }
 
