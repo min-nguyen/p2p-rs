@@ -144,12 +144,25 @@ impl Block {
 
 impl std::fmt::Display for Block {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        writeln!(f, "Block {}", self.idx)?;
-        writeln!(f, "Timestamp: {}", DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"))?;
-        writeln!(f, "Data: {}", self.data)?;
-        writeln!(f, "Nonce: {}", self.nonce)?;
-        writeln!(f, "Previous Hash: {}", &self.prev_hash)?;
-        writeln!(f, "Hash: {}", &self.hash)
+        write!(
+            f,
+            "\
+            ================================================\n\
+            Block:\n\
+            Index:           {}\n\
+            Timestamp:       {}\n\
+            Data:            {}\n\
+            Nonce:           {}\n\
+            Previous Hash:   {}\n\
+            Hash:            {}\n\
+            ================================================\n",
+            self.idx,
+            DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
+            self.data,
+            self.nonce,
+            self.prev_hash,
+            self.hash,
+        )
     }
 }
 

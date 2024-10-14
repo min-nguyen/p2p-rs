@@ -50,10 +50,27 @@ pub enum TransactionErr {
 
 impl std::fmt::Display for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let datetime: DateTime<Utc>
-            = DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp");
-        write!(f, "Transaction {{ sender: {}, receiver: {}, amount: {}, date-time: {}, sig: {:?} }}"
-        , self.sender, self.receiver, self.amount, datetime, self.sig)
+        write!(
+            f,
+            "\
+            ================================================\n\
+            Transaction:\n\
+            Sender:          {}\n\
+            Sender PubKey:   {}\n\
+            Receiver:        {}\n\
+            Amount:          {}\n\
+            Timestamp:       {}\n\
+            Hash:            {}\n\
+            Signature:       {}\n\
+            ================================================\n",
+            self.sender,
+            self.sender_pubk,
+            self.receiver,
+            self.amount,
+            DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
+            self.hash,
+            self.sig
+        )
     }
 }
 

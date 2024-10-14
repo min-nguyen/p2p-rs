@@ -16,6 +16,8 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::HashSet;
 
+use crate::swarm::get_peers;
+
 use super::file;
 use super::block::Block;
 use super::chain::{self, Chain};
@@ -98,10 +100,10 @@ impl Peer {
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.sync_chain(&chain){
-                    println!("Updated current chain to a remote peer's longer chain")
+                    println!("Remote peer's chain is longer than ours. Updated current chain.")
                 }
                 else {
-                    println!("Retained current chain over a remote peer's chain")
+                    println!("Remote peer's chain is either invalid or not longer than ours. Keeping current chain.")
                 }
             },
             PowMessage::NewBlock { block, .. } => {
@@ -112,7 +114,7 @@ impl Peer {
                             println!("Successfully validated transaction inside the received block.")
                         }
                         Err (e) => {
-                            println!("Couldn't validate transaction inside the received block:\n\t{:?}\nIgnoring new block.", e);
+                            println!("Couldn't validate transaction inside the received block, due to:\n\t{:?}\nIgnoring new block.", e);
                             return
                         }
                     }
@@ -120,14 +122,15 @@ impl Peer {
                 // Validate block itself
                 match self.chain.try_push_block(&block){
                     Ok(()) =>{
-                        println!("Successfully validated block itself.\n\
-                                 Extended current chain by a remote peer's new block");
+                        println!("Successfully validated the remote peer's new block as a chain extension.\n\
+                                 Extended current chain.");
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
                     }
                     Err(e) =>
-                        println!("Retained current chain and ignored remote peer's new block:\n\t{:?}", e)
+                        println!("Couldn't validiate the remote peer's new block as an extension to our chain, due to:\n\t{:?}\n\
+                                  Keeping current chain.", e)
                 }
             }
         }
@@ -206,7 +209,8 @@ impl Peer {
         println!("Added new transaction to pool. \n{}\t", txn);
         let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
-        println!("Broadcasted new transaction to to all.");
+        let connected_peers = get_peers(&mut self.swarm).0;
+        println!("Broadcasted new transaction to: {:?} ", connected_peers);
     }
     async fn handle_cmd_load(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
@@ -250,7 +254,7 @@ impl Peer {
             Some(data) => {
                 self.chain.make_new_valid_block(&data);
                 let current_block = self.chain.get_current_block().to_owned();
-                println!("Mined and pushed new block to chain: {:?}", current_block);
+                println!("Mined and pushed new block to chain:\n{}", current_block);
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
@@ -272,7 +276,7 @@ impl Peer {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request to all");
+                println!("Broadcasting request for all peers to: {:?}", get_peers(&mut self.swarm).0);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
             peer_id => {
@@ -280,7 +284,7 @@ impl Peer {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request for \"{}\"", peer_id);
+                println!("Broadcasting request for \"{}\" to: {:?}", peer_id, get_peers(&mut self.swarm).0);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
