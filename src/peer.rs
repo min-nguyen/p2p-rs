@@ -14,7 +14,7 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use crate::{chain::NextBlockErr, swarm::get_peers};
 
@@ -106,6 +106,12 @@ impl Peer {
                     println!("Remote peer's chain is either invalid or not longer than ours.\nKeeping current chain.")
                 }
             },
+            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                /* TO DO */
+            },
+            PowMessage::BlockResponse { .. } => {
+                /* TO DO */
+            },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
@@ -146,20 +152,20 @@ impl Peer {
                             NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
                                 println!("Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
                                     block_idx, block_parent_hash, current_parent_hash);
-                                // to-do
+                                    /* TO DO */
                             }
                             NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
                                 println!("Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
                                     block_idx, block_parent_hash, current_hash);
-                                // to-do
+                                    /* TO DO */
                             }
                             NextBlockErr::BlockTooNew { block_idx, current_idx } => {
                                 println!("Block {} is too new compared to current block {}.", block_idx, current_idx);
-                                // to-do
+                                    /* TO DO */
                             }
                             NextBlockErr::UnknownError => {
                                 println!("An unknown error occurred while trying to push the block.");
-                                // to-do
+                                    /* TO DO */
                             }
                         };
                         println!("Keeping current chain.");
@@ -286,7 +292,7 @@ impl Peer {
             None => eprintln!("No transactions in the pool to mine for."),
             Some(data) => {
                 self.chain.make_new_valid_block(&data);
-                let current_block = self.chain.get_current_block().to_owned();
+                let current_block = self.chain.get_tip().to_owned();
                 println!("Mined and pushed new block to chain:\n{}", current_block);
 
                 swarm::publish_pow_msg(

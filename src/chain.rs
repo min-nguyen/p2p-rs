@@ -65,7 +65,7 @@ impl Chain {
         Self (vec![Block::genesis()])
     }
 
-    pub fn get_current_block(&self) -> &Block {
+    pub fn get_tip(&self) -> &Block {
         self.0.last().expect("chain must be non-empty")
     }
 
@@ -83,14 +83,14 @@ impl Chain {
 
     // Mine a new valid block from given data, and extend the chain by it
     pub fn make_new_valid_block(&mut self, data: &str) {
-        let current_block: &Block = self.get_current_block();
+        let current_block: &Block = self.get_tip();
         let new_block: Block = Block::mine_block(current_block.idx + 1, data, &current_block.hash);
         self.try_push_block(&new_block).expect("returned mined block isn't valid")
     }
 
     // Try to append an arbitrary block
     pub fn try_push_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = self.get_current_block();
+        let current_block: &Block = self.get_tip();
         Self::validate_next_block(current_block, &new_block)?;
         self.0.push(new_block.clone());
         Ok(())
@@ -265,7 +265,7 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.make_new_valid_block(&format!("block {}", i));
         }
-        let out_of_date_block: Block = chain.get_block_by_idx(chain.get_current_block().idx - 1).unwrap().clone();
+        let out_of_date_block: Block = chain.get_block_by_idx(chain.get_tip().idx - 1).unwrap().clone();
 
         assert!(matches!(
             debug(chain.try_push_block(&out_of_date_block)),
@@ -278,7 +278,7 @@ mod chain_tests {
         for i in 1..CHAIN_LEN{
             chain.make_new_valid_block(&format!("block {}", i));
         }
-        let duplicate_block: Block = chain.get_current_block().clone();
+        let duplicate_block: Block = chain.get_tip().clone();
 
         assert!(matches!(
             debug(chain.try_push_block(&duplicate_block)),
@@ -293,9 +293,9 @@ mod chain_tests {
         }
         // mine an alternative block at the same position as the current one
         let competing_block: Block = Block::mine_block(
-            chain.get_current_block().idx,
+            chain.get_tip().idx,
             "competing block at {}",
-            &chain.get_current_block().prev_hash);
+            &chain.get_tip().prev_hash);
 
         assert!(matches!(
             debug(chain.try_push_block(&competing_block)),
@@ -316,7 +316,7 @@ mod chain_tests {
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(forked_chain.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_tip())),
             Err(NextBlockErr::CompetingBlockInFork { .. })
         ));
     }
@@ -334,7 +334,7 @@ mod chain_tests {
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(forked_chain.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_tip())),
             Err(NextBlockErr::NextBlockInFork { .. })
         ));
     }
@@ -351,7 +351,7 @@ mod chain_tests {
         dup_chain.make_new_valid_block("too-far-ahead block in dup chain");
 
         assert!(matches!(
-            debug(chain.try_push_block(dup_chain.get_current_block())),
+            debug(chain.try_push_block(dup_chain.get_tip())),
             Err(NextBlockErr::BlockTooNew { .. })
         ));
     }
@@ -369,17 +369,17 @@ mod chain_tests {
         }
 
         assert!(matches!(
-            debug(chain.try_push_block(forked_chain.get_current_block())),
+            debug(chain.try_push_block(forked_chain.get_tip())),
             Err(NextBlockErr::BlockTooNew { .. })
         ));
     }
     #[test]
     fn test_valid_next_block() {
         let mut chain: Chain = Chain::genesis();
-        let current_block: Block = chain.get_current_block().clone();
+        let current_block: Block = chain.get_tip().clone();
 
         chain.make_new_valid_block(&format!("test next valid block"));
-        let next_valid_block = chain.get_current_block();
+        let next_valid_block = chain.get_tip();
 
         assert!(matches!(
             debug(Chain::validate_next_block(&current_block, &next_valid_block))
