@@ -18,37 +18,29 @@ pub enum TransmitType {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum PowMessage {
-    ChainRequest {
+    ChainRequest {                    // ToOne or ToAll
         transmit_type : TransmitType,
         sender_peer_id : String
     },
-    ChainResponse {
+    ChainResponse {                   // always ToOne
         transmit_type : TransmitType,
         chain : chain::Chain
     },
     NewBlock {
         transmit_type : TransmitType, // always ToAll
         block : block::Block
-    }
-    // NewBlockProposal {
-    //   transmit_type : TransmitType, // always ToAll
-    //   data : block::Block
-    // },
-    // NewBlockValidation {
-    //   transmit_type : TransmitType, // always ToAll
-    //   data : block::Block
-    // }
+    },
 }
 
 impl std::fmt::Display for PowMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-        PowMessage::ChainRequest { transmit_type, sender_peer_id }
-            => write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
-        PowMessage::ChainResponse { transmit_type, chain }
-            => write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Data: {} \n}}", transmit_type, chain),
-        PowMessage::NewBlock { transmit_type, block }
-            => write!(f, "NewBlock {{\n\t Transmit Type: {:?},\n\t Data: {} \n}}", transmit_type, block),
+            PowMessage::ChainRequest { transmit_type, sender_peer_id } =>
+                write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
+            PowMessage::ChainResponse { transmit_type, chain } =>
+                write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} \n}}", transmit_type, chain),
+            PowMessage::NewBlock { transmit_type, block } =>
+                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} \n}}", transmit_type, block),
         }
     }
 }

@@ -21,11 +21,40 @@
             - [x] test merging a valid fork suffix
             - [x] test merging an invalid fork suffix
         - [ ] introduce additional data structures for tracking alternative chains and blocks
-            - [ ] Competing Blocks: deals with competing blocks that have the same parent and are at the same height.
-                - The action here is to log or temporarily store the competing blocks to wait and see which chain grows longer or which block gets confirmed first.
-            - [ ] Chain Fork Logic: deals with competing blocks that have different parents, indicating a divergence earlier in the chain.
-                    - The action here is to store the entire forked chain (starting with the block causing the fork) in a temporary pool or fork database to allow for chain reorganization if the new fork grows longer or more valid according to consensus rules (e.g., longest chain, most cumulative work).
+            ```rs
+            #[derive(Clone, Debug)]
+                pub struct Chain {
+                    pub main_chain: Vec<Block>,
+                    pub forks: HashMap<String, Chain>,  // Store forked chains using the fork's starting block hash
+                   // or   pub forks: HashMap<String, Vec<Block>>,
+                }
+
+                pub fn store_fork(&mut self, block: Block) {
+                    let fork_entry = self.forks.entry(block.prev_hash.clone()).or_insert(Vec::new());
+                    fork_entry.push(block);
+                }
+
+                pub fn handle_new_block(&mut self, new_block: Block) {
+                    let chain_tip = self.current_chain_tip();
+
+                    // The new block extends the main chain
+                    if new_block.prev_hash == chain_tip.hash {
+                        self.add_block_to_main_chain(new_block);
+                    }
+                    // Fork detectedd
+                    else {
+                        self.store_fork(new_block);
+                        if self.is_fork_better_than_main_chain(&new_block) {
+                            ...
+                        }
+                    }
+                }
+
+                pub fn is_fork_better_than_main_chain(&self, new_block: &Block) -> bool {
+                }
+            ```
         - [ ] implement requesting new blocks until forming a valid fork suffix
+- [ ] make chain struct contain a _private_ vector of blocks
 - [ ] custom error data type for synching chains?
 
 in parallel:

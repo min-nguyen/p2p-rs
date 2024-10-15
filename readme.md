@@ -7,8 +7,9 @@ An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain 
 Start multiple instances of the application on separate terminals to initialize new peers within the same peer-to-peer network.
 
 ```sh
-RUST_LOG=info cargo run --bin main
+cargo run
 ```
+<!-- (RUST_LOG=info cargo run --bin main) -->
 
 #### Commands Overview
 ```sh
