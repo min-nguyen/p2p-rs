@@ -421,7 +421,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle a competing block from a forked_chain that is the same length as the current chain
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i))
         }
@@ -439,7 +440,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle the next expected block from a forked_chain that is one block longer than the current chain
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 1 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -474,7 +476,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle the latest block from a forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -497,7 +500,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -527,7 +531,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -570,7 +575,8 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_then_push_block(&format!("block {}", i));
         }
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -589,7 +595,8 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -612,7 +619,9 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_then_push_block(&format!("block {}", i));
         }
-        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
+        // make a competing forked_chain that is 2 blocks longer than the current chain
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
