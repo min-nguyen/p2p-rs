@@ -141,12 +141,7 @@ impl Chain {
     // Note: Can succeed even if resulting in a shorter chain.
     pub fn try_merge_fork(&mut self, fork: &mut Chain) -> Result<(), ForkErr>{
         let fork_head: &Block = fork.get_block_by_idx(0).ok_or(ForkErr::ForkIsEmpty)?;
-        if fork_head.idx == 0 {
-            return Err(ForkErr::ForkStartsAtGenesis)
-        }
-        if let Err(e) = Self::validate_subchain(&fork) {
-            return Err(ForkErr::InvalidSubChain(e))
-        }
+        Self::validate_fork(&fork)?;
 
         /* this should behave the same:
             ```
@@ -186,8 +181,17 @@ impl Chain {
         Self::validate_subchain(&chain).map_err(ChainErr::InvalidSubChain)
     }
 
-    // Validate subchain from head to tail, ignoring the first block
-    pub fn validate_subchain(chain: &Chain) -> Result<(), NextBlockErr> {
+    // Validate fork from head to tail, expecting it to begin at any idx
+    pub fn validate_fork(fork: &Chain) -> Result<(), ForkErr> {
+        let first_block = fork.0.get(0).ok_or(ForkErr::ForkIsEmpty)?;
+        if first_block.idx == 0 {
+            return Err(ForkErr::ForkStartsAtGenesis);
+        }
+        Self::validate_subchain(&fork).map_err(ForkErr::InvalidSubChain)
+    }
+
+    // (Keep private) validate subchain from head to tail, ignoring the first block
+    fn validate_subchain(chain: &Chain) -> Result<(), NextBlockErr> {
         for i in 0..chain.0.len() - 1 {
             let curr: &Block = chain.0.get(i)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
@@ -313,6 +317,9 @@ mod chain_tests {
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
 
+    /*****************************
+     * Tests for valid chains    *
+    *****************************/
     #[test]
     fn test_valid_chain() {
         let mut chain: Chain = Chain::genesis();
