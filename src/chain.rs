@@ -14,6 +14,7 @@ pub struct Chain (pub Vec<Block>);
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
+    IsEmpty,
     IsFork,                        // chain doesn't start from idx 0
     InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
 }
@@ -66,7 +67,7 @@ impl Chain {
     }
 
     pub fn get_current_block(&self) -> &Block {
-        self.0.last().expect("chain must be non-empty")
+        self.0.last().expect("Chain should always be non-empty")
     }
 
     pub fn get_block_by_idx(&self, idx: usize) -> Option<&Block> {
@@ -129,10 +130,11 @@ impl Chain {
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        if chain.0.get(0).expect("chain must be non-empty").idx != 0 {
-            return Err(ChainErr::IsFork)
+        let first_block = chain.0.get(0).ok_or(ChainErr::IsEmpty)?;
+        if first_block.idx != 0 {
+            return Err(ChainErr::IsFork);
         }
-        Ok(())
+        Self::validate_subchain(&chain).map_err(ChainErr::InvalidSubChain)
     }
 
     // Validate subchain from head to tail, ignoring the first block
