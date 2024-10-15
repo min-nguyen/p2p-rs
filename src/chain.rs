@@ -11,15 +11,15 @@ use std::collections::HashMap;
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
-    IsEmpty,
-    IsFork,                        // chain doesn't start from idx 0
+    ChainIsEmpty,
+    ChainIsFork,                   // chain doesn't start from idx 0
     InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
 }
 
 // For validating forks of chains
 #[derive(Debug)]
 pub enum ForkErr {
-    ForkEmpty,
+    ForkIsEmpty,
     ForkStartsAtGenesis,            // fork's first block has index == 0
     ForkIncompatible,               // fork's first block's parent hash doesn't match any block in the current chain
     InvalidSubChain(NextBlockErr),  // error between two contiguous blocks in the chain
@@ -148,14 +148,9 @@ impl Chain {
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
     // Note: Can succeed even if resulting in a shorter chain.
     pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
-        if let Err(e) = Self::validate_subchain(&fork) {
-            return Err(ForkErr::InvalidSubChain(e))
-        }
+        let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
+        Self::validate_fork(&fork)?;
 
-        let fork_head = fork.get(0).ok_or(ForkErr::ForkEmpty)?; //expect("fork must be non-empty");
-        if fork_head.idx == 0 {
-            return Err(ForkErr::ForkStartsAtGenesis)
-        }
         /* this should behave the same:
             ```
             match self.get_block_by_idx(&fork_head.idx - 1) {
@@ -187,15 +182,24 @@ impl Chain {
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        let first_block = chain.0.get(0).ok_or(ChainErr::IsEmpty)?;
+        let first_block = chain.0.get(0).ok_or(ChainErr::ChainIsEmpty)?;
         if first_block.idx != 0 {
-            return Err(ChainErr::IsFork);
+            return Err(ChainErr::ChainIsFork);
         }
         Self::validate_subchain(&chain.0).map_err(ChainErr::InvalidSubChain)
     }
 
-    // Validate subchain from head to tail
-    pub fn validate_subchain(subchain: &Vec<Block>) -> Result<(), NextBlockErr> {
+    // Validate fork from head to tail, expecting it to begin at any idx
+    pub fn validate_fork(fork: &Vec<Block>) -> Result<(), ForkErr> {
+        let first_block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
+        if first_block.idx == 0 {
+            return Err(ForkErr::ForkStartsAtGenesis);
+        }
+        Self::validate_subchain(&fork).map_err(ForkErr::InvalidSubChain)
+    }
+
+    // (Keep private) validate subchain from head to tail, ignoring the first block
+    fn validate_subchain(subchain: &Vec<Block>) -> Result<(), NextBlockErr> {
         for i in 0..subchain.len() - 1 {
             let curr: &Block = subchain.get(i)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
@@ -321,6 +325,9 @@ mod chain_tests {
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
 
+    /*****************************
+     * Tests for valid chains    *
+    *****************************/
     #[test]
     fn test_valid_chain() {
         let mut chain: Chain = Chain::genesis();
@@ -337,7 +344,7 @@ mod chain_tests {
         let chain = Chain(vec![]);
         assert!(matches!(
             debug(Chain::validate_chain(&chain)),
-            Err(ChainErr::IsEmpty)));
+            Err(ChainErr::ChainIsEmpty)));
     }
     #[test]
     fn test_chain_is_fork(){
@@ -345,7 +352,7 @@ mod chain_tests {
         let chain = Chain(vec![Block { idx : 1, .. Block::genesis() }]);
         assert!(matches!(
             debug(Chain::validate_chain(&chain)),
-            Err(ChainErr::IsFork)));
+            Err(ChainErr::ChainIsFork)));
     }
     /*****************************
      * Tests for handling new blocks *
@@ -542,6 +549,20 @@ mod chain_tests {
         // After:
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
+    }
+    #[test]
+    fn test_fork_is_empty() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_then_push_block(&format!("block {}", i));
+        }
+        let mut fork = vec![];
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:   ???
+        assert!(matches!(
+            debug(chain.try_merge_fork(&mut fork)),
+            Err(ForkErr::ForkIsEmpty { .. })
+        ));
     }
     #[test]
     fn test_fork_starts_at_genesis() {
