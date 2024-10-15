@@ -312,6 +312,30 @@ mod chain_tests {
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
 
+    #[test]
+    fn test_valid_chain() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1 .. CHAIN_LEN {
+            chain.mine_then_push_block(&format!("block {}", i));
+        }
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Ok(())));
+    }
+    #[test]
+    fn test_chain_is_empty(){
+        let chain = Chain(vec![]);
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Err(ChainErr::IsEmpty)));
+    }
+    #[test]
+    fn test_chain_is_fork(){
+        let chain = Chain(vec![Block { idx : 1, .. Block::genesis() }]);
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Err(ChainErr::IsFork)));
+    }
     /*****************************
      * Tests for handling new blocks *
     *****************************/
@@ -323,16 +347,6 @@ mod chain_tests {
         assert!(matches!(
             debug(chain.handle_new_block(&next_block))
             , Ok(())));
-    }
-    #[test]
-    fn test_valid_chain() {
-        let mut chain: Chain = Chain::genesis();
-        for i in 1 .. CHAIN_LEN {
-            chain.mine_then_push_block(&format!("block {}", i));
-        }
-        assert!(matches!(
-            debug(Chain::validate_chain(&chain)),
-            Ok(())));
     }
     #[test]
     fn test_block_too_old() {
