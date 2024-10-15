@@ -20,14 +20,13 @@
         - [x] implementing merging fork suffixes
             - [x] test merging a valid fork suffix
             - [x] test merging an invalid fork suffix
-        - [ ] make chain struct contain a _private_ vector of blocks
+        - [x] make chain struct contain a _private_ vector of blocks
         - [ ] introduce additional data structures for tracking alternative chains and blocks
             ```rs
             #[derive(Clone, Debug)]
                 pub struct Chain {
-                    pub main_chain: Vec<Block>,
-                    pub forks: HashMap<String, Chain>,  // Store forked chains using the fork's starting block hash
-                   // or   pub forks: HashMap<String, Vec<Block>>,
+                    main: Vec<Block>,   // private
+                    forks: HashMap<String, Vec<Block>>,  // reference to forkpoint block hash
                 }
 
                 pub fn store_fork(&mut self, block: Block) {

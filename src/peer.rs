@@ -109,6 +109,12 @@ impl Peer {
                             Keeping current chain.");
                 }
             },
+            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                /* TO DO */
+            },
+            PowMessage::BlockResponse { .. } => {
+                /* TO DO */
+            },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){

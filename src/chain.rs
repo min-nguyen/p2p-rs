@@ -1,7 +1,7 @@
 /*
     *Chain*:
-    - Chain and chain error types
-    - Methods for accessing, mining, extending, and validating a chain's blocks with respect to other blocks, chains, or forks.
+    - Chain, a safe wrapper around a vector of blocks, and error types
+    - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
 */
 
 use serde::{Deserialize, Serialize};
@@ -11,9 +11,12 @@ use std::collections::HashMap;
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
-    ChainIsEmpty,                  // (should never happen outside of this module)
-    ChainIsFork,                   // chain doesn't start from idx 0 (should never happen outside of this module)
     InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
+
+    /* Below errors should never happen outside of this module.
+       Possibly deprecate these later. */
+    ChainIsEmpty,
+    ChainIsFork,                   // chain doesn't start from idx 0
 }
 
 // For validating forks of chains
