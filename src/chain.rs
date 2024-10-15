@@ -11,6 +11,7 @@ use std::collections::HashMap;
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
+    IsEmpty,
     IsFork,                        // chain doesn't start from idx 0
     InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
 }
@@ -103,7 +104,7 @@ impl Chain {
     }
 
     pub fn get_tip(&self) -> &Block {
-        self.0.last().expect("chain must be non-empty")
+        self.0.last().expect("Chain should always be non-empty")
     }
 
     pub fn get_block_by_idx(&self, idx: usize) -> Option<&Block> {
@@ -119,12 +120,7 @@ impl Chain {
     }
 
     pub fn truncate(&mut self, len: usize){
-        self.0.truncate(std::cmp::min(self.len()-1, 0));
-    }
-
-    pub fn mine_then_push_block(&mut self, data: &str) {
-        let b: Block = self.mine_new_block(data);
-        self.handle_new_block(&b).expect("can push newly mined block")
+        self.0.truncate(std::cmp::min(self.len()-1, len));
     }
 
     // Mine a new valid block from given data
@@ -142,6 +138,11 @@ impl Chain {
         */
         self.0.push(new_block.clone());
         Ok(())
+    }
+
+    pub fn mine_then_push_block(&mut self, data: &str) {
+        let b: Block = self.mine_new_block(data);
+        self.handle_new_block(&b).expect("can push newly mined block")
     }
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
@@ -186,12 +187,11 @@ impl Chain {
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        if chain.0.get(0).expect("chain must be non-empty").idx != 0 {
-            return Err(ChainErr::IsFork)
-        };
-        Self::validate_subchain(&chain.0)
-            .map_err(|e: NextBlockErr| ChainErr::InvalidSubChain(e))?;
-        Ok(())
+        let first_block = chain.0.get(0).ok_or(ChainErr::IsEmpty)?;
+        if first_block.idx != 0 {
+            return Err(ChainErr::IsFork);
+        }
+        Self::validate_subchain(&chain.0).map_err(ChainErr::InvalidSubChain)
     }
 
     // Validate subchain from head to tail
@@ -321,6 +321,32 @@ mod chain_tests {
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
 
+    #[test]
+    fn test_valid_chain() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1 .. CHAIN_LEN {
+            chain.mine_then_push_block(&format!("block {}", i));
+        }
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Ok(())));
+    }
+    #[test]
+    fn test_chain_is_empty(){
+         // shouldn't be possible outside this module (private field)
+        let chain = Chain(vec![]);
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Err(ChainErr::IsEmpty)));
+    }
+    #[test]
+    fn test_chain_is_fork(){
+        // shouldn't be possible outside this module (private field)
+        let chain = Chain(vec![Block { idx : 1, .. Block::genesis() }]);
+        assert!(matches!(
+            debug(Chain::validate_chain(&chain)),
+            Err(ChainErr::IsFork)));
+    }
     /*****************************
      * Tests for handling new blocks *
     *****************************/
@@ -332,16 +358,6 @@ mod chain_tests {
         assert!(matches!(
             debug(chain.handle_new_block(&next_block))
             , Ok(())));
-    }
-    #[test]
-    fn test_valid_chain() {
-        let mut chain: Chain = Chain::genesis();
-        for i in 1 .. CHAIN_LEN {
-            chain.mine_then_push_block(&format!("block {}", i));
-        }
-        assert!(matches!(
-            debug(Chain::validate_chain(&chain)),
-            Ok(())));
     }
     #[test]
     fn test_block_too_old() {
