@@ -274,12 +274,12 @@ impl Peer {
             Some(data) => {
                 self.chain.mine_then_push_block(&data);
                 println!("Mined and pushed the following new block to chain:\n\
-                         {}", self.chain.get_tip());
+                         {}", self.chain.last());
 
                 swarm::publish_pow_msg(
                     PowMessage::NewBlock {
                         transmit_type: TransmitType::ToAll,
-                        block: self.chain.get_tip().clone()
+                        block: self.chain.last().clone()
                     }
                 , &mut self.swarm);
 

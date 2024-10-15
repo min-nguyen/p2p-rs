@@ -91,10 +91,6 @@ impl std::fmt::Display for NextBlockErr {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-// pub struct Chain {
-//     pub main_chain : Vec<Block>,
-//     pub forks : HashMap<String, Chain>
-// }
 pub struct Chain ( Vec<Block> );
 
 impl Chain {
@@ -103,16 +99,12 @@ impl Chain {
         Self (vec![Block::genesis()])
     }
 
-    pub fn get_tip(&self) -> &Block {
-        self.0.last().expect("Chain should always be non-empty")
-    }
-
-    pub fn get_block_by_idx(&self, idx: usize) -> Option<&Block> {
+    pub fn get(&self, idx: usize) -> Option<&Block> {
         self.0.get(idx)
     }
 
-    pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
-        self.0.iter().find(|b: &&Block| b.hash == *hash)
+    pub fn last(&self) -> &Block {
+        self.0.last().expect("Chain should always be non-empty")
     }
 
     pub fn len(&self) -> usize {
@@ -120,18 +112,22 @@ impl Chain {
     }
 
     pub fn truncate(&mut self, len: usize){
-        self.0.truncate(std::cmp::min(self.len()-1, len));
+        self.0.truncate(std::cmp::min(self.len() - 1, len));
+    }
+
+    pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
+        self.0.iter().find(|b: &&Block| b.hash == *hash)
     }
 
     // Mine a new valid block from given data
     pub fn mine_new_block(&mut self, data: &str) -> Block {
-        let current_block: &Block = self.get_tip();
+        let current_block: &Block = self.last();
         Block::mine_block(current_block.idx + 1, data, &current_block.hash)
     }
 
     // Try to append an arbitrary block to the main chain
     pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = self.get_tip();
+        let current_block: &Block = self.last();
         Self::validate_next_block(current_block, &new_block)?;
         /*
                     TO-DO: handle forks
@@ -147,13 +143,13 @@ impl Chain {
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
     // Note: Can succeed even if resulting in a shorter chain.
-    pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
+    pub fn try_merge_fork(&mut self, fork: &mut Chain) -> Result<(), ForkErr>{
         let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
         Self::validate_fork(&fork)?;
 
         /* this should behave the same:
             ```
-            match self.get_block_by_idx(&fork_head.idx - 1) {
+            match self.get(&fork_head.idx - 1) {
                 Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
             ```
         */
@@ -161,7 +157,7 @@ impl Chain {
             // if fork branches off from idx n, then keep the first n + 1 blocks
             Some(forkpoint) => {
                 self.0.truncate(forkpoint.idx + 1);
-                self.0.append(fork);
+                self.0.append(&mut fork.0);
                 Ok(())
             }
             // fork's first block doesn't reference a block in the current chain.
@@ -186,12 +182,12 @@ impl Chain {
         if first_block.idx != 0 {
             return Err(ChainErr::ChainIsFork);
         }
-        Self::validate_subchain(&chain.0).map_err(ChainErr::InvalidSubChain)
+        Self::validate_subchain(&chain).map_err(ChainErr::InvalidSubChain)
     }
 
     // Validate fork from head to tail, expecting it to begin at any idx
-    pub fn validate_fork(fork: &Vec<Block>) -> Result<(), ForkErr> {
-        let first_block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
+    pub fn validate_fork(fork: &Chain) -> Result<(), ForkErr> {
+        let first_block = fork.0.get(0).ok_or(ForkErr::ForkIsEmpty)?;
         if first_block.idx == 0 {
             return Err(ForkErr::ForkStartsAtGenesis);
         }
@@ -199,11 +195,11 @@ impl Chain {
     }
 
     // (Keep private) validate subchain from head to tail, ignoring the first block
-    fn validate_subchain(subchain: &Vec<Block>) -> Result<(), NextBlockErr> {
-        for i in 0..subchain.len() - 1 {
-            let curr: &Block = subchain.get(i)
+    fn validate_subchain(chain: &Chain) -> Result<(), NextBlockErr> {
+        for i in 0..chain.0.len() - 1 {
+            let curr: &Block = chain.0.get(i)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
-            let next: &Block = subchain.get(i + 1)
+            let next: &Block = chain.0.get(i + 1)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
             if let Err(e) = Self::validate_next_block(curr, next) {
                 return Err(e);
@@ -340,7 +336,7 @@ mod chain_tests {
     }
     #[test]
     fn test_chain_is_empty(){
-         // shouldn't be possible outside this module (private field)
+        // shouldn't be possible outside this module (private field)
         let chain = Chain(vec![]);
         assert!(matches!(
             debug(Chain::validate_chain(&chain)),
@@ -373,7 +369,7 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i))
         }
         // handle an old block from the current chain that is one block older than the tip
-        let out_of_date_block: Block = chain.get_block_by_idx(chain.get_tip().idx - 1).unwrap().clone();
+        let out_of_date_block: Block = chain.get(chain.last().idx - 1).unwrap().clone();
         // chain: [0]---[1]---[2]---[3]---[4]
         // old:                     [*3*]
         assert!(matches!(
@@ -388,7 +384,7 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i))
         }
         // handle a duplicate block from the current chain that is the same as the tip
-        let duplicate_block: Block = chain.get_tip().clone();
+        let duplicate_block: Block = chain.last().clone();
         // chain: [0]---[1]---[2]---[3]---[4]
         // dup:                           [*4*]
         assert!(matches!(
@@ -404,9 +400,9 @@ mod chain_tests {
         }
         // handle an alternative mined block from the current chain that has the same parent as the tip
         let competing_block: Block = Block::mine_block(
-            chain.get_tip().idx,
+            chain.last().idx,
             "competing block at {}",
-            &chain.get_tip().prev_hash);
+            &chain.last().prev_hash);
         // chain: [0]---[1]---[2]---[3]---[4]
         // competing block:          |----[*4*]
         assert!(matches!(
@@ -421,15 +417,14 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle a competing block from a forked_chain that is the same length as the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i))
         }
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[*4*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.get_tip())),
+            debug(chain.handle_new_block(forked_chain.last())),
             Err(NextBlockErr::CompetingBlockInFork { .. })
         ));
     }
@@ -440,15 +435,14 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle the next expected block from a forked_chain that is one block longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 1 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[*5*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.get_tip())),
+            debug(chain.handle_new_block(forked_chain.last())),
             Err(NextBlockErr::NextBlockInFork { .. })
         ));
     }
@@ -465,7 +459,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]
         // duplicate:                           |---[5]---[*6*]
         assert!(matches!(
-            debug(chain.handle_new_block(dup_chain.get_tip())),
+            debug(chain.handle_new_block(dup_chain.last())),
             Err(NextBlockErr::BlockTooNew { .. })
         ));
     }
@@ -476,15 +470,14 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // handle the latest block from a forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // chain:   [0]---[1]---[2]---[3]---[4]
         // fork:                 |----[3]---[4]---[5]---[*6*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.get_tip())),
+            debug(chain.handle_new_block(forked_chain.last())),
             Err(NextBlockErr::BlockTooNew { .. })
         ));
     }
@@ -500,20 +493,19 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain
         let mut fork = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
-            forked_chain.0
+            forked_chain
         };
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
-        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
+        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
         assert!(matches!(
             debug(chain.try_merge_fork(&mut fork)),
             Ok(())
@@ -531,8 +523,7 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain: Chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -541,11 +532,14 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // strip the common prefix between the current and forked chain
-        let mut fork = forked_chain.0.split_off(FORK_PREFIX_LEN);
+        let mut fork = {
+            forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
+            forked_chain
+        };
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
         // fork:               |----[3]---[4]---[5]---[6]
-        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
+        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
         assert!(matches!(
             debug(chain.try_merge_fork(&mut fork)),
             Ok(())
@@ -561,11 +555,11 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_then_push_block(&format!("block {}", i));
         }
-        let mut fork = vec![];
+        let mut forked_chain = Chain(vec![]);
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:   ???
         assert!(matches!(
-            debug(chain.try_merge_fork(&mut fork)),
+            debug(chain.try_merge_fork(&mut forked_chain)),
             Err(ForkErr::ForkIsEmpty { .. })
         ));
     }
@@ -575,8 +569,7 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_then_push_block(&format!("block {}", i));
         }
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
@@ -584,7 +577,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:  [0]---[1]---[2]---[3]---[4]---[5]---[6]
         assert!(matches!(
-            debug(chain.try_merge_fork(&mut forked_chain.0)),
+            debug(chain.try_merge_fork(&mut forked_chain)),
             Err(ForkErr::ForkStartsAtGenesis{ .. })
         ));
     }
@@ -595,15 +588,14 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain, then **remove the first block** from the fork
-        let mut incompatible_fork: Vec<Block> = {
+        let mut incompatible_fork: Chain = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN + 1);
-            forked_chain.0
+            forked_chain
         };
         // try to merge a fork that is missing a reference to the current chain:
         // chain: [0]---[1]---[2]---[3]---[4]
@@ -619,18 +611,16 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_then_push_block(&format!("block {}", i));
         }
-        // make a competing forked_chain that is 2 blocks longer than the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain = Chain(chain.0.clone()[..FORK_PREFIX_LEN].to_vec());
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain, and then **mutate a block** in the fork
-        let mut fork_invalid_subchain: Vec<Block> = {
+        let mut fork_invalid_subchain: Chain = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
             let b: &mut Block = forked_chain.0.last_mut().unwrap();
             b.data = "corrupt data".to_string();
-            forked_chain.0
+            forked_chain
         };
         // try to merge a fork that is corrupt subchain
         // chain: [0]---[1]---[2]---[3]---[4]
