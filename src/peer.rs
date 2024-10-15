@@ -106,7 +106,7 @@ impl Peer {
                 }
                 else {
                     println!("Remote peer's chain is either invalid or not longer than ours.\n\
-                            Keeping current chain.")
+                            Keeping current chain.");
                 }
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {

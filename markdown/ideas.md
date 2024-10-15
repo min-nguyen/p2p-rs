@@ -20,6 +20,7 @@
         - [x] implementing merging fork suffixes
             - [x] test merging a valid fork suffix
             - [x] test merging an invalid fork suffix
+        - [ ] make chain struct contain a _private_ vector of blocks
         - [ ] introduce additional data structures for tracking alternative chains and blocks
             ```rs
             #[derive(Clone, Debug)]
@@ -54,7 +55,6 @@
                 }
             ```
         - [ ] implement requesting new blocks until forming a valid fork suffix
-- [ ] make chain struct contain a _private_ vector of blocks
 - [ ] custom error data type for synching chains?
 
 in parallel:

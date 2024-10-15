@@ -18,6 +18,7 @@ pub enum ChainErr {
 // For validating forks of chains
 #[derive(Debug)]
 pub enum ForkErr {
+    ForkEmpty,
     ForkStartsAtGenesis,            // fork's first block has index == 0
     ForkIncompatible,               // fork's first block's parent hash doesn't match any block in the current chain
     InvalidSubChain(NextBlockErr),  // error between two contiguous blocks in the chain
@@ -93,7 +94,7 @@ impl std::fmt::Display for NextBlockErr {
 //     pub main_chain : Vec<Block>,
 //     pub forks : HashMap<String, Chain>
 // }
-pub struct Chain (pub Vec<Block> );
+pub struct Chain ( Vec<Block> );
 
 impl Chain {
     // New chain with a single genesis block
@@ -115,6 +116,10 @@ impl Chain {
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn truncate(&mut self, len: usize){
+        self.0.truncate(std::cmp::min(self.len()-1, 0));
     }
 
     pub fn mine_then_push_block(&mut self, data: &str) {
@@ -141,12 +146,12 @@ impl Chain {
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
     // Note: Can succeed even if resulting in a shorter chain.
-    pub fn try_merge_fork(&mut self, fork: &mut Chain) -> Result<(), ForkErr>{
+    pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
         if let Err(e) = Self::validate_subchain(&fork) {
             return Err(ForkErr::InvalidSubChain(e))
         }
 
-        let fork_head = fork.get_block_by_idx(0).expect("fork must be non-empty");
+        let fork_head = fork.get(0).ok_or(ForkErr::ForkEmpty)?; //expect("fork must be non-empty");
         if fork_head.idx == 0 {
             return Err(ForkErr::ForkStartsAtGenesis)
         }
@@ -160,7 +165,7 @@ impl Chain {
             // if fork branches off from idx n, then keep the first n + 1 blocks
             Some(forkpoint) => {
                 self.0.truncate(forkpoint.idx + 1);
-                self.0.append(&mut fork.0);
+                self.0.append(fork);
                 Ok(())
             }
             // fork's first block doesn't reference a block in the current chain.
@@ -183,16 +188,18 @@ impl Chain {
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
         if chain.0.get(0).expect("chain must be non-empty").idx != 0 {
             return Err(ChainErr::IsFork)
-        }
+        };
+        Self::validate_subchain(&chain.0)
+            .map_err(|e: NextBlockErr| ChainErr::InvalidSubChain(e))?;
         Ok(())
     }
 
-    // Validate subchain from head to tail, ignoring the first block
-    pub fn validate_subchain(chain: &Chain) -> Result<(), NextBlockErr> {
-        for i in 0..chain.0.len() - 1 {
-            let curr: &Block = chain.0.get(i)
+    // Validate subchain from head to tail
+    pub fn validate_subchain(subchain: &Vec<Block>) -> Result<(), NextBlockErr> {
+        for i in 0..subchain.len() - 1 {
+            let curr: &Block = subchain.get(i)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
-            let next: &Block = chain.0.get(i + 1)
+            let next: &Block = subchain.get(i + 1)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
             if let Err(e) = Self::validate_next_block(curr, next) {
                 return Err(e);
@@ -474,12 +481,12 @@ mod chain_tests {
         // strip the common prefix between the current and forked chain
         let mut fork = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
-            forked_chain
+            forked_chain.0
         };
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
-        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
+        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
         assert!(matches!(
             debug(chain.try_merge_fork(&mut fork)),
             Ok(())
@@ -506,14 +513,11 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // strip the common prefix between the current and forked chain
-        let mut fork = {
-            forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
-            forked_chain
-        };
+        let mut fork = forked_chain.0.split_off(FORK_PREFIX_LEN);
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
         // fork:               |----[3]---[4]---[5]---[6]
-        println!("Chain : {}\n\nFork suffix : {}\n", chain, fork);
+        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
         assert!(matches!(
             debug(chain.try_merge_fork(&mut fork)),
             Ok(())
@@ -537,7 +541,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:  [0]---[1]---[2]---[3]---[4]---[5]---[6]
         assert!(matches!(
-            debug(chain.try_merge_fork(&mut forked_chain)),
+            debug(chain.try_merge_fork(&mut forked_chain.0)),
             Err(ForkErr::ForkStartsAtGenesis{ .. })
         ));
     }
@@ -553,9 +557,9 @@ mod chain_tests {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain, then **remove the first block** from the fork
-        let mut incompatible_fork: Chain = {
+        let mut incompatible_fork: Vec<Block> = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN + 1);
-            forked_chain
+            forked_chain.0
         };
         // try to merge a fork that is missing a reference to the current chain:
         // chain: [0]---[1]---[2]---[3]---[4]
@@ -576,11 +580,11 @@ mod chain_tests {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain, and then **mutate a block** in the fork
-        let mut fork_invalid_subchain: Chain = {
+        let mut fork_invalid_subchain: Vec<Block> = {
             forked_chain.0.drain(0 ..FORK_PREFIX_LEN);
             let b: &mut Block = forked_chain.0.last_mut().unwrap();
             b.data = "corrupt data".to_string();
-            forked_chain
+            forked_chain.0
         };
         // try to merge a fork that is corrupt subchain
         // chain: [0]---[1]---[2]---[3]---[4]
