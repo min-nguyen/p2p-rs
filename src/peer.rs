@@ -14,7 +14,7 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, hash::Hash};
 
 use crate::{chain::NextBlockErr, swarm::get_peers};
 
@@ -43,13 +43,15 @@ enum EventType {
     (2) A channel to receive blockchain requests/responses forwarded from the network behaviour
     (3) A channel to receive transaction messages forwarded from the network behaviour
     (4) A local blockchain
-    (3) A local transaction pool */
+    (5) A map of disconnected forks. New entries are created when receiving blocks further ahead than the main chain.
+    (6) A local transaction pool */
 pub struct Peer {
     from_stdin : tokio::io::Lines<tokio::io::BufReader<tokio::io::Stdin>>,
     pow_receiver : UnboundedReceiver<PowMessage>,
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
+    orphans : HashMap<String, Vec<Block>>,
     txn_pool : HashSet<Transaction>
 }
 
@@ -132,6 +134,7 @@ impl Peer {
             },
             PowMessage::BlockResponse { block, .. } => {
                  /* TO DO */
+
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
@@ -164,6 +167,7 @@ impl Peer {
                         match e {
                             NextBlockErr::NextBlockInFork { .. }
                             |   NextBlockErr::BlockTooNew { .. } => {
+
                                     let req = PowMessage::BlockRequest {
                                         transmit_type: TransmitType::ToAll,
                                         block_hash: block.prev_hash.clone(),
@@ -451,6 +455,7 @@ pub async fn set_up_peer() -> Peer {
         , txn_receiver
         , swarm
         , chain
+        , orphans: HashMap::new()
         , txn_pool: HashSet::new()
     }
 }

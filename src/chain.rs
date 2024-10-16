@@ -306,3 +306,10 @@ impl std::fmt::Display for Chain {
         Ok(())
     }
 }
+
+type Forks = HashMap<String, Vec<Block>>;
+
+pub fn prepend_in_forks(forks : &mut Forks, missing_block: Block){
+    let fork = forks.entry(missing_block.hash.clone()).or_insert(vec![]);
+    fork.insert(0, missing_block)
+}
