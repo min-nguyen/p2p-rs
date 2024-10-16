@@ -94,36 +94,38 @@ impl std::fmt::Display for NextBlockErr {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Chain ( Vec<Block> );
+pub struct Chain {
+    main : Vec<Block>
+}
 
 impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
-        Self (vec![Block::genesis()])
+        Self { main : vec![Block::genesis()] }
     }
 
     pub fn get(&self, idx: usize) -> Option<&Block> {
-        self.0.get(idx)
+        self.main.get(idx)
     }
 
     pub fn last(&self) -> &Block {
-        self.0.last().expect("Chain should always be non-empty")
+        self.main.last().expect("Chain should always be non-empty")
     }
 
     pub fn len(&self) -> usize {
-        self.0.len()
+        self.main.len()
     }
 
     pub fn truncate(&mut self, len: usize){
-        self.0.truncate(std::cmp::min(self.len() - 1, len));
+        self.main.truncate(std::cmp::min(self.len() - 1, len));
     }
 
     pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
-        self.0.iter().find(|b: &&Block| b.hash == *hash)
+        self.main.iter().find(|b: &&Block| b.hash == *hash)
     }
 
     pub fn blocks(&self) -> Vec<Block> {
-        self.0.clone()
+        self.main.clone()
     }
 
     // Mine a new valid block from given data
@@ -139,7 +141,7 @@ impl Chain {
         /*
                     TO-DO: handle forks
         */
-        self.0.push(new_block.clone());
+        self.main.push(new_block.clone());
         Ok(())
     }
 
@@ -163,8 +165,8 @@ impl Chain {
         match self.get_block_by_hash(&fork_head.prev_hash) {
             // if fork branches off from idx n, then keep the first n + 1 blocks
             Some(forkpoint) => {
-                self.0.truncate(forkpoint.idx + 1);
-                self.0.append(fork);
+                self.main.truncate(forkpoint.idx + 1);
+                self.main.append(fork);
                 Ok(())
             }
             // fork's first block doesn't reference a block in the current chain.
@@ -173,7 +175,6 @@ impl Chain {
             }
         }
     }
-
 
     /*
        TO-DO: Store a block as part of a fork
@@ -185,11 +186,11 @@ impl Chain {
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        let first_block = chain.0.get(0).ok_or(ChainErr::ChainIsEmpty)?;
+        let first_block = chain.main.get(0).ok_or(ChainErr::ChainIsEmpty)?;
         if first_block.idx != 0 {
             return Err(ChainErr::ChainIsFork);
         }
-        Self::validate_subchain(&chain.0).map_err(ChainErr::InvalidSubChain)
+        Self::validate_subchain(&chain.main).map_err(ChainErr::InvalidSubChain)
     }
 
     // Validate fork from head to tail, expecting it to begin at any idx
@@ -291,7 +292,7 @@ impl Chain {
     pub fn choose_chain(&mut self, remote: &Chain) -> bool {
         match(Self::validate_chain(&self), Self::validate_chain(&remote))  {
             (Ok(()), Ok(())) => {
-            if self.0.len() >= remote.0.len() {
+            if self.main.len() >= remote.main.len() {
                 false
             } else {
                 *self = remote.clone();
@@ -307,7 +308,7 @@ impl Chain {
 
 impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for (_, block) in self.0.iter().enumerate() {
+        for (_, block) in self.main.iter().enumerate() {
             writeln!(f, "{}", block )?;
         }
         writeln!(f)
