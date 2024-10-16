@@ -58,7 +58,7 @@ impl Peer {
         1. Handles remote requests/responses from the network
         2. Handles local commands from the standard input   */
     pub async fn run(&mut self){
-        print_user_commands();
+        println!("Enter `help` to see the command menu.");
         loop {
             // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {

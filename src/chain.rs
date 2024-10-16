@@ -11,12 +11,9 @@ use std::collections::HashMap;
 // For validating full chains
 #[derive(Debug)]
 pub enum ChainErr {
-    InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
-
-    /* Below errors should never happen outside of this module.
-       Possibly deprecate these later. */
     ChainIsEmpty,
     ChainIsFork,                   // chain doesn't start from idx 0
+    InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
 }
 
 // For validating forks of chains
@@ -102,6 +99,13 @@ impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
         Self { main : vec![Block::genesis()] }
+    }
+
+    // Safely construct a chain from a vector of blocks
+    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, ChainErr> {
+        let chain = Chain{main : blocks};
+        Self::validate_chain(&chain)?;
+        Ok(chain)
     }
 
     pub fn get(&self, idx: usize) -> Option<&Block> {

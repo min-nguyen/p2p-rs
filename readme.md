@@ -42,7 +42,7 @@ cargo run
 │     • If an argument is provided:
 │      -  mine a block containing the given data, adding it to the chain, and broadcasting it to other peers.
 
-  *Request chain from peers*:
+  *Request (and synchronise) chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
 ┌── Options:
 │     • `"all"`      - Request chain from all peers, and synchronise to the most up-to-date chain
