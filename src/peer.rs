@@ -103,22 +103,12 @@ impl Peer {
                          broadcasted to:\n\
                         \t{:?}", sender_peer_id, get_peers(&mut self.swarm).1);
             },
-            PowMessage::ChainResponse{ chain , ..} => {
-                if self.chain.choose_chain(&chain){
-                    println!("Remote peer's chain is longer than ours.\n\
-                            Updated current chain.")
-                }
-                else {
-                    println!("Remote peer's chain is either invalid or not longer than ours.\n\
-                            Keeping current chain.");
-                }
-            },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
                 /* TO VERIFY */
                 if let Some(b)= self.chain.get_block_by_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                            data: b.clone()
+                            block: b.clone()
                         };
                         swarm::publish_pow_msg(resp, &mut self.swarm);
                         println!("Sent ChainResponse with target:\n\
@@ -130,8 +120,18 @@ impl Peer {
                     println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
                 }
             },
-            PowMessage::BlockResponse { .. } => {
-                /* TO DO */
+            PowMessage::ChainResponse{ chain , ..} => {
+                if self.chain.choose_chain(&chain){
+                    println!("Remote peer's chain is longer than ours.\n\
+                            Updated current chain.")
+                }
+                else {
+                    println!("Remote peer's chain is either invalid or not longer than ours.\n\
+                            Keeping current chain.");
+                }
+            },
+            PowMessage::BlockResponse { block, .. } => {
+                 /* TO DO */
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
@@ -157,12 +157,25 @@ impl Peer {
                             println!("Deleted mined transaction from the local pool.");
                         }
                     }
+                    /* TO DO */
                     Err(e) => {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
-                                \t\"{}\"\n\
-                                Keeping current chain.", e);
-                        if let NextBlockErr::BlockTooNew { block_idx, current_idx } = e {
-                            /* TO DO */
+                                \t\"{}\".", e);
+                        match e {
+                            NextBlockErr::NextBlockInFork { .. }
+                            |   NextBlockErr::BlockTooNew { .. } => {
+                                    let req = PowMessage::BlockRequest {
+                                        transmit_type: TransmitType::ToAll,
+                                        block_hash: block.prev_hash.clone(),
+                                        sender_peer_id: self.swarm.local_peer_id().to_string()
+                                    };
+                                    swarm::publish_pow_msg(req, &mut self.swarm);
+                                    println!("Sent BlockRequest for missing block:\n\
+                                            \t{}\n\
+                                            to:\n\
+                                            \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
+                                },
+                            _ => {}
                         }
                     }
                 }
@@ -256,7 +269,7 @@ impl Peer {
                 self.chain = chain;
                 println!("Loaded chain from local file \"{}\"", file_name)
             }
-            Err(e) => eprintln!("Error loading chain from local file:\n
+            Err(e) => eprintln!("Error loading chain from local file:\n\
                                                 \"{}\"", e),
         }
     }
