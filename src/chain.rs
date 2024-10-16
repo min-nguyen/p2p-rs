@@ -139,7 +139,7 @@ impl Chain {
         let current_block: &Block = self.last();
         Self::validate_next_block(current_block, &new_block)?;
         /*
-                    TO-DO: handle forks
+            TO-DO: possibly handle forks inside here
         */
         self.main.push(new_block.clone());
         Ok(())
@@ -175,14 +175,6 @@ impl Chain {
             }
         }
     }
-
-    /*
-       TO-DO: Store a block as part of a fork
-    // pub fn store_fork(&mut self, block: Block) {
-    //     ...
-    // }
-
-    */
 
     // Validate chain from head to tail, expecting it to begin at idx 0
     pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {

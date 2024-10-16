@@ -96,8 +96,8 @@ impl Peer {
                     transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                     chain: self.chain.clone(),
                 };
-                println!("Sent response to {}", sender_peer_id);
-                swarm::publish_pow_msg(resp, &mut  self.swarm)
+                swarm::publish_pow_msg(resp, &mut  self.swarm);
+                println!("Sent ChainResponse to {}", sender_peer_id);
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.choose_chain(&chain){
@@ -110,7 +110,17 @@ impl Peer {
                 }
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                /* TO DO */
+                if let Some(b)= self.chain.get_block_by_hash(&block_hash){
+                        let resp = PowMessage::BlockResponse {
+                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
+                            data: b.clone()
+                        };
+                        swarm::publish_pow_msg(resp, &mut self.swarm);
+                        println!("Sent BlockResponse to {}", sender_peer_id);
+                    }
+                else {
+                    println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
+                }
             },
             PowMessage::BlockResponse { .. } => {
                 /* TO DO */
@@ -143,6 +153,11 @@ impl Peer {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\"\n\
                                 Keeping current chain.", e);
+                        if let NextBlockErr::BlockTooNew { block_idx, current_idx } = e {
+                            /*
+                                To-Do
+                            */
+                        }
                         println!("");
                     }
                 }
