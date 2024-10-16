@@ -75,6 +75,7 @@ impl Peer {
                 }
             };
             if let Some(event) = evt {
+                println!("{} New Event {}", "-".repeat(40),  "-".repeat(40));
                 match event {
                     EventType::PowEvent(msg)
                         => self.handle_pow_event(msg),
@@ -97,7 +98,10 @@ impl Peer {
                     chain: self.chain.clone(),
                 };
                 swarm::publish_pow_msg(resp, &mut  self.swarm);
-                println!("Sent ChainResponse to {}", sender_peer_id);
+                println!("Sent ChainResponse with target:\n\
+                         \t{}\n\
+                         broadcasted to:\n\
+                        \t{:?}", sender_peer_id, get_peers(&mut self.swarm).1);
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.choose_chain(&chain){
@@ -110,13 +114,17 @@ impl Peer {
                 }
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                /* TO VERIFY */
                 if let Some(b)= self.chain.get_block_by_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                             data: b.clone()
                         };
                         swarm::publish_pow_msg(resp, &mut self.swarm);
-                        println!("Sent BlockResponse to {}", sender_peer_id);
+                        println!("Sent ChainResponse with target:\n\
+                                 \t{}\n\
+                                 broadcasted to:\n\
+                                \t{:?}", sender_peer_id, get_peers(&mut self.swarm).1);
                     }
                 else {
                     println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
@@ -154,11 +162,8 @@ impl Peer {
                                 \t\"{}\"\n\
                                 Keeping current chain.", e);
                         if let NextBlockErr::BlockTooNew { block_idx, current_idx } = e {
-                            /*
-                                To-Do
-                            */
+                            /* TO DO */
                         }
-                        println!("");
                     }
                 }
             }
@@ -237,12 +242,12 @@ impl Peer {
         let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
 
         self.txn_pool.insert(txn.clone());
-        println!("Added new transaction to pool. \n{}\t", txn);
+        println!("Added the new following new transaction to pool: \n{}\t", txn);
         let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
         swarm::publish_txn_msg(txn_msg, &mut self.swarm);
-        let connected_peers = get_peers(&mut self.swarm).0;
+        let connected_peers = get_peers(&mut self.swarm).1;
         println!("Broadcasted new transaction to:\n\
-                 {:?}", connected_peers);
+                 \t{:?}", connected_peers);
     }
     async fn handle_cmd_load(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
@@ -298,9 +303,9 @@ impl Peer {
                     }
                 , &mut self.swarm);
 
-                let connected_peers = get_peers(&mut self.swarm).0;
+                let connected_peers = get_peers(&mut self.swarm).1;
                 println!("Broadcasted new block to:\n\
-                        {:?}", connected_peers);
+                        \t{:?}", connected_peers);
             }
         }
     }
@@ -314,8 +319,10 @@ impl Peer {
                     transmit_type: TransmitType::ToAll,
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request for all peers to:\n\
-                        {:?}", get_peers(&mut self.swarm).0);
+                println!("Sending ChainRequest for:\n\
+                        \t<All Peers>\n\
+                        broadcasting to:\n\
+                        \t{:?}", get_peers(&mut self.swarm).1);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
             peer_id => {
@@ -323,8 +330,9 @@ impl Peer {
                     transmit_type: TransmitType::ToOne(peer_id.to_owned()),
                     sender_peer_id: self.swarm.local_peer_id().to_string(),
                 };
-                println!("Broadcasting request for \"{}\" to:\n\
-                         {:?}", peer_id, get_peers(&mut self.swarm).0);
+                println!("Sending ChainRequest for \"{}\"\n\
+                         broadcasting to:\n\
+                         \t{:?}", peer_id, get_peers(&mut self.swarm).1);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
@@ -335,7 +343,7 @@ impl Peer {
                 println!("Command error: `show` missing an argument `chain`, `peers`, or `pool`")
             }
             "chain"   => {
-                println!("\nCurrent chain:\n\
+                println!("Current chain:\n\
                             {}", self.chain);
             }
             "peers"   => {

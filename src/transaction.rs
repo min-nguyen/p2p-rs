@@ -90,7 +90,7 @@ impl std::fmt::Display for Transaction {
             Timestamp:       {}\n\
             Hash:            {}\n\
             Signature:       {}\n\
-            ================================================\n",
+            ================================================",
             self.sender,
             self.sender_pubk,
             self.receiver,

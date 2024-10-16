@@ -56,8 +56,6 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
                     info!("MdnsEvent: discovered new peer: {}", peer);
                     self.gossipsub.add_explicit_peer(&peer);
                 }
-                // let mesh_peers : Vec<libp2p::PeerId> = self.gossipsub.all_mesh_peers().cloned().collect();
-                // println!("{:?}", mesh_peers);
             }
             // Event for (a list of) expired peers
             MdnsEvent::Expired(expired_list) => {

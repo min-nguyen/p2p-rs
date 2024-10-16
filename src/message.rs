@@ -45,15 +45,15 @@ impl std::fmt::Display for PowMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             PowMessage::ChainRequest { transmit_type, sender_peer_id } =>
-                write!(f, "ChainRequest {{ Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
+                write!(f, "ChainRequest {{\n Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
             PowMessage::ChainResponse { transmit_type, chain } =>
-                write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} \n}}", transmit_type, chain),
+                write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} }}", transmit_type, chain),
             PowMessage::BlockRequest { transmit_type, block_hash, sender_peer_id } =>
-                write!(f, "BlockRequest {{ Transmit Type: {:?}, Block Hash: {}, Sender Peer Id: {} }}", transmit_type, block_hash, sender_peer_id),
+                write!(f, "BlockRequest {{\n Transmit Type: {:?}, Block Hash: {}, Sender Peer Id: {} }}", transmit_type, block_hash, sender_peer_id),
             PowMessage::BlockResponse { transmit_type, data } =>
-                write!(f, "BlockResponse {{ Transmit Type: {:?}, Block: {} }}", transmit_type, data),
+                write!(f, "BlockResponse {{\n Transmit Type: {:?}, Block: {} }}", transmit_type, data),
             PowMessage::NewBlock { transmit_type, block } =>
-                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} \n}}", transmit_type, block),
+                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
         }
     }
 }

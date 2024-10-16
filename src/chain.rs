@@ -302,7 +302,7 @@ impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for (_, block) in self.main.iter().enumerate() {
             writeln!(f, "{}", block )?;
-        }
-        writeln!(f)
+        };
+        Ok(())
     }
 }
