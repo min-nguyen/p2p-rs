@@ -114,6 +114,25 @@ impl Peer {
                             Keeping current chain.");
                 }
             },
+            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                if let Some(b)= self.chain.get_block_by_hash(&block_hash){
+                        let resp = PowMessage::BlockResponse {
+                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
+                            data: b.clone()
+                        };
+                        swarm::publish_pow_msg(resp, &mut self.swarm);
+                        println!("Sent ChainResponse with target:\n\
+                                 \t{}\n\
+                                 broadcasted to:\n\
+                                \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
+                    }
+                else {
+                    println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
+                }
+            },
+            PowMessage::BlockResponse { .. } => {
+                /* We don't do anything with this yes. DO */
+            },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
@@ -142,9 +161,7 @@ impl Peer {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\"\n\
                                 Keeping current chain.", e);
-
-                        /* To request a new chain here if necessary */
-
+                        /* We don't do anything with this yet. */
                     }
                 }
             }
