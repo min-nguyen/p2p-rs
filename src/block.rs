@@ -19,11 +19,11 @@ pub enum BlockErr {
     DifficultyCheckFailed {
         hash_binary: String,
         difficulty_prefix: String,
-    },                             // Block's hash does not meet the difficulty target
+    },
     HashMismatch {
         stored_hash: String,
         computed_hash: String,
-    },                             // Block's stored hash is inconsistent with its computed hash
+    },
 }
 
 impl std::fmt::Display for BlockErr {
@@ -33,7 +33,7 @@ impl std::fmt::Display for BlockErr {
                 write!(f, "Block's hash {} does not meet the difficulty target {}.", hash_binary, difficulty_prefix)
             }
             BlockErr::HashMismatch { stored_hash, computed_hash } => {
-                write!(f, "Block's stored hash {} is consistent with it's computed hash {}.", stored_hash, computed_hash)
+                write!(f, "Block's stored hash {} is inconsistent with its computed hash {}.", stored_hash, computed_hash)
             }
         }
     }
@@ -44,32 +44,32 @@ impl std::error::Error for BlockErr {}
 // For validating whether one block is a valid next block for another.
 #[derive(Debug)]
 pub enum NextBlockErr {
-    InvalidBlock(BlockErr),      // error from block's self-validation
+    InvalidBlock(BlockErr),
     BlockTooOld {
         block_idx: usize,
         current_idx: usize
-    },                           // block is out-of-date
+    },
     DuplicateBlock {
         block_idx: usize
-    },                           // competing block is a duplicate
+    },
     CompetingBlock {
         block_idx: usize,
         block_parent_hash: String
-    },                           // competing block has same parent
+    },
     CompetingBlockInFork {
         block_idx: usize,
         block_parent_hash: String,
         current_parent_hash: String
-    },                           // competing block has different parent, belonging to a fork (or different chain)
+    },
     NextBlockInFork {
         block_idx: usize,
         block_parent_hash: String,
         current_hash: String
-    },                           // next block's parent doesn't match the current block, belonging to a fork (or different chain)
+    },
     BlockTooNew {
         block_idx: usize,
         current_idx: usize
-    },                           // block is ahead by more than 1 block
+    },
     UnknownError,                // non-exhaustive case (should not happen)
 }
 
@@ -89,15 +89,15 @@ impl std::fmt::Display for NextBlockErr {
                 write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
             }
             NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
-                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
+                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with parent hash {}.",
                     block_idx, block_parent_hash, current_parent_hash)
             }
             NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-                write!(f, "Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
+                write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
                     block_idx, block_parent_hash, current_hash)
             }
             NextBlockErr::BlockTooNew { block_idx, current_idx } => {
-                write!(f, "Block {} is too new compared to current block {}.", block_idx, current_idx)
+                write!(f, "Block {} is ahead by more than one block than current block {}.", block_idx, current_idx)
             }
             NextBlockErr::UnknownError => {
                 write!(f, "An unknown error occurred while trying to push the block.")

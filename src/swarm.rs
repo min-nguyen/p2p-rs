@@ -78,8 +78,6 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                         match pow_msg {
                                   PowMessage::ChainResponse { ref transmit_type, .. }
                                 | PowMessage::ChainRequest { ref transmit_type, .. }
-                                | PowMessage::BlockResponse { ref transmit_type, .. }
-                                | PowMessage::BlockRequest { ref transmit_type, .. }
                                 | PowMessage::NewBlock { ref transmit_type, .. } =>
                                 match transmit_type {
                                     TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()

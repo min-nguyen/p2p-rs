@@ -12,8 +12,8 @@ use std::collections::HashMap;
 #[derive(Debug)]
 pub enum ChainErr {
     ChainIsEmpty,
-    ChainIsFork,                   // chain doesn't start from idx 0
-    InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
+    ChainIsFork,
+    InvalidSubChain(NextBlockErr),
 }
 
 impl std::fmt::Display for ChainErr {
@@ -38,9 +38,9 @@ impl std::error::Error for ChainErr {}
 #[derive(Debug)]
 pub enum ForkErr {
     ForkIsEmpty,
-    ForkStartsAtGenesis,            // fork's first block has index == 0
-    ForkIncompatible,               // fork's first block's parent hash doesn't match any block in the current chain
-    InvalidSubChain(NextBlockErr),  // error between two contiguous blocks in the chain
+    ForkStartsAtGenesis,
+    ForkIncompatible,
+    InvalidSubChain(NextBlockErr),
 }
 
 impl std::fmt::Display for ForkErr {
