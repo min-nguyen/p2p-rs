@@ -19,12 +19,94 @@ pub enum BlockErr {
     DifficultyCheckFailed {
         hash_binary: String,
         difficulty_prefix: String,
-    },                             // Block's hash does not meet the difficulty target
+    },
     HashMismatch {
         stored_hash: String,
         computed_hash: String,
-    },                             // Block's stored hash is inconsistent with its computed hash
+    },
 }
+
+impl std::fmt::Display for BlockErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BlockErr::DifficultyCheckFailed { hash_binary, difficulty_prefix } => {
+                write!(f, "Block's hash {} does not meet the difficulty target {}.", hash_binary, difficulty_prefix)
+            }
+            BlockErr::HashMismatch { stored_hash, computed_hash } => {
+                write!(f, "Block's stored hash {} is inconsistent with its computed hash {}.", stored_hash, computed_hash)
+            }
+        }
+    }
+}
+
+impl std::error::Error for BlockErr {}
+
+// For validating whether one block is a valid next block for another.
+#[derive(Debug)]
+pub enum NextBlockErr {
+    InvalidBlock(BlockErr),
+    BlockTooOld {
+        block_idx: usize,
+        current_idx: usize
+    },
+    DuplicateBlock {
+        block_idx: usize
+    },
+    CompetingBlock {
+        block_idx: usize,
+        block_parent_hash: String
+    },
+    CompetingBlockInFork {
+        block_idx: usize,
+        block_parent_hash: String,
+        current_parent_hash: String
+    },
+    NextBlockInFork {
+        block_idx: usize,
+        block_parent_hash: String,
+        current_hash: String
+    },
+    BlockTooNew {
+        block_idx: usize,
+        current_idx: usize
+    },
+    UnknownError,                // non-exhaustive case (should not happen)
+}
+
+impl std::fmt::Display for NextBlockErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            NextBlockErr::InvalidBlock(err) => {
+                write!(f, "Invalid block encountered: {}", err)
+            }
+            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
+                write!(f, "Block {} is too old compared to current block {}.", block_idx, current_idx)
+            }
+            NextBlockErr::DuplicateBlock { block_idx } => {
+                write!(f, "Duplicate block encountered: Block {} is already in the chain.", block_idx)
+            }
+            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
+                write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
+            }
+            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
+                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with parent hash {}.",
+                    block_idx, block_parent_hash, current_parent_hash)
+            }
+            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
+                write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
+                    block_idx, block_parent_hash, current_hash)
+            }
+            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
+                write!(f, "Block {} is ahead by more than one block than current block {}.", block_idx, current_idx)
+            }
+            NextBlockErr::UnknownError => {
+                write!(f, "An unknown error occurred while trying to push the block.")
+            }
+        }
+    }
+}
+
+impl std::error::Error for NextBlockErr {}
 
 /* Block
   Records some or all of the most recent data not yet validated by the network.

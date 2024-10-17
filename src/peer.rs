@@ -16,14 +16,15 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
-use crate::{chain::NextBlockErr, swarm::get_peers};
+use crate::swarm::connected_peers;
 
 use super::file;
-use super::block::Block;
+use super::block::{Block, NextBlockErr};
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
-use super::swarm::{self as swarm, BlockchainBehaviour};
+use super::swarm::{self as swarm, get_peers, BlockchainBehaviour};
+
 
 const DEFAULT_FILE_PATH: &str = "blocks.json";
 
@@ -60,7 +61,7 @@ impl Peer {
         1. Handles remote requests/responses from the network
         2. Handles local commands from the standard input   */
     pub async fn run(&mut self){
-        print_user_commands();
+        println!("Enter `help` to see the command menu.");
         loop {
             // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {
@@ -103,7 +104,7 @@ impl Peer {
                 println!("Sent ChainResponse with target:\n\
                          \t{}\n\
                          broadcasted to:\n\
-                        \t{:?}", sender_peer_id, get_peers(&mut self.swarm).1);
+                        \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
                 /* TO VERIFY */
@@ -116,7 +117,7 @@ impl Peer {
                         println!("Sent ChainResponse with target:\n\
                                  \t{}\n\
                                  broadcasted to:\n\
-                                \t{:?}", sender_peer_id, get_peers(&mut self.swarm).1);
+                                \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
                     }
                 else {
                     println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
@@ -256,15 +257,19 @@ impl Peer {
         }
     }
     fn handle_cmd_txn(&mut self, arg: &str) {
-        let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
-
-        self.txn_pool.insert(txn.clone());
-        println!("Added the new following new transaction to pool: \n{}\t", txn);
-        let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
-        swarm::publish_txn_msg(txn_msg, &mut self.swarm);
-        let connected_peers = get_peers(&mut self.swarm).1;
-        println!("Broadcasted new transaction to:\n\
-                 \t{:?}", connected_peers);
+        if arg.is_empty() {
+            println!("Command error: `req` missing an argument. Specify \"all\" or [peer_id]");
+        }
+        else {
+            let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
+            self.txn_pool.insert(txn.clone());
+            println!("Added the new following new transaction to pool: \n{}\t", txn);
+            let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn };
+            swarm::publish_txn_msg(txn_msg, &mut self.swarm);
+            let connected_peers = swarm::connected_peers(&mut self.swarm);
+            println!("Broadcasted new transaction to:\n\
+                     \t{:?}", connected_peers);
+        }
     }
     async fn handle_cmd_load(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
@@ -320,7 +325,7 @@ impl Peer {
                     }
                 , &mut self.swarm);
 
-                let connected_peers = get_peers(&mut self.swarm).1;
+                let connected_peers = swarm::connected_peers(&mut self.swarm);
                 println!("Broadcasted new block to:\n\
                         \t{:?}", connected_peers);
             }
@@ -339,7 +344,7 @@ impl Peer {
                 println!("Sending ChainRequest for:\n\
                         \t<All Peers>\n\
                         broadcasting to:\n\
-                        \t{:?}", get_peers(&mut self.swarm).1);
+                        \t{:?}", swarm::connected_peers(&mut self.swarm));
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
             peer_id => {
@@ -349,7 +354,7 @@ impl Peer {
                 };
                 println!("Sending ChainRequest for \"{}\"\n\
                          broadcasting to:\n\
-                         \t{:?}", peer_id, get_peers(&mut self.swarm).1);
+                         \t{:?}", peer_id, swarm::connected_peers(&mut self.swarm));
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
@@ -381,7 +386,7 @@ impl Peer {
         }
     }
     fn handle_cmd_redial(&mut self){
-        let discovered_peers : Vec<libp2p::PeerId> = swarm::get_peers(&mut self.swarm).0;
+        let discovered_peers : Vec<libp2p::PeerId> = swarm::discovered_peers(&mut self.swarm);
         if discovered_peers.is_empty() {
             println!("No discovered peers to dial!");
             return ()
@@ -444,12 +449,12 @@ pub async fn set_up_peer() -> Peer {
                 Chain::genesis()
             }
             Ok(chain) => {
-                println!("\nLoaded chain from default file \"{}\".\n", DEFAULT_FILE_PATH);
+                println!("\nLoaded chain from default file \"{}\".", DEFAULT_FILE_PATH);
                 chain
             }
         };
 
-    println!("\n## Your Peer Id: ##\n{}", swarm.local_peer_id().to_string());
+    println!("\n## Your Peer Id ##\n{}", swarm.local_peer_id().to_string());
     Peer { from_stdin
         , pow_receiver
         , txn_receiver
