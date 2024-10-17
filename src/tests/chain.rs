@@ -192,7 +192,7 @@ mod chain_tests {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain
-        let mut fork: Vec<Block> = forked_chain.blocks()[FORK_PREFIX_LEN..].to_vec();
+        let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
@@ -224,7 +224,7 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         // strip the common prefix between the current and forked chain
-        let mut fork: Vec<Block> = forked_chain.blocks()[FORK_PREFIX_LEN..].to_vec();
+        let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
         // Before:
         // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
         // fork:               |----[3]---[4]---[5]---[6]
@@ -268,7 +268,7 @@ mod chain_tests {
         // chain :  [0]---[1]---[2]---[3]---[4]
         // "fork":  [0]---[1]---[2]---[3]---[4]---[5]---[6]
         assert!(matches!(
-            debug(chain.try_merge_fork(&mut forked_chain.blocks())),
+            debug(chain.try_merge_fork(&mut forked_chain.to_vec())),
             Err(ForkErr::ForkStartsAtGenesis{ .. })
         ));
     }
@@ -285,7 +285,7 @@ mod chain_tests {
             forked_chain.mine_then_push_block(&format!("block {} in fork", i));
         }
         // strip the common prefix between the current and forked chain, then **remove the first block** from the fork
-        let mut incompatible_fork: Vec<Block> = forked_chain.blocks()[FORK_PREFIX_LEN..].to_vec().split_off(1);
+        let mut incompatible_fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec().split_off(1);
         // try to merge a fork that is missing a reference to the current chain:
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[4]---[5]---[6]
@@ -308,7 +308,7 @@ mod chain_tests {
         }
         // strip the common prefix between the current and forked chain, and then **mutate the last block** in the fork
         let mut invalid_subchain_fork: Vec<Block> = {
-            let mut fork: Vec<Block> = forked_chain.blocks()[FORK_PREFIX_LEN..].to_vec();
+            let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
             let b: &mut Block = fork.last_mut().unwrap();
             b.data = "corrupt data".to_string();
             fork

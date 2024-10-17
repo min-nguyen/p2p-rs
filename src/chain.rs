@@ -64,24 +64,36 @@ impl std::fmt::Display for ForkErr {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain {
-    main : Vec<Block>
+    main : Vec<Block>,
+
+    // <fork point, <fork end hash, forked blocks>>
+    pub forks: HashMap<String, HashMap<String, Vec<Block>>>,
+
 }
 
 impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
-        Self { main : vec![Block::genesis()] }
+        Self { main : vec![Block::genesis()], forks : HashMap::new() }
     }
 
     // Safely construct a chain from a vector of blocks
     pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, ChainErr> {
-        let chain = Chain{main : blocks};
+        let chain = Chain{main : blocks, forks : HashMap::new()};
         Self::validate_chain(&chain)?;
         Ok(chain)
     }
 
+    pub fn to_vec(&self) -> Vec<Block> {
+        self.main.clone()
+    }
+
     pub fn get(&self, idx: usize) -> Option<&Block> {
         self.main.get(idx)
+    }
+
+    pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
+        self.main.iter().find(|b: &&Block| b.hash == *hash)
     }
 
     pub fn last(&self) -> &Block {
@@ -96,18 +108,8 @@ impl Chain {
         self.main.truncate(std::cmp::min(self.len() - 1, len));
     }
 
-    pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
-        self.main.iter().find(|b: &&Block| b.hash == *hash)
-    }
-
-    pub fn blocks(&self) -> Vec<Block> {
-        self.main.clone()
-    }
-
-    // Mine a new valid block from given data
-    pub fn mine_new_block(&mut self, data: &str) -> Block {
-        let current_block: &Block = self.last();
-        Block::mine_block(current_block.idx + 1, data, &current_block.hash)
+    pub fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
+        blocks.iter().any(|block| &block.hash == block_hash)
     }
 
     // Try to append an arbitrary block to the main chain
@@ -119,6 +121,12 @@ impl Chain {
         */
         self.main.push(new_block.clone());
         Ok(())
+    }
+
+    // Mine a new valid block from given data
+    pub fn mine_new_block(&mut self, data: &str) -> Block {
+        let current_block: &Block = self.last();
+        Block::mine_block(current_block.idx + 1, data, &current_block.hash)
     }
 
     pub fn mine_then_push_block(&mut self, data: &str) {
