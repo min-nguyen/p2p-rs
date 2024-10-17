@@ -110,15 +110,35 @@ impl Chain {
     pub fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
         blocks.iter().any(|block| &block.hash == block_hash)
     }
+
     // Try to append an arbitrary block to the main chain
     pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = self.last();
-        Self::validate_next_block(current_block, &new_block)?;
-        /*
-            TO-DO: possibly handle forks inside here
-        */
-        self.main.push(new_block.clone());
+        if let Err(e) = Self::push_block(&mut self.main, new_block){
+            match e.clone() {
+                NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
+                    // If we can find a fork that we should be able to extend, try to extend it and terminate here.
+                    if let Some((fork_point, end_hash)) = self.find_fork(&new_block.prev_hash) {
+                        let mut fork = self.forks.get_mut(&fork_point).unwrap().get_mut(&end_hash).unwrap();
+                        return Self::push_block(&mut fork, new_block)
+                    }
+                    // Otherwise, we are missing information about that fork
+                    else {
+                        return Err(NextBlockErr::MissingBlock { block_idx: new_block.idx, block_parent_hash: new_block.prev_hash.clone(),  })
+                    }
+                },
+                NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
+                    let mut forks
+                         = self.forks.get_mut(&block_parent_hash).unwrap_or(&mut HashMap::new());
+                    forks.insert(new_block.hash.clone(), vec![new_block.clone()]);
+
+                },
+                _ => {
+                    return Err(e)
+                }
+            }
+        }
         Ok(())
+
     }
 
     // Mine a new valid block from given data
@@ -128,24 +148,16 @@ impl Chain {
     }
 
     // Try to append an arbitrary block to the main chain
-    pub fn push_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = self.last();
+    fn push_block(blocks: &mut Vec<Block>, new_block: &Block) -> Result<(), NextBlockErr>{
+        let current_block: &Block = blocks.last().expect("Blocks should be non-empty");
         Self::validate_next_block(current_block, &new_block)?;
-        self.main.push(new_block.clone());
-        Ok(())
-    }
-
-    // Try to append an arbitrary block to the main chain
-    pub fn push_block_to_fork(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = self.last();
-        Self::validate_next_block(current_block, &new_block)?;
-        self.main.push(new_block.clone());
+        blocks.push(new_block.clone());
         Ok(())
     }
 
     pub fn mine_then_push_block(&mut self, data: &str) {
         let b: Block = self.mine_new_block(data);
-        self.push_block(&b).expect("can push newly mined block")
+        Self::push_block(&mut self.main, &b).expect("can push newly mined block")
     }
 
     // Check if block is in any fork, returning the fork point and end hash

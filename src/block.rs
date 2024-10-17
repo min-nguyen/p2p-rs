@@ -14,7 +14,7 @@ use super::cryptutil;
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BlockErr {
     DifficultyCheckFailed {
         hash_binary: String,
@@ -42,7 +42,7 @@ impl std::fmt::Display for BlockErr {
 impl std::error::Error for BlockErr {}
 
 // For validating whether one block is a valid next block for another.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NextBlockErr {
     InvalidBlock(BlockErr),
     BlockTooOld {
@@ -58,17 +58,16 @@ pub enum NextBlockErr {
     },
     CompetingBlockInFork {
         block_idx: usize,
-        block_parent_hash: String,
-        current_parent_hash: String
+        block_parent_hash: String
     },
     NextBlockInFork {
         block_idx: usize,
         block_parent_hash: String,
         current_hash: String
     },
-    BlockTooNew {
+    MissingBlock {
         block_idx: usize,
-        current_idx: usize
+        block_parent_hash: String
     },
     UnknownError,                // non-exhaustive case (should not happen)
 }
@@ -88,16 +87,16 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
                 write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
             }
-            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
-                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with parent hash {}.",
-                    block_idx, block_parent_hash, current_parent_hash)
+            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
+                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with same parent.",
+                    block_idx, block_parent_hash)
             }
             NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
                 write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
                     block_idx, block_parent_hash, current_hash)
             }
-            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
-                write!(f, "Block {} is ahead by more than one block than current block {}.", block_idx, current_idx)
+            NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
+                write!(f, "Block {} has parent hash {}, which cannot be found", block_idx, block_parent_hash)
             }
             NextBlockErr::UnknownError => {
                 write!(f, "An unknown error occurred while trying to push the block.")

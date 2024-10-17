@@ -166,8 +166,7 @@ impl Peer {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\".", e);
                         match e {
-                            NextBlockErr::NextBlockInFork { .. }
-                            |   NextBlockErr::BlockTooNew { .. } => {
+                            NextBlockErr::MissingBlock { .. } => {
 
                                     let req = PowMessage::BlockRequest {
                                         transmit_type: TransmitType::ToAll,

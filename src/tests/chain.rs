@@ -152,7 +152,7 @@ mod chain_tests {
         // duplicate:                           |---[5]---[*6*]
         assert!(matches!(
             debug(chain.handle_new_block(dup_chain.last())),
-            Err(NextBlockErr::BlockTooNew { .. })
+            Err(NextBlockErr::MissingBlock { .. })
         ));
     }
     #[test]
@@ -171,7 +171,7 @@ mod chain_tests {
         // fork:                 |----[3]---[4]---[5]---[*6*]
         assert!(matches!(
             debug(chain.handle_new_block(forked_chain.last())),
-            Err(NextBlockErr::BlockTooNew { .. })
+            Err(NextBlockErr::MissingBlock { .. })
         ));
     }
 
