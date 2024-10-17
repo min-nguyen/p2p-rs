@@ -116,7 +116,7 @@ mod chain_tests {
         // fork:               |----[3]---[*4*]
         assert!(matches!(
             debug(chain.handle_new_block(forked_chain.last())),
-            Err(NextBlockErr::CompetingBlockInFork { .. })
+            Err(NextBlockErr::CompetingBlock { .. })
         ));
     }
     #[test]
@@ -135,7 +135,7 @@ mod chain_tests {
         // fork:               |----[3]---[4]---[*5*]
         assert!(matches!(
             debug(chain.handle_new_block(forked_chain.last())),
-            Err(NextBlockErr::NextBlockInFork { .. })
+            Err(NextBlockErr::MissingBlock { .. })
         ));
     }
     #[test]

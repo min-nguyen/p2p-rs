@@ -79,7 +79,7 @@ impl std::fmt::Display for NextBlockErr {
                 write!(f, "Invalid block encountered: {}", err)
             }
             NextBlockErr::BlockTooOld { block_idx, current_idx } => {
-                write!(f, "Block {} is too old compared to current block {}.", block_idx, current_idx)
+                write!(f, "Block {} does not extend the current chain with index {}.", block_idx, current_idx)
             }
             NextBlockErr::DuplicateBlock { block_idx } => {
                 write!(f, "Duplicate block encountered: Block {} is already in the chain.", block_idx)
@@ -88,7 +88,7 @@ impl std::fmt::Display for NextBlockErr {
                 write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
             }
             NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Future block {} has parent hash {}, which cannot be found", block_idx, block_parent_hash)
+                write!(f, "Block {} has parent hash {} which cannot be found", block_idx, block_parent_hash)
             }
             NextBlockErr::UnknownError => {
                 write!(f, "An unknown error occurred while trying to push the block.")

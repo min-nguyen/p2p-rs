@@ -126,12 +126,12 @@ impl Chain {
                         return Err(NextBlockErr::MissingBlock { block_idx: new_block.idx, block_parent_hash: new_block.prev_hash.clone(),  })
                     }
                 },
-                NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                    let mut forks
-                         = self.forks.get_mut(&block_parent_hash).unwrap_or(&mut HashMap::new());
-                    forks.insert(new_block.hash.clone(), vec![new_block.clone()]);
+                // NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
+                //     let mut forks
+                //          = self.forks.get_mut(&block_parent_hash).unwrap_or(&mut HashMap::new());
+                //     forks.insert(new_block.hash.clone(), vec![new_block.clone()]);
 
-                },
+                // },
                 _ => {
                     return Err(e)
                 }
