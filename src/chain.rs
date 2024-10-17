@@ -68,7 +68,6 @@ pub struct Chain {
 
     // <fork point, <fork end hash, forked blocks>>
     pub forks: HashMap<String, HashMap<String, Vec<Block>>>,
-
 }
 
 impl Chain {
@@ -111,7 +110,6 @@ impl Chain {
     pub fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
         blocks.iter().any(|block| &block.hash == block_hash)
     }
-
     // Try to append an arbitrary block to the main chain
     pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
         let current_block: &Block = self.last();
@@ -129,10 +127,46 @@ impl Chain {
         Block::mine_block(current_block.idx + 1, data, &current_block.hash)
     }
 
+    // Try to append an arbitrary block to the main chain
+    pub fn push_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
+        let current_block: &Block = self.last();
+        Self::validate_next_block(current_block, &new_block)?;
+        self.main.push(new_block.clone());
+        Ok(())
+    }
+
+    // Try to append an arbitrary block to the main chain
+    pub fn push_block_to_fork(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
+        let current_block: &Block = self.last();
+        Self::validate_next_block(current_block, &new_block)?;
+        self.main.push(new_block.clone());
+        Ok(())
+    }
+
     pub fn mine_then_push_block(&mut self, data: &str) {
         let b: Block = self.mine_new_block(data);
-        self.handle_new_block(&b).expect("can push newly mined block")
+        self.push_block(&b).expect("can push newly mined block")
     }
+
+    // Check if block is in any fork, returning the fork point and end hash
+    fn find_fork(&self, parent_hash: &String) -> Option<(String, String)> {
+        for (fork_point, forks) in &self.forks {
+            if let Some((end_hash, _))
+                    = forks.iter().find(|(_, fork)|
+                        fork.last().expect("Fork must be non-empty").hash == *parent_hash) {
+                return Some((fork_point.clone(), end_hash.clone()));
+            }
+        }
+        None
+    }
+
+    // // Try to append an arbitrary block to the main chain
+    // pub fn push_block_to_fork(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
+    //     let current_block: &Block = self.last();
+    //     Self::validate_next_block(current_block, &new_block)?;
+    //     self.main.push(new_block.clone());
+    //     Ok(())
+    // }
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
     // Note: Can succeed even if resulting in a shorter chain.
