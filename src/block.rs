@@ -56,20 +56,20 @@ pub enum NextBlockErr {
         block_idx: usize,
         block_parent_hash: String
     },
-    CompetingBlockInFork {
-        block_idx: usize,
-        block_parent_hash: String
-    },
-    NextBlockInFork {
-        block_idx: usize,
-        block_parent_hash: String,
-        current_hash: String
-    },
     MissingBlock {
         block_idx: usize,
         block_parent_hash: String
     },
     UnknownError,                // non-exhaustive case (should not happen)
+//     CompetingBlockInFork {
+//         block_idx: usize,
+//         block_parent_hash: String
+//     },
+//     NextBlockInFork {
+//         block_idx: usize,
+//         block_parent_hash: String,
+//         current_hash: String
+//     },
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -87,20 +87,20 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
                 write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
             }
-            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
-                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with same parent.",
-                    block_idx, block_parent_hash)
-            }
-            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-                write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
-                    block_idx, block_parent_hash, current_hash)
-            }
             NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Block {} has parent hash {}, which cannot be found", block_idx, block_parent_hash)
+                write!(f, "Future block {} has parent hash {}, which cannot be found", block_idx, block_parent_hash)
             }
             NextBlockErr::UnknownError => {
                 write!(f, "An unknown error occurred while trying to push the block.")
             }
+            // NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
+            //     write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with same parent.",
+            //         block_idx, block_parent_hash)
+            // }
+            // NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
+            //     write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
+            //         block_idx, block_parent_hash, current_hash)
+            // }
         }
     }
 }

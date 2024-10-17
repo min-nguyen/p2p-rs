@@ -115,18 +115,18 @@ impl Chain {
     pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
         if let Err(e) = Self::push_block(&mut self.main, new_block){
             match e.clone() {
-                NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
+                NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
                     // If we can find a fork that we should be able to extend, try to extend it and terminate here.
                     if let Some((fork_point, end_hash)) = self.find_fork(&new_block.prev_hash) {
                         let mut fork = self.forks.get_mut(&fork_point).unwrap().get_mut(&end_hash).unwrap();
                         return Self::push_block(&mut fork, new_block)
                     }
-                    // Otherwise, we are missing information about that fork
+                    // Otherwise, we are missing information about the block's parent
                     else {
                         return Err(NextBlockErr::MissingBlock { block_idx: new_block.idx, block_parent_hash: new_block.prev_hash.clone(),  })
                     }
                 },
-                NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
+                NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
                     let mut forks
                          = self.forks.get_mut(&block_parent_hash).unwrap_or(&mut HashMap::new());
                     forks.insert(new_block.hash.clone(), vec![new_block.clone()]);
@@ -261,52 +261,31 @@ impl Chain {
                     block_idx: block.idx,
                 });
             }
-            //   b. competing block is different and has the same parent
+            //   b. competing block is different, either with the same or a different parent
             //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
-            if block.prev_hash == current_block.prev_hash {
+            else {
                 return Err(NextBlockErr::CompetingBlock {
                     block_idx: block.idx,
                     block_parent_hash: block.prev_hash.clone(),
                 });
             }
-            //   c. competing block is different and has a different parent, indicating their chain has possibly forked
-            //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 2
-            if block.prev_hash != current_block.prev_hash {
-                return Err(NextBlockErr::CompetingBlockInFork {
-                    block_idx: block.idx,
-                    block_parent_hash: block.prev_hash.clone(),
-                    current_parent_hash: current_block.prev_hash.clone(),
-                });
-            }
         }
-        //   3. if the block is ahead-of-date of our chain by exactly 1 block
-        if block.idx == current_block.idx + 1 {
-            //  a. next block's parent does not match our current block.
-            if block.prev_hash != current_block.hash {
-                // hence, we need to either:
-                //    i)  request an entirely new up-to-date chain (inefficient but simple)
-                //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-                return Err(NextBlockErr::NextBlockInFork {
+        //   3. if the block is ahead-of-date of our chain
+        if block.idx > current_block.idx {
+            //  a. its parent does not match our last block on the main chain.
+            if block.prev_hash != current_block.hash || block.idx != current_block.idx + 1 {
+                // we need to report a missing block on the main chain,
+                //        handle this by seeing if we can extend a fork,
+                //        and if not, report a missing block across the forks.
+                return Err(NextBlockErr::MissingBlock  {
                     block_idx: block.idx,
                     block_parent_hash: block.prev_hash.clone(),
-                    current_hash: current_block.hash.clone(),
                 });
             } else {
                 // we can safely extend the chain
                 return Ok(());
             }
         }
-        //    4. if the block is ahead-of-date of our chain by more than 1 block
-        if block.idx > current_block.idx + 1 {
-            // hence, we need to either:
-            //    i)  request an entirely new up-to-date chain (inefficient but simple)
-            //    ii) back-track and recursively request all its ancestors until getting one that we can find in our chain -- if at all
-            return Err(NextBlockErr::BlockTooNew {
-                block_idx: block.idx,
-                current_idx: current_block.idx,
-            });
-        }
-
         Err(NextBlockErr::UnknownError)
     }
 
