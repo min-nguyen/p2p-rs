@@ -5,7 +5,7 @@
 */
 
 use serde::{Deserialize, Serialize};
-use super::block::{Block::{self}, BlockErr};
+use super::block::{Block::{self}, NextBlockErr};
 use std::collections::HashMap;
 
 // For validating full chains
@@ -16,6 +16,24 @@ pub enum ChainErr {
     InvalidSubChain(NextBlockErr), // error between two contiguous blocks in the chain
 }
 
+impl std::fmt::Display for ChainErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ChainErr::ChainIsEmpty => {
+                write!(f, "Chain is empty")
+            }
+            ChainErr::ChainIsFork  => {
+                write!(f, "Chain doesn't begin at index 0")
+            }
+            ChainErr::InvalidSubChain (e) => {
+                write!(f, "Chain contains invalid blocks or contiguous blocks: {}", e)
+            }
+        }
+    }
+}
+
+impl std::error::Error for ChainErr {}
+
 // For validating forks of chains
 #[derive(Debug)]
 pub enum ForkErr {
@@ -25,66 +43,20 @@ pub enum ForkErr {
     InvalidSubChain(NextBlockErr),  // error between two contiguous blocks in the chain
 }
 
-// For validating whether one block is a valid next block for another.
-#[derive(Debug)]
-pub enum NextBlockErr {
-    InvalidBlock(BlockErr),      // error from block's self-validation
-    BlockTooOld {
-        block_idx: usize,
-        current_idx: usize
-    },                           // block is out-of-date
-    DuplicateBlock {
-        block_idx: usize
-    },                           // competing block is a duplicate
-    CompetingBlock {
-        block_idx: usize,
-        block_parent_hash: String
-    },                           // competing block has same parent
-    CompetingBlockInFork {
-        block_idx: usize,
-        block_parent_hash: String,
-        current_parent_hash: String
-    },                           // competing block has different parent, belonging to a fork (or different chain)
-    NextBlockInFork {
-        block_idx: usize,
-        block_parent_hash: String,
-        current_hash: String
-    },                           // next block's parent doesn't match the current block, belonging to a fork (or different chain)
-    BlockTooNew {
-        block_idx: usize,
-        current_idx: usize
-    },                           // block is ahead by more than 1 block
-    UnknownError,                // non-exhaustive case (should not happen)
-}
-
-impl std::fmt::Display for NextBlockErr {
+impl std::fmt::Display for ForkErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NextBlockErr::InvalidBlock(err) => {
-                write!(f, "Invalid block encountered: {:?}", err)
+            ForkErr::ForkIsEmpty => {
+                write!(f, "Fork is empty")
             }
-            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
-                write!(f, "Block {} is too old compared to current block {}.", block_idx, current_idx)
+            ForkErr::ForkStartsAtGenesis  => {
+                write!(f, "Fork begins at index 0")
             }
-            NextBlockErr::DuplicateBlock { block_idx } => {
-                write!(f, "Duplicate block encountered: Block {} is already in the chain.", block_idx)
+            ForkErr::ForkIncompatible => {
+                write!(f, "Fork's first block has a parent hash not matching any block in the chain")
             }
-            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
-            }
-            NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash, current_parent_hash } => {
-                write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current parent hash {}.",
-                    block_idx, block_parent_hash, current_parent_hash)
-            }
-            NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-                write!(f, "Next block in fork detected: Block {} with parent hash {} does not match current block hash {}.",
-                    block_idx, block_parent_hash, current_hash)
-            }
-            NextBlockErr::BlockTooNew { block_idx, current_idx } => {
-                write!(f, "Block {} is too new compared to current block {}.", block_idx, current_idx)
-            }
-            NextBlockErr::UnknownError => {
-                write!(f, "An unknown error occurred while trying to push the block.")
+            ForkErr::InvalidSubChain (e) => {
+                write!(f, "Fork contains invalid blocks or contiguous blocks:  {}", e)
             }
         }
     }

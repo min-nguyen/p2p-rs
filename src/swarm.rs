@@ -234,6 +234,7 @@ fn publish_msg<T : Serialize>(msg: T, topic : IdentTopic, swarm: &mut Swarm<Bloc
     }
 }
 
+
 pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<PeerId>) {
     debug!("get_peers()");
     let nodes = swarm.behaviour().mdns.discovered_nodes();
@@ -249,4 +250,11 @@ pub fn get_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> (Vec<PeerId>, Vec<P
         = |peers : HashSet<&PeerId>| peers.into_iter().cloned().collect();
 
     (collect_peers(discovered_peers), collect_peers(connected_peers))
+}
+
+pub fn connected_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> Vec<PeerId> {
+    get_peers(swarm).1
+}
+pub fn discovered_peers(swarm: &mut Swarm<BlockchainBehaviour> ) -> Vec<PeerId> {
+    get_peers(swarm).0
 }
