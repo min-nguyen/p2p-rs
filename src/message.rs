@@ -33,7 +33,7 @@ pub enum PowMessage {
     },
     BlockResponse {
         transmit_type : TransmitType,   // always ToOne
-        data : block::Block
+        block : block::Block
     },
     NewBlock {
         transmit_type : TransmitType, // always ToAll
@@ -50,8 +50,8 @@ impl std::fmt::Display for PowMessage {
                 write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} }}", transmit_type, chain),
             PowMessage::BlockRequest { transmit_type, block_hash, sender_peer_id } =>
                 write!(f, "BlockRequest {{\n Transmit Type: {:?}, Block Hash: {}, Sender Peer Id: {} }}", transmit_type, block_hash, sender_peer_id),
-            PowMessage::BlockResponse { transmit_type, data } =>
-                write!(f, "BlockResponse {{\n Transmit Type: {:?}, Block: {} }}", transmit_type, data),
+            PowMessage::BlockResponse { transmit_type, block } =>
+                write!(f, "BlockResponse {{\n Transmit Type: {:?}, Block: {} }}", transmit_type, block),
             PowMessage::NewBlock { transmit_type, block } =>
                 write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
         }

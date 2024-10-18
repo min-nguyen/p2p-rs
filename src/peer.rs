@@ -118,7 +118,7 @@ impl Peer {
                 if let Some(b)= self.chain.get_block_by_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                            data: b.clone()
+                            block: b.clone()
                         };
                         swarm::publish_pow_msg(resp, &mut self.swarm);
                         println!("Sent ChainResponse with target:\n\
@@ -131,7 +131,7 @@ impl Peer {
                 }
             },
             PowMessage::BlockResponse { .. } => {
-                /* We don't do anything with this yes. DO */
+                /* We don't do anything with this yet. */
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
@@ -158,10 +158,10 @@ impl Peer {
                         }
                     }
                     Err(e) => {
+                        /* We don't do anything with this yet. */
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\"\n\
                                 Keeping current chain.", e);
-                        /* We don't do anything with this yet. */
                     }
                 }
             }
