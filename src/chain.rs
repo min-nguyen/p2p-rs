@@ -70,6 +70,14 @@ pub struct Chain {
     pub forks: HashMap<String, HashMap<String, Vec<Block>>>,
 }
 
+fn truncate(blocks: &mut Vec<Block>, len: usize){
+    blocks.truncate(std::cmp::min(blocks.len() - 1, len));
+}
+
+fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
+    blocks.iter().any(|block| &block.hash == block_hash)
+}
+
 impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
@@ -104,39 +112,67 @@ impl Chain {
     }
 
     pub fn truncate(&mut self, len: usize){
-        self.main.truncate(std::cmp::min(self.len() - 1, len));
+        truncate(&mut self.main, len);
     }
 
-    pub fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
-        blocks.iter().any(|block| &block.hash == block_hash)
+    // Check if block is in any fork, returning the fork point and end hash
+    pub fn find_fork(&self, hash: &String) -> Option<(String, String)> {
+        for (fork_point, forks) in &self.forks {
+            if let Some((end_hash, _))
+                    = forks.iter().find(|(_, fork)| has_block(fork, hash)) {
+                return Some((fork_point.clone(), end_hash.clone()))
+            }
+        }
+        None
     }
 
-    // Try to append an arbitrary block to the main chain
-    pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-        if let Err(e) = Self::push_block(&mut self.main, new_block){
-            match e.clone() {
-                NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
-                    // If we can find a fork that we should be able to extend, try to extend it and terminate here.
-                    if let Some((fork_point, end_hash)) = self.find_fork(&new_block.prev_hash) {
-                        let mut fork = self.forks.get_mut(&fork_point).unwrap().get_mut(&end_hash).unwrap();
-                        return Self::push_block(&mut fork, new_block)
-                    }
-                    // Otherwise, we are missing information about the block's parent
-                    else {
-                        return Err(NextBlockErr::MissingBlock { block_idx: new_block.idx, block_parent_hash: new_block.prev_hash.clone(),  })
-                    }
-                },
-                // NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                //     let mut forks
-                //          = self.forks.get_mut(&block_parent_hash).unwrap_or(&mut HashMap::new());
-                //     forks.insert(new_block.hash.clone(), vec![new_block.clone()]);
+    pub fn handle_new_block(&mut self, block: Block) -> Result<(), NextBlockErr>{
+        let block_prev_hash = block.prev_hash.clone();
+        if has_block(&self.main, &block_prev_hash){
+            // Try to append an arbitrary block to the main chain
+            if self.last().hash == block_prev_hash {
+              return Self::push_block(&mut self.main, &block)
+            }
+            // Add a single-block fork from the main chain
+            else {
+                let forks_from: &mut HashMap<String, Vec<Block>>
+                    = self.forks.entry(block_prev_hash).or_insert(HashMap::new());
+                forks_from.insert(block.hash.to_string() // end hash
+                                , vec![block]);
+            }
+        }
+        else if self.forks.iter().ite {
+            // Iterate through the outer HashMap
+            for (fork_point, forks) in &self.forks {
 
-                // },
-                _ => {
-                    return Err(e)
+                // Iterate through the inner HashMap
+                for (end_point, fork) in forks {
+                    if has_block(fork, &block_prev_hash ){
+                        let nested_fork_point = fork.last().expect("Fork must always be non-empty")
+                    }
                 }
             }
         }
+
+        // let Err(e) = Self::push_block(&mut self.main, &block){
+        //     match e.clone() {
+        //         NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
+        //             // If we can find a fork that we should be able to extend, try to extend it and terminate here.
+        //             if let Some((fork_point, end_hash)) = self.find_fork(&block.prev_hash) {
+        //                 let mut fork = self.forks.get_mut(&fork_point).unwrap().get_mut(&end_hash).unwrap();
+        //                 return Self::push_block(&mut fork, &block)
+        //             }
+        //             // Otherwise, we
+        //             // are missing information about the block's parent
+        //             else {
+        //                 return Err(NextBlockErr::MissingBlock { block_idx: block.idx, block_parent_hash: block.prev_hash.clone(),  })
+        //             }
+        //         },
+        //         _ => {
+        //             return Err(e)
+        //         }
+        //     }
+        // }
         Ok(())
 
     }
@@ -160,37 +196,15 @@ impl Chain {
         Self::push_block(&mut self.main, &b).expect("can push newly mined block")
     }
 
-    // Check if block is in any fork, returning the fork point and end hash
-    fn find_fork(&self, parent_hash: &String) -> Option<(String, String)> {
-        for (fork_point, forks) in &self.forks {
-            if let Some((end_hash, _))
-                    = forks.iter().find(|(_, fork)|
-                        fork.last().expect("Fork must be non-empty").hash == *parent_hash) {
-                return Some((fork_point.clone(), end_hash.clone()));
-            }
-        }
-        None
-    }
-
-    // // Try to append an arbitrary block to the main chain
-    // pub fn push_block_to_fork(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
-    //     let current_block: &Block = self.last();
-    //     Self::validate_next_block(current_block, &new_block)?;
-    //     self.main.push(new_block.clone());
-    //     Ok(())
-    // }
-
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
-    // Note: Can succeed even if resulting in a shorter chain.
+    // Can succeed even if resulting in a shorter chain.
     pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
         let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
         Self::validate_fork(&fork)?;
 
         /* this should behave the same:
-            ```
             match self.get(&fork_head.idx - 1) {
                 Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
-            ```
         */
         match self.get_block_by_hash(&fork_head.prev_hash) {
             // if fork branches off from idx n, then keep the first n + 1 blocks
@@ -226,13 +240,16 @@ impl Chain {
 
     // (Keep private) validate subchain from head to tail, ignoring the first block
     fn validate_subchain(subchain: &Vec<Block>) -> Result<(), NextBlockErr> {
+        let mut curr: &Block = subchain.get(0)
+            .ok_or_else(|| NextBlockErr::UnknownError)?;
         for i in 0..subchain.len() - 1 {
-            let curr: &Block = subchain.get(i)
-                .ok_or_else(|| NextBlockErr::UnknownError)?;
             let next: &Block = subchain.get(i + 1)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
             if let Err(e) = Self::validate_next_block(curr, next) {
                 return Err(e);
+            }
+            else {
+                curr = next;
             }
         }
         Ok(())

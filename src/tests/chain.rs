@@ -49,7 +49,7 @@ mod chain_tests {
         let next_block = chain.mine_new_block(&format!("next valid block"));
 
         assert!(matches!(
-            debug(chain.handle_new_block(&next_block))
+            debug(chain.handle_new_block(next_block))
             , Ok(())));
     }
     #[test]
@@ -63,7 +63,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // old:                     [*3*]
         assert!(matches!(
-            debug(chain.handle_new_block(&out_of_date_block)),
+            debug(chain.handle_new_block(out_of_date_block)),
             Err(NextBlockErr::BlockTooOld { .. })
         ));
     }
@@ -78,7 +78,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // dup:                           [*4*]
         assert!(matches!(
-            debug(chain.handle_new_block(&duplicate_block)),
+            debug(chain.handle_new_block(duplicate_block)),
             Err(NextBlockErr::DuplicateBlock { .. })
         ));
     }
@@ -96,7 +96,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // competing block:          |----[*4*]
         assert!(matches!(
-            debug(chain.handle_new_block(&competing_block)),
+            debug(chain.handle_new_block(competing_block)),
             Err(NextBlockErr::CompetingBlock { .. })
         ));
     }
