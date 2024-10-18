@@ -21,25 +21,21 @@ mod chain_tests {
             chain.mine_then_push_block(&format!("block {}", i));
         }
         assert!(matches!(
-            debug(Chain::validate_chain(&chain)),
-            Ok(())));
+            debug(Chain::from_vec(chain.to_vec())),
+            Ok(_)));
     }
-    // #[test]
-    // fn test_chain_is_empty(){
-    //      // shouldn't be possible outside this module (private field)
-    //     let chain = Chain(vec![]);
-    //     assert!(matches!(
-    //         debug(Chain::validate_chain(&chain)),
-    //         Err(ChainErr::ChainIsEmpty)));
-    // }
-    // #[test]
-    // fn test_chain_is_fork(){
-    //     // shouldn't be possible outside this module (private field)
-    //     let chain = Chain(vec![Block { idx : 1, .. Block::genesis() }]);
-    //     assert!(matches!(
-    //         debug(Chain::validate_chain(&chain)),
-    //         Err(ChainErr::ChainIsFork)));
-    // }
+    #[test]
+    fn test_chain_is_empty(){
+        assert!(matches!(
+            debug(Chain::from_vec(vec![])),
+            Err(ChainErr::ChainIsEmpty)));
+    }
+    #[test]
+    fn test_chain_is_fork(){
+        assert!(matches!(
+            debug(Chain::from_vec(vec![Block { idx : 1, .. Block::genesis() }])),
+            Err(ChainErr::ChainIsFork)));
+    }
     /*****************************
      * Tests for handling new blocks *
     *****************************/

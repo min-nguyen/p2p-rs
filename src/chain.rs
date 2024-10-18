@@ -258,8 +258,8 @@ impl Chain {
         try_push_block(&mut self.main, &b).expect("can push newly mined block")
     }
 
-    // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
-    // Can succeed even if resulting in a shorter chain.
+    // Try to attach a fork to extend any compatible parent block in the current chain. (Can succeed even if resulting in a shorter chain.)
+    //  - Not currently being used outside of testing.
     pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
         let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
         Self::validate_fork(&fork)?;

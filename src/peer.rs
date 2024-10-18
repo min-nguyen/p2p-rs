@@ -130,8 +130,8 @@ impl Peer {
                             Keeping current chain.");
                 }
             },
-            PowMessage::BlockResponse { block, .. } => {
-                 /* TO DO */
+            PowMessage::BlockResponse { .. } => {
+                /* We don't do anything with this yet. */
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
@@ -158,8 +158,10 @@ impl Peer {
                         }
                     }
                     Err(e) => {
+                        /* We don't do anything with this yet. */
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
-                                \t\"{}\".", e);
+                                \t\"{}\"\n\
+                                Keeping current chain.", e);
                         /* TO DO */
                         /* match e {
                             NextBlockErr::MissingBlock { .. } => {
