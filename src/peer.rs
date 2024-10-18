@@ -52,7 +52,7 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    orphans : HashMap<String, Vec<Block>>,
+    // orphans : HashMap<String, Vec<Block>>,
     txn_pool : HashSet<Transaction>
 }
 
@@ -107,7 +107,6 @@ impl Peer {
                         \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                /* TO VERIFY */
                 if let Some(b)= self.chain.get_block_by_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
@@ -153,7 +152,7 @@ impl Peer {
                     }
                 }
                 // Validate block itself
-                match self.chain.handle_new_block(&block){
+                match self.chain.handle_new_block(block.clone()){
                     Ok(()) =>{
                         println!("Successfully validated the remote peer's new block as a chain extension.\n\
                                  Extended current chain.");
@@ -165,9 +164,8 @@ impl Peer {
                     Err(e) => {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\".", e);
-                        match e {
+                        /* match e {
                             NextBlockErr::MissingBlock { .. } => {
-
                                     let req = PowMessage::BlockRequest {
                                         transmit_type: TransmitType::ToAll,
                                         block_hash: block.prev_hash.clone(),
@@ -180,7 +178,7 @@ impl Peer {
                                             \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
                                 },
                             _ => {}
-                        }
+                        } */
                     }
                 }
             }
@@ -459,7 +457,7 @@ pub async fn set_up_peer() -> Peer {
         , txn_receiver
         , swarm
         , chain
-        , orphans: HashMap::new()
+        // , orphans: HashMap::new()
         , txn_pool: HashSet::new()
     }
 }

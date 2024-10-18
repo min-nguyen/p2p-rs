@@ -115,7 +115,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[*4*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.last())),
+            debug(chain.handle_new_block(forked_chain.last().clone())),
             Err(NextBlockErr::CompetingBlock { .. })
         ));
     }
@@ -134,7 +134,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[*5*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.last())),
+            debug(chain.handle_new_block(forked_chain.last().clone())),
             Err(NextBlockErr::MissingBlock { .. })
         ));
     }
@@ -151,7 +151,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]
         // duplicate:                           |---[5]---[*6*]
         assert!(matches!(
-            debug(chain.handle_new_block(dup_chain.last())),
+            debug(chain.handle_new_block(dup_chain.last().clone())),
             Err(NextBlockErr::MissingBlock { .. })
         ));
     }
@@ -170,7 +170,7 @@ mod chain_tests {
         // chain:   [0]---[1]---[2]---[3]---[4]
         // fork:                 |----[3]---[4]---[5]---[*6*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.last())),
+            debug(chain.handle_new_block(forked_chain.last().clone())),
             Err(NextBlockErr::MissingBlock { .. })
         ));
     }

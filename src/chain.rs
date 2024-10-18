@@ -74,8 +74,75 @@ fn truncate(blocks: &mut Vec<Block>, len: usize){
     blocks.truncate(std::cmp::min(blocks.len() - 1, len));
 }
 
-fn has_block(blocks: &Vec<Block>, block_hash: &String) -> bool {
-    blocks.iter().any(|block| &block.hash == block_hash)
+fn truncate_until<P>(blocks: &mut Vec<Block>, prop: P)
+where
+    P: Fn(&Block) -> bool,
+{
+    if let Some(idx) = blocks.iter().position(|block| prop(&block)){
+        blocks.truncate(idx);
+    }
+}
+
+fn find_block<'a>(blocks: &'a Vec<Block>, block_hash: &String) -> Option<&'a Block> {
+    blocks.iter().find(|block| &block.hash == block_hash)
+}
+
+fn try_push_block(blocks: &mut Vec<Block>, new_block: &Block) -> Result<(), NextBlockErr>{
+    let current_block: &Block = blocks.last().expect("Blocks should be non-empty");
+    validate_next_block(current_block, &new_block)?;
+    blocks.push(new_block.clone());
+    Ok(())
+}
+
+// Validating whether one block is a valid next block for another.
+pub fn validate_next_block(current_block: &Block, block: &Block) -> Result<(), NextBlockErr> {
+    // * check validity of block by itself
+    if let Err(e) = Block::validate_block(block) {
+        return Err(NextBlockErr::InvalidBlock(e));
+    }
+
+    // * check validity of block with respect to our chain
+    //    1. if the block is out-of-date with our chain
+    if block.idx < current_block.idx {
+        return Err(NextBlockErr::BlockTooOld {
+            block_idx: block.idx,
+            current_idx: current_block.idx,
+        });
+    }
+    //    2. if the block is up-to-date (i.e. competes) with our chain
+    if block.idx == current_block.idx {
+        //   a. competing block is a duplicate of ours
+        if block.hash == current_block.hash {
+            return Err(NextBlockErr::DuplicateBlock {
+                block_idx: block.idx,
+            });
+        }
+        //   b. competing block is different, either with the same or a different parent
+        //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
+        else {
+            return Err(NextBlockErr::CompetingBlock {
+                block_idx: block.idx,
+                block_parent_hash: block.prev_hash.clone(),
+            });
+        }
+    }
+    //   3. if the block is ahead-of-date of our chain
+    if block.idx > current_block.idx {
+        //  a. its parent does not match our last block on the main chain.
+        if block.prev_hash != current_block.hash || block.idx != current_block.idx + 1 {
+            // we need to report a missing block on the main chain,
+            //        handle this by seeing if we can extend a fork,
+            //        and if not, report a missing block across the forks.
+            return Err(NextBlockErr::MissingBlock  {
+                block_idx: block.idx,
+                block_parent_hash: block.prev_hash.clone(),
+            });
+        } else {
+            // we can safely extend the chain
+            return Ok(());
+        }
+    }
+    Err(NextBlockErr::UnknownError)
 }
 
 impl Chain {
@@ -115,12 +182,16 @@ impl Chain {
         truncate(&mut self.main, len);
     }
 
-    // Check if block is in any fork, returning the fork point and end hash
-    pub fn find_fork(&self, hash: &String) -> Option<(String, String)> {
-        for (fork_point, forks) in &self.forks {
-            if let Some((end_hash, _))
-                    = forks.iter().find(|(_, fork)| has_block(fork, hash)) {
-                return Some((fork_point.clone(), end_hash.clone()))
+    // Check if block is in any fork, returning the fork point, end hash, and fork
+    pub fn find_fork(&mut self, hash: &String) -> Option<(String, String, &mut Vec<Block>)> {
+        // iterate through fork points
+        for (fork_point, forks) in &mut self.forks {
+            // iterate through forks from the fork point
+            for (end_hash, fork) in forks {
+                // iterate through blocks in the fork
+                if let Some(_) = find_block(fork, hash) {
+                    return Some((fork_point.clone(), end_hash.clone(), fork))
+                }
             }
         }
         None
@@ -128,53 +199,51 @@ impl Chain {
 
     pub fn handle_new_block(&mut self, block: Block) -> Result<(), NextBlockErr>{
         let block_prev_hash = block.prev_hash.clone();
-        if has_block(&self.main, &block_prev_hash){
-            // Try to append an arbitrary block to the main chain
-            if self.last().hash == block_prev_hash {
-              return Self::push_block(&mut self.main, &block)
+        // Search for the parent block in the main chain.
+        if let Some(parent_block) = find_block(&self.main, &block_prev_hash){
+            // See if we can append the block to the main chain
+            if self.last().hash == parent_block.hash {
+               try_push_block(&mut self.main, &block)
             }
-            // Add a single-block fork from the main chain
+            // Otherwise attach a single-block fork to the main chain
             else {
+                // need to manually validate it to create a single-block chain
+                validate_next_block(parent_block, &block)?;
                 let forks_from: &mut HashMap<String, Vec<Block>>
                     = self.forks.entry(block_prev_hash).or_insert(HashMap::new());
                 forks_from.insert(block.hash.to_string() // end hash
                                 , vec![block]);
+                Ok (())
             }
         }
-        else if self.forks.iter().ite {
-            // Iterate through the outer HashMap
-            for (fork_point, forks) in &self.forks {
-
-                // Iterate through the inner HashMap
-                for (end_point, fork) in forks {
-                    if has_block(fork, &block_prev_hash ){
-                        let nested_fork_point = fork.last().expect("Fork must always be non-empty")
-                    }
-                }
+        // Search for the parent block in the forks.
+        else if let Some((forkpoint_hash, endpoint_hash,  fork)) = self.find_fork(&block_prev_hash) {
+            // See if we can append the block to the fork
+            if endpoint_hash == block_prev_hash {
+                try_push_block(fork, &block)?;
+                // Update the endpoint_hash of the extended fork in the map.
+                self.forks.entry(forkpoint_hash).and_modify(|forks| {
+                    let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("Fork definitely exists; we just pushed a block to it.");
+                    forks.insert(block_prev_hash, fork);
+                });
+                Ok(())
+            }
+            // Otherwise create a new direct fork from the main chain, whose prefix is a clone of an existing fork's, with
+            else {
+                let mut new_fork: Vec<Block> = fork.clone();
+                // Truncate the fork until the block's parent, and then append the block on.
+                truncate_until(&mut new_fork, |block| block.hash == block_prev_hash);
+                try_push_block(&mut new_fork, &block)?;
+                // Insert the new fork into the map.
+                self.forks.entry(forkpoint_hash).and_modify(|forks| {
+                    forks.insert(block_prev_hash, new_fork);
+                });
+                Ok(())
             }
         }
-
-        // let Err(e) = Self::push_block(&mut self.main, &block){
-        //     match e.clone() {
-        //         NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
-        //             // If we can find a fork that we should be able to extend, try to extend it and terminate here.
-        //             if let Some((fork_point, end_hash)) = self.find_fork(&block.prev_hash) {
-        //                 let mut fork = self.forks.get_mut(&fork_point).unwrap().get_mut(&end_hash).unwrap();
-        //                 return Self::push_block(&mut fork, &block)
-        //             }
-        //             // Otherwise, we
-        //             // are missing information about the block's parent
-        //             else {
-        //                 return Err(NextBlockErr::MissingBlock { block_idx: block.idx, block_parent_hash: block.prev_hash.clone(),  })
-        //             }
-        //         },
-        //         _ => {
-        //             return Err(e)
-        //         }
-        //     }
-        // }
-        Ok(())
-
+        else {
+            Err(NextBlockErr::MissingBlock { block_idx: block.idx, block_parent_hash: block.prev_hash })
+        }
     }
 
     // Mine a new valid block from given data
@@ -184,16 +253,9 @@ impl Chain {
     }
 
     // Try to append an arbitrary block to the main chain
-    fn push_block(blocks: &mut Vec<Block>, new_block: &Block) -> Result<(), NextBlockErr>{
-        let current_block: &Block = blocks.last().expect("Blocks should be non-empty");
-        Self::validate_next_block(current_block, &new_block)?;
-        blocks.push(new_block.clone());
-        Ok(())
-    }
-
     pub fn mine_then_push_block(&mut self, data: &str) {
         let b: Block = self.mine_new_block(data);
-        Self::push_block(&mut self.main, &b).expect("can push newly mined block")
+        try_push_block(&mut self.main, &b).expect("can push newly mined block")
     }
 
     // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
@@ -245,7 +307,7 @@ impl Chain {
         for i in 0..subchain.len() - 1 {
             let next: &Block = subchain.get(i + 1)
                 .ok_or_else(|| NextBlockErr::UnknownError)?;
-            if let Err(e) = Self::validate_next_block(curr, next) {
+            if let Err(e) = validate_next_block(curr, next) {
                 return Err(e);
             }
             else {
@@ -253,57 +315,6 @@ impl Chain {
             }
         }
         Ok(())
-    }
-
-    // Validating whether one block is a valid next block for another.
-    pub fn validate_next_block(current_block: &Block, block: &Block) -> Result<(), NextBlockErr> {
-        // * check validity of block by itself
-        if let Err(e) = Block::validate_block(block) {
-            return Err(NextBlockErr::InvalidBlock(e));
-        }
-
-        // * check validity of block with respect to our chain
-        //    1. if the block is out-of-date with our chain
-        if block.idx < current_block.idx {
-            return Err(NextBlockErr::BlockTooOld {
-                block_idx: block.idx,
-                current_idx: current_block.idx,
-            });
-        }
-        //    2. if the block is up-to-date (i.e. competes) with our chain
-        if block.idx == current_block.idx {
-            //   a. competing block is a duplicate of ours
-            if block.hash == current_block.hash {
-                return Err(NextBlockErr::DuplicateBlock {
-                    block_idx: block.idx,
-                });
-            }
-            //   b. competing block is different, either with the same or a different parent
-            //      - either ignore it, or store it temporarily and see if it can be used when receiving a block with idx + 1
-            else {
-                return Err(NextBlockErr::CompetingBlock {
-                    block_idx: block.idx,
-                    block_parent_hash: block.prev_hash.clone(),
-                });
-            }
-        }
-        //   3. if the block is ahead-of-date of our chain
-        if block.idx > current_block.idx {
-            //  a. its parent does not match our last block on the main chain.
-            if block.prev_hash != current_block.hash || block.idx != current_block.idx + 1 {
-                // we need to report a missing block on the main chain,
-                //        handle this by seeing if we can extend a fork,
-                //        and if not, report a missing block across the forks.
-                return Err(NextBlockErr::MissingBlock  {
-                    block_idx: block.idx,
-                    block_parent_hash: block.prev_hash.clone(),
-                });
-            } else {
-                // we can safely extend the chain
-                return Ok(());
-            }
-        }
-        Err(NextBlockErr::UnknownError)
     }
 
     // Choose the longest valid chain (defaulting to the local version). Returns true if chain was updated.
