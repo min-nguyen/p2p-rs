@@ -19,7 +19,7 @@ pub async fn read_chain(file_name: &str) -> Result<Chain, Box<dyn std::error::Er
 
 // (over)writes all locally stored blocks
 pub async fn write_chain(chain: &Chain, file_name: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let blocks: Vec<Block> = chain.blocks();
+    let blocks: Vec<Block> = chain.to_vec();
     let json: String = serde_json::to_string(&blocks)?;
     fs::write(file_name, &json).await?;
     info!("write_local_chain()");

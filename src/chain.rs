@@ -80,6 +80,10 @@ impl Chain {
         Ok(chain)
     }
 
+    pub fn to_vec(&self) -> Vec<Block> {
+        self.main.clone()
+    }
+
     pub fn get(&self, idx: usize) -> Option<&Block> {
         self.main.get(idx)
     }
@@ -100,10 +104,6 @@ impl Chain {
         self.main.iter().find(|b: &&Block| b.hash == *hash)
     }
 
-    pub fn blocks(&self) -> Vec<Block> {
-        self.main.clone()
-    }
-
     // Mine a new valid block from given data
     pub fn mine_new_block(&mut self, data: &str) -> Block {
         let current_block: &Block = self.last();
@@ -114,9 +114,6 @@ impl Chain {
     pub fn handle_new_block(&mut self, new_block: &Block) -> Result<(), NextBlockErr>{
         let current_block: &Block = self.last();
         Self::validate_next_block(current_block, &new_block)?;
-        /*
-            TO-DO: possibly handle forks inside here
-        */
         self.main.push(new_block.clone());
         Ok(())
     }
@@ -126,18 +123,12 @@ impl Chain {
         self.handle_new_block(&b).expect("can push newly mined block")
     }
 
-    // Try to attach a fork (suffix of a full chain) to extend any compatible parent block in the current chain
-    // Note: Can succeed even if resulting in a shorter chain.
+    // Try to attach a fork to extend any compatible parent block in the current chain. (Can succeed even if resulting in a shorter chain.)
+    //  - Not currently being used outside of testing.
     pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
         let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
         Self::validate_fork(&fork)?;
 
-        /* this should behave the same:
-            ```
-            match self.get(&fork_head.idx - 1) {
-                Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
-            ```
-        */
         match self.get_block_by_hash(&fork_head.prev_hash) {
             // if fork branches off from idx n, then keep the first n + 1 blocks
             Some(forkpoint) => {
