@@ -16,14 +16,12 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
-use crate::swarm::connected_peers;
-
 use super::file;
 use super::block::{Block, NextBlockErr};
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
-use super::swarm::{self as swarm, get_peers, BlockchainBehaviour};
+use super::swarm::{self as swarm, BlockchainBehaviour};
 
 
 const DEFAULT_FILE_PATH: &str = "blocks.json";
@@ -134,7 +132,6 @@ impl Peer {
             },
             PowMessage::BlockResponse { block, .. } => {
                  /* TO DO */
-
             },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
@@ -160,10 +157,10 @@ impl Peer {
                             println!("Deleted mined transaction from the local pool.");
                         }
                     }
-                    /* TO DO */
                     Err(e) => {
                         println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
                                 \t\"{}\".", e);
+                        /* TO DO */
                         /* match e {
                             NextBlockErr::MissingBlock { .. } => {
                                     let req = PowMessage::BlockRequest {

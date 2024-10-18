@@ -95,7 +95,7 @@ fn try_push_block(blocks: &mut Vec<Block>, new_block: &Block) -> Result<(), Next
 }
 
 // Validating whether one block is a valid next block for another.
-pub fn validate_next_block(current_block: &Block, block: &Block) -> Result<(), NextBlockErr> {
+fn validate_next_block(current_block: &Block, block: &Block) -> Result<(), NextBlockErr> {
     // * check validity of block by itself
     if let Err(e) = Block::validate_block(block) {
         return Err(NextBlockErr::InvalidBlock(e));
