@@ -221,13 +221,14 @@ impl Chain {
         }
         // Search for the parent block in the forks.
         else if let Some((forkpoint_hash, endpoint_hash,  fork)) = self.find_fork(&block_prev_hash) {
+            println!("Found parent block in a fork");
             // See if we can append the block to the fork
             if endpoint_hash == block_prev_hash {
                 try_push_block(fork, &block)?;
                 // Update the endpoint_hash of the extended fork in the map.
                 self.forks.entry(forkpoint_hash).and_modify(|forks| {
                     let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("Fork definitely exists; we just pushed a block to it.");
-                    forks.insert(block_prev_hash, fork);
+                    forks.insert(block.hash, fork);
                 });
                 println!("Extending an existing fork");
                 Ok(())
@@ -336,6 +337,16 @@ impl Chain {
             (Err(_), Ok(())) => false,
             (Ok(()), Err(_)) => {*self = remote.clone(); true},
             _ => panic!("local and remote chains both invalid")
+        }
+    }
+
+    pub fn show_forks(&self){
+        for (forkpoint, forks) in self.forks.iter(){
+            println!("Forks from {}", forkpoint);
+            for (i, (_, fork)) in forks.iter().enumerate(){
+                println!("Fork {} from {}",i, forkpoint);
+                fork.iter().for_each(|block| println!("{}", block));
+            }
         }
     }
 }

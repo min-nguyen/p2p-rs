@@ -365,8 +365,8 @@ impl Peer {
                             {}", self.chain);
             }
             "forks"   => {
-                println!("Current forks:\n\
-                            {:?}", self.chain.forks);
+                println!("Current forks:\n");
+                self.chain.show_forks();
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)

@@ -213,14 +213,6 @@ impl Block {
 
         Ok(())
     }
-    pub fn pretty_print(&self) {
-        println!("Block {}", self.idx);
-        println!("Timestamp: {}", self.timestamp);
-        println!("Data: {}", self.data);
-        println!("Nonce: {}", self.nonce);
-        println!("Previous Hash: {}", &self.prev_hash);
-        println!("Hash: {}", &self.hash);
-    }
 }
 
 impl std::fmt::Display for Block {
@@ -229,20 +221,34 @@ impl std::fmt::Display for Block {
             f,
             "\
             ================================================\n\
-            Block:\n\
             Index:           {}\n\
-            Timestamp:       {}\n\
             Data:            {}\n\
-            Nonce:           {}\n\
             Previous Hash:   {}\n\
             Hash:            {}\n\
             ================================================",
             self.idx,
-            DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
             self.data,
-            self.nonce,
             self.prev_hash,
             self.hash,
         )
+        // write!(
+        //     f,
+        //     "\
+        //     ================================================\n\
+        //     Block:\n\
+        //     Index:           {}\n\
+        //     Timestamp:       {}\n\
+        //     Data:            {}\n\
+        //     Nonce:           {}\n\
+        //     Previous Hash:   {}\n\
+        //     Hash:            {}\n\
+        //     ================================================",
+        //     self.idx,
+        //     DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
+        //     self.data,
+        //     self.nonce,
+        //     self.prev_hash,
+        //     self.hash,
+        // )
     }
 }
