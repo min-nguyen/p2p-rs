@@ -166,7 +166,7 @@ impl Chain {
         self.main.get(idx)
     }
 
-    pub fn get_block_by_hash(&self, hash: &String) -> Option<&Block> {
+    pub fn lookup(&self, hash: &String) -> Option<&Block> {
         self.main.iter().find(|b: &&Block| b.hash == *hash)
     }
 
@@ -264,26 +264,12 @@ impl Chain {
         try_push_block(&mut self.main, &b).expect("can push newly mined block")
     }
 
-    // Try to attach a fork to extend any compatible parent block in the current chain. (Can succeed even if resulting in a shorter chain.)
-    //  - Not currently being used outside of testing.
-    pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
-        let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
-        Self::validate_fork(&fork)?;
-
-        /* this should behave the same:
-            match self.get(&fork_head.idx - 1) {
-                Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
-        */
-        match self.get_block_by_hash(&fork_head.prev_hash) {
-            // if fork branches off from idx n, then keep the first n + 1 blocks
-            Some(forkpoint) => {
-                self.main.truncate(forkpoint.idx + 1);
-                self.main.append(fork);
-                Ok(())
-            }
-            // fork's first block doesn't reference a block in the current chain.
-            None => {
-                Err(ForkErr::ForkIncompatible)
+    pub fn show_forks(&self){
+        for (forkpoint, forks_from) in self.forks.iter(){
+            println!("Forks from {}", forkpoint);
+            for (i, (_, fork)) in forks_from.iter().enumerate(){
+                println!("Fork {} from {}",i, forkpoint);
+                fork.iter().for_each(|block| println!("{}", block));
             }
         }
     }
@@ -340,12 +326,26 @@ impl Chain {
         }
     }
 
-    pub fn show_forks(&self){
-        for (forkpoint, forks) in self.forks.iter(){
-            println!("Forks from {}", forkpoint);
-            for (i, (_, fork)) in forks.iter().enumerate(){
-                println!("Fork {} from {}",i, forkpoint);
-                fork.iter().for_each(|block| println!("{}", block));
+    // Try to attach a fork to extend any compatible parent block in the current chain. (Can succeed even if resulting in a shorter chain.)
+    //  - Not currently being used outside of testing.
+    pub fn try_merge_fork(&mut self, fork: &mut Vec<Block>) -> Result<(), ForkErr>{
+        let fork_head: &Block = fork.get(0).ok_or(ForkErr::ForkIsEmpty)?;
+        Self::validate_fork(&fork)?;
+
+        /* this should behave the same:
+            match self.get(&fork_head.idx - 1) {
+                Some(forkpoint) if (forkpoint.hash == fork_head.prev_hash) => {
+        */
+        match self.lookup(&fork_head.prev_hash) {
+            // if fork branches off from idx n, then keep the first n + 1 blocks
+            Some(forkpoint) => {
+                self.main.truncate(forkpoint.idx + 1);
+                self.main.append(fork);
+                Ok(())
+            }
+            // fork's first block doesn't reference a block in the current chain.
+            None => {
+                Err(ForkErr::ForkIncompatible)
             }
         }
     }
@@ -358,11 +358,4 @@ impl std::fmt::Display for Chain {
         };
         Ok(())
     }
-}
-
-type Forks = HashMap<String, Vec<Block>>;
-
-pub fn prepend_in_forks(forks : &mut Forks, missing_block: Block){
-    let fork = forks.entry(missing_block.hash.clone()).or_insert(vec![]);
-    fork.insert(0, missing_block)
 }

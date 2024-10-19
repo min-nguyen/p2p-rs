@@ -105,7 +105,7 @@ impl Peer {
                         \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                if let Some(b)= self.chain.get_block_by_hash(&block_hash){
+                if let Some(b)= self.chain.lookup(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                             block: b.clone()
