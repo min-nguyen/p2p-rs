@@ -203,7 +203,9 @@ impl Chain {
         if let Some(parent_block) = find_block(&self.main, &block_prev_hash){
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
-               try_push_block(&mut self.main, &block)
+               try_push_block(&mut self.main, &block)?;
+               println!("Extending the main chain");
+               Ok(())
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -213,6 +215,7 @@ impl Chain {
                     = self.forks.entry(block_prev_hash).or_insert(HashMap::new());
                 forks_from.insert(block.hash.to_string() // end hash
                                 , vec![block]);
+                println!("Adding a single-block fork to the main chain");
                 Ok (())
             }
         }
@@ -226,6 +229,7 @@ impl Chain {
                     let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("Fork definitely exists; we just pushed a block to it.");
                     forks.insert(block_prev_hash, fork);
                 });
+                println!("Extending an existing fork");
                 Ok(())
             }
             // Otherwise create a new direct fork from the main chain, whose prefix is a clone of an existing fork's, with
@@ -238,6 +242,7 @@ impl Chain {
                 self.forks.entry(forkpoint_hash).and_modify(|forks| {
                     forks.insert(block_prev_hash, new_fork);
                 });
+                println!("Adding a new fork that branches off an existing fork to the chain");
                 Ok(())
             }
         }

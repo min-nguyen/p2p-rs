@@ -364,6 +364,10 @@ impl Peer {
                 println!("Current chain:\n\
                             {}", self.chain);
             }
+            "forks"   => {
+                println!("Current forks:\n\
+                            {:?}", self.chain.forks);
+            }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)
                     = swarm::get_peers(&mut self.swarm);
