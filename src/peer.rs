@@ -17,7 +17,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
 use super::file;
-use super::block::{Block, NextBlockErr};
+use super::block::{Block, BlockErr};
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};

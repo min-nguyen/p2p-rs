@@ -14,16 +14,17 @@ use super::cryptutil;
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
 
+// For validating whether one block is a valid next block for another.
 #[derive(Debug, Clone)]
 pub enum BlockErr {
     DifficultyCheckFailed {
         hash_binary: String,
         difficulty_prefix: String,
     },
-    HashMismatch {
+    InconsistentHash {
         stored_hash: String,
         computed_hash: String,
-    },
+    }
 }
 
 impl std::fmt::Display for BlockErr {
@@ -32,8 +33,8 @@ impl std::fmt::Display for BlockErr {
             BlockErr::DifficultyCheckFailed { hash_binary, difficulty_prefix } => {
                 write!(f, "Block's hash {} does not meet the difficulty target {}.", hash_binary, difficulty_prefix)
             }
-            BlockErr::HashMismatch { stored_hash, computed_hash } => {
-                write!(f, "Block's stored hash {} is inconsistent with its computed hash {}.", stored_hash, computed_hash)
+            BlockErr::InconsistentHash { stored_hash, computed_hash } => {
+                write!(f, "Block's stored hash {} does not match its computed hash {}.", stored_hash, computed_hash)
             }
         }
     }
@@ -41,71 +42,6 @@ impl std::fmt::Display for BlockErr {
 
 impl std::error::Error for BlockErr {}
 
-// For validating whether one block is a valid next block for another.
-#[derive(Debug, Clone)]
-pub enum NextBlockErr {
-    InvalidBlock(BlockErr),
-    BlockTooOld {
-        block_idx: usize,
-        current_idx: usize
-    },
-    DuplicateBlock {
-        block_idx: usize
-    },
-    CompetingBlock {
-        block_idx: usize,
-        block_parent_hash: String
-    },
-    MissingBlock {
-        block_idx: usize,
-        block_parent_hash: String
-    },
-    UnknownError,                // non-exhaustive case (should not happen)
-//     CompetingBlockInFork {
-//         block_idx: usize,
-//         block_parent_hash: String
-//     },
-//     NextBlockInFork {
-//         block_idx: usize,
-//         block_parent_hash: String,
-//         current_hash: String
-//     },
-}
-
-impl std::fmt::Display for NextBlockErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            NextBlockErr::InvalidBlock(err) => {
-                write!(f, "Invalid block encountered: {}", err)
-            }
-            NextBlockErr::BlockTooOld { block_idx, current_idx } => {
-                write!(f, "Block {} does not extend the current chain with index {}.", block_idx, current_idx)
-            }
-            NextBlockErr::DuplicateBlock { block_idx } => {
-                write!(f, "Duplicate block encountered: Block {} is already in the chain.", block_idx)
-            }
-            NextBlockErr::CompetingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Competing block detected: Block {} with parent hash {} is competing.", block_idx, block_parent_hash)
-            }
-            NextBlockErr::MissingBlock { block_idx, block_parent_hash } => {
-                write!(f, "Block {} has parent hash {} which cannot be found", block_idx, block_parent_hash)
-            }
-            NextBlockErr::UnknownError => {
-                write!(f, "An unknown error occurred while trying to push the block.")
-            }
-            // NextBlockErr::CompetingBlockInFork { block_idx, block_parent_hash } => {
-            //     write!(f, "Competing block in fork detected: Block {} with parent hash {} competing against current block with same parent.",
-            //         block_idx, block_parent_hash)
-            // }
-            // NextBlockErr::NextBlockInFork { block_idx, block_parent_hash, current_hash } => {
-            //     write!(f, "Next block is in a fork: Block {} with parent hash {} does not match current block hash {}.",
-            //         block_idx, block_parent_hash, current_hash)
-            // }
-        }
-    }
-}
-
-impl std::error::Error for NextBlockErr {}
 
 /* Block
   Records some or all of the most recent data not yet validated by the network.
@@ -205,7 +141,7 @@ impl Block {
             block.nonce,
         );
         if block.hash != computed_hash {
-            return Err(BlockErr::HashMismatch {
+            return Err(BlockErr::InconsistentHash {
                 stored_hash: block.hash.clone(),
                 computed_hash,
             });
