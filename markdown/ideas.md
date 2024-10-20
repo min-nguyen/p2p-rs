@@ -21,40 +21,18 @@
             - [x] test merging a valid fork suffix
             - [x] test merging an invalid fork suffix
         - [x] make chain struct contain a _private_ vector of blocks
-        - [ ] introduce additional data structures for tracking alternative chains and blocks
-            ```rs
-            #[derive(Clone, Debug)]
-                pub struct Chain {
-                    main: Vec<Block>,   // private
-                    forks: HashMap<String, Vec<Block>>,  // reference to forkpoint block hash
-                }
-
-                pub fn store_fork(&mut self, block: Block) {
-                    let fork_entry = self.forks.entry(block.prev_hash.clone()).or_insert(Vec::new());
-                    fork_entry.push(block);
-                }
-
-                pub fn handle_new_block(&mut self, new_block: Block) {
-                    let chain_tip = self.current_chain_tip();
-
-                    // The new block extends the main chain
-                    if new_block.prev_hash == chain_tip.hash {
-                        self.add_block_to_main_chain(new_block);
-                    }
-                    // Fork detectedd
-                    else {
-                        self.store_fork(new_block);
-                        if self.is_fork_better_than_main_chain(&new_block) {
-                            ...
-                        }
-                    }
-                }
-
-                pub fn is_fork_better_than_main_chain(&self, new_block: &Block) -> bool {
-                }
-            ```
+        - [x] introduce additional data structures for tracking alternative chains and blocks
+        - [ ] handle new blocks by:
+                - [x] extending the main chain,
+                - [x] adding new (single-block) forks to the main chian
+                - [x] extending an existing chain from the main chain,
+                - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
+                - [ ] to do: avoid doing anything for duplicate blocks
+                            - introduce NextBlockErr::Duplicate
+                - [ ] to do: avoid cloning blocks from an existing fork in order to represent the new fork
+                            - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
+        - [ ] change Chain::choose_chain to return an informative result as a custom data type
         - [ ] implement requesting new blocks until forming a valid fork suffix
-- [ ] custom error data type for synching chains?
 
 in parallel:
 - [ ] data structure for storing new block proposals and number of validations, before adding it to the chain
@@ -67,7 +45,9 @@ also:
 - [ ] messages for sending public keys
 
 also:
-- [ ] research how to use **lifetimes** to return references
+- [ ] optimise various functions to use lifetimes to return references
+- [ ] optimise forks to avoid cloning overlapping blocks.
+        - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
 
 ----------------------
 

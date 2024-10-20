@@ -7,8 +7,8 @@ pub mod transaction;
 pub mod message;
 pub mod swarm;
 pub mod tests {
-    // pub mod block;
-    // pub mod chain;
+    pub mod block;
+    pub mod chain;
     pub mod transaction;
 }
 

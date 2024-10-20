@@ -65,7 +65,7 @@ pub fn debug<T:std::fmt::Debug>(f : T) -> T{
 
 pub fn pretty_hex(hex : &String) -> String {
     let mut s = hex.clone();
-    s.truncate(8);
+    s.truncate(20);
     s.push_str("...");
     s
 }

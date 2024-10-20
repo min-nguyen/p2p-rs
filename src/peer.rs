@@ -101,7 +101,7 @@ impl Peer {
                 swarm::publish_pow_msg(resp, &mut  self.swarm);
                 println!("Sent ChainResponse with target:\n\
                          \t{}\n\
-                         broadcasted to:\n\
+                         broadcasted to connected peers:\n\
                         \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
@@ -113,7 +113,7 @@ impl Peer {
                         swarm::publish_pow_msg(resp, &mut self.swarm);
                         println!("Sent ChainResponse with target:\n\
                                  \t{}\n\
-                                 broadcasted to:\n\
+                                 broadcasted to connected peers:\n\
                                 \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
                     }
                 else {
@@ -122,12 +122,10 @@ impl Peer {
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 if self.chain.choose_chain(&chain){
-                    println!("Remote peer's chain is longer than ours.\n\
-                            Updated current chain.")
+                    println!("Updated current chain to be remote peer's chain.")
                 }
                 else {
-                    println!("Remote peer's chain is either invalid or not longer than ours.\n\
-                            Keeping current chain.");
+                    println!("Keeping current chain over remote peer's chain (either invalid or not longer than ours).");
                 }
             },
             PowMessage::BlockResponse { .. } => {
@@ -138,10 +136,10 @@ impl Peer {
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
                     match Transaction::validate_transaction(&txn) {
                         Ok (()) => {
-                            println!("Successfully validated transaction inside the received block.")
+                            println!("Successfully validated transaction inside the remote peer's block.")
                         }
                         Err (e) => {
-                            println!("Couldn't validate transaction inside the received block, due to:\n\
+                            println!("Couldn't validate transaction inside the remote peer's block, due to:\n\
                                     \t\"{}\"\n\
                                     Ignoring new block.", e);
                             return
@@ -151,16 +149,10 @@ impl Peer {
                 // Validate block itself
                 match self.chain.handle_new_block(block.clone()){
                     Ok(res) =>{
-                        println!("Update result {}", res);
+                        println!("{}", res);
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
-                    }
-                    Err(e) => {
-                        /* We don't do anything with this yet. */
-                        println!("Couldn't validate the remote peer's new block as an extension to our chain, due to:\n\
-                                \t\"{}\"\n\
-                                Keeping current chain.", e);
                         /* TO DO */
                         /* match e {
                             NextBlockErr::MissingBlock { .. } => {
@@ -177,6 +169,12 @@ impl Peer {
                                 },
                             _ => {}
                         } */
+                    }
+                    Err(e) => {
+                        /* We don't do anything with this yet. */
+                        println!("Couldn't validate the remote peer's block:\n\
+                                \t\"{}\"\n\
+                                Nothing to do.", e);
                     }
                 }
             }
@@ -309,7 +307,7 @@ impl Peer {
         match opt_data {
             None => eprintln!("No transactions in the pool to mine for."),
             Some(data) => {
-                self.chain.mine_then_push_block(&data);
+                self.chain.mine_block(&data);
                 println!("Mined and pushed the following new block to chain:\n\
                          {}", self.chain.last());
 

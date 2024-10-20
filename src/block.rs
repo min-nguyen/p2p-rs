@@ -24,18 +24,25 @@ pub enum NextBlockErr {
     },
     InconsistentHash {
         block_idx: usize,
-        stored_hash: String,
+        block_hash: String,
         computed_hash: String,
     },
     InvalidIndex {
         block_idx: usize
     },
-    InvalidChild {
+    InvalidChild { // Block has an inconsistent prev_hash and/or index with a specified parent
         block_idx: usize,
         block_prev_hash: String,
         parent_block_idx: usize,
         parent_block_hash: String,
-    } // Block has an inconsistent prev_hash and/or index with a specified parent
+    },
+    /* To-Do:
+    Duplicate {
+        block_idx: usize,
+        block_hash: String,
+        data: String
+    }
+    */
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -44,8 +51,8 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
                 write!(f, "Block {}'s hash {} does not meet the difficulty target {}.", block_idx, hash_binary, difficulty_prefix)
             }
-            NextBlockErr::InconsistentHash { block_idx, stored_hash, computed_hash } => {
-                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, stored_hash, computed_hash)
+            NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
+                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, block_hash, computed_hash)
             }
             NextBlockErr::InvalidIndex { block_idx } => {
                 write!(f, "Block {} has invalid index.", block_idx)
@@ -53,6 +60,9 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
             }
+            // NextBlockErr::Duplicate { block_idx, block_hash,data } => {
+            //     write!(f, "Block {} with hash {} and data {} already exists.", block_idx, block_hash, data)
+            // }
         }
     }
 }
@@ -89,7 +99,10 @@ impl Block {
     }
 
     // Find a valid nonce and hash to construct a new block
-    pub fn mine_block(idx: usize, data: &str, prev_hash: &String) -> Block {
+    pub fn mine_block(last_block: &Block, data: &str) -> Block {
+        let idx = last_block.idx + 1;
+        let prev_hash = last_block.hash.clone();
+
         let now: DateTime<Utc> = Utc::now();
         info!("mining block for:\n
                 Block {{ idx: {}, data: {}, timestamp: {}, prev_hash: {}, nonce: ?, hash: ? }}"
@@ -140,28 +153,23 @@ impl Block {
 
     // Validate a block as its own entity:
     pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
-        //   1. check if block's hash (in binary) has a valid number of leading zeros, ignoring the genesis block
-        let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash)
-            .expect("Can convert hex string to binary");
-        if block.idx != 0 && !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            return Err(NextBlockErr::DifficultyCheckFailed {
-                block_idx:block.idx,
-                hash_binary,
-                difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
-            })
+        //   check if block's hash has a valid number of leading zeros, ignoring the genesis block
+        let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
+        if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
+            if block.idx != 0 {
+                return Err(NextBlockErr::DifficultyCheckFailed {
+                    block_idx:block.idx,
+                    hash_binary,
+                    difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
+                })
+            }
         }
-        //    2. check if block's hash is indeed the correct hash of itself.
-        let computed_hash = Self::compute_hash(
-            block.idx,
-            &block.data,
-            block.timestamp,
-            &block.prev_hash,
-            block.nonce,
-        );
+        //  check if block's hash is indeed the correct hash of itself.
+        let computed_hash = Self::compute_hash(block.idx, &block.data, block.timestamp, &block.prev_hash,  block.nonce);
         if block.hash != computed_hash {
             return Err(NextBlockErr::InconsistentHash {
                 block_idx: block.idx,
-                stored_hash: block.hash.clone(),
+                block_hash: block.hash.clone(),
                 computed_hash,
             });
         }
