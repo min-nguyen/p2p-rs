@@ -17,7 +17,7 @@ use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
 use super::file;
-use super::block::{Block, BlockErr};
+use super::block::{Block, NextBlockErr};
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
 use super::message::{PowMessage, TxnMessage, TransmitType};
@@ -150,9 +150,8 @@ impl Peer {
                 }
                 // Validate block itself
                 match self.chain.handle_new_block(block.clone()){
-                    Ok(()) =>{
-                        println!("Successfully validated the remote peer's new block as a chain extension.\n\
-                                 Extended current chain.");
+                    Ok(res) =>{
+                        println!("Update result {}", res);
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }

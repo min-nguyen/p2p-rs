@@ -90,7 +90,7 @@ impl Chain {
         truncate(&mut self.main, len);
     }
 
-    pub fn handle_new_block(&mut self, block: Block) -> Result<(), NextBlockErr>{
+    pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
         // Search for the parent block in the main chain.
@@ -107,7 +107,7 @@ impl Chain {
             //         endpoint_idx: self.last().idx,
             //         endpoint_hash: self.last().hash.clone()
             //     });
-                Ok (())
+                Ok (NextBlockResult::SomeUpdate)
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -126,7 +126,7 @@ impl Chain {
                 //     endpoint_hash: block.hash.to_string()
                 // });
 
-                Ok (())
+                Ok (NextBlockResult::SomeUpdate)
             }
         }
         // Search for the parent block in the forks.
@@ -146,7 +146,7 @@ impl Chain {
                     forks.insert(block.hash, fork);
                 });
                 println!("Extending an existing fork");
-                Ok (())
+                Ok (NextBlockResult::SomeUpdate)
                 // Ok(NextBlockResult::ExtendedFork {
                 //     length: fork.len(),
                 //     forkpoint_idx: fork.first().unwrap().idx - 1,
@@ -177,15 +177,14 @@ impl Chain {
                 //     endpoint_idx: block.idx,
                 //     endpoint_hash: block.hash
                 // });
-                Ok (())
+                Ok (NextBlockResult::SomeUpdate)
             }
         }
         else {
-            // Ok(NextBlockResult::MissingParent {
-            //     block_idx: block.idx,
-            //     block_parent_hash: block.prev_hash
-            // });
-            Ok (())
+            Ok(NextBlockResult::MissingParent {
+                block_idx: block.idx,
+                block_parent_hash: block.prev_hash
+            })
         }
     }
 
@@ -295,26 +294,42 @@ pub enum NextBlockResult {
         block_idx: usize,
         block_parent_hash: String
     },
-    ExtendedMainChain {
-        length: usize,
-        endpoint_idx: usize,
-        endpoint_hash: String,
-    },
-    ExtendedFork {
-        length: usize,
-        forkpoint_idx: usize,
-        forkpoint_hash: String,
-        endpoint_idx: usize,
-        endpoint_hash: String,
-    },
-    NewFork {
-        length: usize,
-        forkpoint_idx: usize,
-        forkpoint_hash: String,
-        endpoint_idx: usize,
-        endpoint_hash: String,
+    SomeUpdate
+    // ExtendedMainChain {
+    //     length: usize,
+    //     endpoint_idx: usize,
+    //     endpoint_hash: String,
+    // },
+    // ExtendedFork {
+    //     length: usize,
+    //     forkpoint_idx: usize,
+    //     forkpoint_hash: String,
+    //     endpoint_idx: usize,
+    //     endpoint_hash: String,
+    // },
+    // NewFork {
+    //     length: usize,
+    //     forkpoint_idx: usize,
+    //     forkpoint_hash: String,
+    //     endpoint_idx: usize,
+    //     endpoint_hash: String,
+    // }
+}
+impl std::fmt::Display for NextBlockResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            // Formatting the MissingParent variant
+            NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
+                write!(f, "Missing parent block. Index: {}, Parent Hash: {}", block_idx, block_parent_hash)
+            }
+            // Formatting the SomeUpdate variant
+            NextBlockResult::SomeUpdate => {
+                write!(f, "Some update occurred successfully.")
+            }
+        }
     }
 }
+
 
 // For validating full chains
 #[derive(Debug)]

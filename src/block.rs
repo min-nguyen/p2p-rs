@@ -45,7 +45,10 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::InconsistentHash { stored_hash, computed_hash } => {
                 write!(f, "Block's stored hash {} does not match its computed hash {}.", stored_hash, computed_hash)
             }
-            NextBlockErr::InvalidIndex { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
+            NextBlockErr::InvalidIndex { block_idx } => {
+                write!(f, "Block has invalid index {}.", block_idx)
+            }
+            NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
             }
         }
