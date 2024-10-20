@@ -16,7 +16,7 @@ const DIFFICULTY_PREFIX: &str = "00";
 
 // For validating whether one block is a valid next block for another.
 #[derive(Debug, Clone)]
-pub enum BlockErr {
+pub enum NextBlockErr {
     DifficultyCheckFailed {
         hash_binary: String,
         difficulty_prefix: String,
@@ -24,23 +24,35 @@ pub enum BlockErr {
     InconsistentHash {
         stored_hash: String,
         computed_hash: String,
-    }
+    },
+    InvalidIndex {
+        block_idx: usize
+    },
+    InvalidChild {
+        block_idx: usize,
+        block_prev_hash: String,
+        parent_block_idx: usize,
+        parent_block_hash: String,
+    } // Block has an inconsistent prev_hash and/or index with a specified parent
 }
 
-impl std::fmt::Display for BlockErr {
+impl std::fmt::Display for NextBlockErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            BlockErr::DifficultyCheckFailed { hash_binary, difficulty_prefix } => {
+            NextBlockErr::DifficultyCheckFailed { hash_binary, difficulty_prefix } => {
                 write!(f, "Block's hash {} does not meet the difficulty target {}.", hash_binary, difficulty_prefix)
             }
-            BlockErr::InconsistentHash { stored_hash, computed_hash } => {
+            NextBlockErr::InconsistentHash { stored_hash, computed_hash } => {
                 write!(f, "Block's stored hash {} does not match its computed hash {}.", stored_hash, computed_hash)
+            }
+            NextBlockErr::InvalidIndex { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
+                write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
             }
         }
     }
 }
 
-impl std::error::Error for BlockErr {}
+impl std::error::Error for NextBlockErr {}
 
 
 /* Block
@@ -122,12 +134,12 @@ impl Block {
     }
 
     // Validate a block as its own entity:
-    pub fn validate_block(block: &Block) -> Result<(), BlockErr> {
+    pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
         //    1. check if block's hash (in binary) has a valid number of leading zeros
         let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash)
             .expect("Can convert hex string to binary");
         if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            return Err(BlockErr::DifficultyCheckFailed {
+            return Err(NextBlockErr::DifficultyCheckFailed {
                 hash_binary,
                 difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
             })
@@ -141,12 +153,29 @@ impl Block {
             block.nonce,
         );
         if block.hash != computed_hash {
-            return Err(BlockErr::InconsistentHash {
+            return Err(NextBlockErr::InconsistentHash {
                 stored_hash: block.hash.clone(),
                 computed_hash,
             });
         }
+        if block.idx < 0 {
+            return Err(NextBlockErr::InvalidIndex  {
+                block_idx: block.idx,
+            })
+        }
 
+        Ok(())
+    }
+
+    pub fn validate_child(parent: &Block, child: &Block) -> Result<(), NextBlockErr>  {
+        if parent.hash != child.prev_hash || parent.idx + 1 != child.idx {
+            return Err(NextBlockErr::InvalidChild  {
+                block_idx: child.idx,
+                block_prev_hash: child.prev_hash.to_string(),
+                parent_block_idx: parent.idx,
+                parent_block_hash: parent.hash.to_string()
+            });
+        }
         Ok(())
     }
 }
