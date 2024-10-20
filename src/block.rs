@@ -18,10 +18,12 @@ const DIFFICULTY_PREFIX: &str = "00";
 #[derive(Debug, Clone)]
 pub enum NextBlockErr {
     DifficultyCheckFailed {
+        block_idx: usize,
         hash_binary: String,
         difficulty_prefix: String,
     },
     InconsistentHash {
+        block_idx: usize,
         stored_hash: String,
         computed_hash: String,
     },
@@ -39,14 +41,14 @@ pub enum NextBlockErr {
 impl std::fmt::Display for NextBlockErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NextBlockErr::DifficultyCheckFailed { hash_binary, difficulty_prefix } => {
-                write!(f, "Block's hash {} does not meet the difficulty target {}.", hash_binary, difficulty_prefix)
+            NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
+                write!(f, "Block {}'s hash {} does not meet the difficulty target {}.", block_idx, hash_binary, difficulty_prefix)
             }
-            NextBlockErr::InconsistentHash { stored_hash, computed_hash } => {
-                write!(f, "Block's stored hash {} does not match its computed hash {}.", stored_hash, computed_hash)
+            NextBlockErr::InconsistentHash { block_idx, stored_hash, computed_hash } => {
+                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, stored_hash, computed_hash)
             }
             NextBlockErr::InvalidIndex { block_idx } => {
-                write!(f, "Block has invalid index {}.", block_idx)
+                write!(f, "Block {} has invalid index.", block_idx)
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
@@ -138,11 +140,12 @@ impl Block {
 
     // Validate a block as its own entity:
     pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
-        //    1. check if block's hash (in binary) has a valid number of leading zeros
+        //   1. check if block's hash (in binary) has a valid number of leading zeros, ignoring the genesis block
         let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash)
             .expect("Can convert hex string to binary");
-        if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
+        if block.idx != 0 && !hash_binary.starts_with(DIFFICULTY_PREFIX) {
             return Err(NextBlockErr::DifficultyCheckFailed {
+                block_idx:block.idx,
                 hash_binary,
                 difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
             })
@@ -157,14 +160,10 @@ impl Block {
         );
         if block.hash != computed_hash {
             return Err(NextBlockErr::InconsistentHash {
+                block_idx: block.idx,
                 stored_hash: block.hash.clone(),
                 computed_hash,
             });
-        }
-        if block.idx < 0 {
-            return Err(NextBlockErr::InvalidIndex  {
-                block_idx: block.idx,
-            })
         }
 
         Ok(())

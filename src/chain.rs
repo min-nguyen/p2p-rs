@@ -134,6 +134,7 @@ impl Chain {
                             endpoint_hash,
                             fork)) = find_fork_mut(&mut self.forks, &block.prev_hash) {
             let parent_block = find_block(fork, &block.prev_hash).unwrap();
+
             Block::validate_child(parent_block, &block)?;
             println!("Found parent block in a fork");
 
@@ -141,30 +142,32 @@ impl Chain {
             if endpoint_hash == parent_block.hash {
                 push_block(fork, &block);
                 // Update the endpoint_hash of the extended fork in the map.
-                self.forks.entry(forkpoint_hash).and_modify(|forks| {
-                    let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("Fork definitely exists; we just pushed a block to it.");
-                    forks.insert(block.hash, fork);
+                self.forks.entry(forkpoint_hash.clone()).and_modify(|forks| {
+                    let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("fork definitely exists.");
+                    forks.insert(block.hash.clone(), fork.clone());
                 });
+
                 println!("Extending an existing fork");
-                Ok (NextBlockResult::SomeUpdate)
-                // Ok(NextBlockResult::ExtendedFork {
-                //     length: fork.len(),
-                //     forkpoint_idx: fork.first().unwrap().idx - 1,
-                //     forkpoint_hash,
-                //     endpoint_idx: block.idx,
-                //     endpoint_hash: block.hash
-                // })
+                // Ok (NextBlockResult::SomeUpdate)
+                let new_fork: &Vec<Block> = self.forks.get(&forkpoint_hash).unwrap().get(&block.hash).unwrap();
+                Ok(NextBlockResult::ExtendedFork {
+                    length: new_fork.len(),
+                    forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,
+                    forkpoint_hash,
+                    endpoint_idx: new_fork.last().expect("fork is non-empty").idx,
+                    endpoint_hash: new_fork.last().expect("fork is non-empty").hash.clone()
+                })
             }
             // Otherwise create a new direct fork from the main chain, whose prefix is a clone of an existing fork's, with
             else {
-                // Truncate the fork until the block's parent,
-                let mut new_fork: Vec<Block> = {
+                // Truncate the fork until the block's parent, then push the new block on
+                let new_fork: Vec<Block> = {
                     let mut fork_clone = fork.clone();
                     truncate_until(&mut fork_clone, |block| block.hash == block.prev_hash);
                     push_block(&mut fork_clone, &block);
                     fork_clone
                 };
-                // Push the new block on
+                //
                 // Insert the new fork into the map.
                 self.forks.entry(forkpoint_hash).and_modify(|forks| {
                     forks.insert(block.hash, new_fork);
@@ -294,19 +297,19 @@ pub enum NextBlockResult {
         block_idx: usize,
         block_parent_hash: String
     },
-    SomeUpdate
+    SomeUpdate,
     // ExtendedMainChain {
     //     length: usize,
     //     endpoint_idx: usize,
     //     endpoint_hash: String,
     // },
-    // ExtendedFork {
-    //     length: usize,
-    //     forkpoint_idx: usize,
-    //     forkpoint_hash: String,
-    //     endpoint_idx: usize,
-    //     endpoint_hash: String,
-    // },
+    ExtendedFork {
+        length: usize,
+        forkpoint_idx: usize,
+        forkpoint_hash: String,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    },
     // NewFork {
     //     length: usize,
     //     forkpoint_idx: usize,
@@ -325,6 +328,20 @@ impl std::fmt::Display for NextBlockResult {
             // Formatting the SomeUpdate variant
             NextBlockResult::SomeUpdate => {
                 write!(f, "Some update occurred successfully.")
+            }
+            NextBlockResult::ExtendedFork {
+                length,
+                forkpoint_idx,
+                forkpoint_hash,
+                endpoint_idx,
+                endpoint_hash,
+            } => {
+                write!(
+                    f,
+                    "Existing fork extended. Length: {}, Forkpoint Index: {}, Forkpoint Hash: {}, \
+                    Endpoint Index: {}, Endpoint Hash: {}",
+                    length, forkpoint_idx, forkpoint_hash, endpoint_idx, endpoint_hash
+                )
             }
         }
     }
