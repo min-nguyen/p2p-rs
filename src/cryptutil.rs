@@ -62,3 +62,10 @@ pub fn debug<T:std::fmt::Debug>(f : T) -> T{
     eprintln!("{:?}", f);
     f
 }
+
+pub fn pretty_hex(hex : &String) -> String {
+    let mut s = hex.clone();
+    s.truncate(8);
+    s.push_str("...");
+    s
+}

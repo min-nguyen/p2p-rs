@@ -6,6 +6,8 @@
 
 use libp2p::futures::stream::Next;
 use serde::{Deserialize, Serialize};
+use crate::cryptutil::pretty_hex;
+
 use super::block::{Block::{self}, NextBlockErr};
 use std::collections::HashMap;
 
@@ -101,13 +103,11 @@ impl Chain {
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
                push_block(&mut self.main, &block);
-               println!("Extending the main chain");
-            //    Ok(NextBlockResult::ExtendedMainChain {
-            //         length: self.len(),
-            //         endpoint_idx: self.last().idx,
-            //         endpoint_hash: self.last().hash.clone()
-            //     });
-                Ok (NextBlockResult::SomeUpdate)
+               Ok(NextBlockResult::ExtendedMain {
+                    length: self.len(),
+                    endpoint_idx: self.last().idx,
+                    endpoint_hash: self.last().hash.clone()
+                })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -118,15 +118,13 @@ impl Chain {
                 forks_from.insert(block.hash.to_string() // end hash
                                 , new_fork);
                 println!("Adding a single-block fork to the main chain");
-                // Ok(NextBlockResult::NewFork {
-                //     length: 1,
-                //     forkpoint_idx: block.idx - 1,
-                //     forkpoint_hash: block.prev_hash,
-                //     endpoint_idx: block.idx,
-                //     endpoint_hash: block.hash.to_string()
-                // });
-
-                Ok (NextBlockResult::SomeUpdate)
+                Ok(NextBlockResult::NewFork {
+                    length: 1,
+                    forkpoint_idx: block.idx - 1,
+                    forkpoint_hash: block.prev_hash,
+                    endpoint_idx: block.idx,
+                    endpoint_hash: block.hash.to_string()
+                })
             }
         }
         // Search for the parent block in the forks.
@@ -154,8 +152,8 @@ impl Chain {
                     length: new_fork.len(),
                     forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,
                     forkpoint_hash,
-                    endpoint_idx: new_fork.last().expect("fork is non-empty").idx,
-                    endpoint_hash: new_fork.last().expect("fork is non-empty").hash.clone()
+                    endpoint_idx: block.idx, //.last().expect("fork is non-empty").idx,
+                    endpoint_hash: block.hash
                 })
             }
             // Otherwise create a new direct fork from the main chain, whose prefix is a clone of an existing fork's, with
@@ -163,24 +161,23 @@ impl Chain {
                 // Truncate the fork until the block's parent, then push the new block on
                 let new_fork: Vec<Block> = {
                     let mut fork_clone = fork.clone();
-                    truncate_until(&mut fork_clone, |block| block.hash == block.prev_hash);
+                    truncate_until(&mut fork_clone, |b| b.hash == block.prev_hash);
                     push_block(&mut fork_clone, &block);
                     fork_clone
                 };
                 //
                 // Insert the new fork into the map.
-                self.forks.entry(forkpoint_hash).and_modify(|forks| {
-                    forks.insert(block.hash, new_fork);
+                self.forks.entry(forkpoint_hash.clone()).and_modify(|forks: &mut HashMap<String, Vec<Block>>| {
+                    forks.insert(block.hash.clone(), new_fork.clone());
                 });
                 println!("Adding a new fork that branches off an existing fork to the chain");
-                // Ok(NextBlockResult::NewFork {
-                //     length: new_fork.len(),
-                //     forkpoint_idx: fork.first().unwrap().idx - 1,
-                //     forkpoint_hash,
-                //     endpoint_idx: block.idx,
-                //     endpoint_hash: block.hash
-                // });
-                Ok (NextBlockResult::SomeUpdate)
+                Ok(NextBlockResult::NewFork {
+                    length: new_fork.len(),
+                    forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,
+                    forkpoint_hash,
+                    endpoint_idx: block.idx,
+                    endpoint_hash: block.hash
+                })
             }
         }
         else {
@@ -297,12 +294,11 @@ pub enum NextBlockResult {
         block_idx: usize,
         block_parent_hash: String
     },
-    SomeUpdate,
-    // ExtendedMainChain {
-    //     length: usize,
-    //     endpoint_idx: usize,
-    //     endpoint_hash: String,
-    // },
+    ExtendedMain {
+        length: usize,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    },
     ExtendedFork {
         length: usize,
         forkpoint_idx: usize,
@@ -310,24 +306,24 @@ pub enum NextBlockResult {
         endpoint_idx: usize,
         endpoint_hash: String,
     },
-    // NewFork {
-    //     length: usize,
-    //     forkpoint_idx: usize,
-    //     forkpoint_hash: String,
-    //     endpoint_idx: usize,
-    //     endpoint_hash: String,
-    // }
+    NewFork {
+        length: usize,
+        forkpoint_idx: usize,
+        forkpoint_hash: String,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    }
 }
 impl std::fmt::Display for NextBlockResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            // Formatting the MissingParent variant
             NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
-                write!(f, "Missing parent block. Index: {}, Parent Hash: {}", block_idx, block_parent_hash)
+                write!(f, "Missing the parent of the block.\n\
+                           The parent's index should be {} and its hash should be: {}", block_idx - 1, pretty_hex(block_parent_hash))
             }
-            // Formatting the SomeUpdate variant
-            NextBlockResult::SomeUpdate => {
-                write!(f, "Some update occurred successfully.")
+            NextBlockResult::ExtendedMain { length, endpoint_idx, endpoint_hash } => {
+                write!(f, "Extended the main chain with the block.\n\
+                           Its new length is {}, and the last block has index {} with hash {}.", length, endpoint_idx, pretty_hex(endpoint_hash))
             }
             NextBlockResult::ExtendedFork {
                 length,
@@ -338,9 +334,23 @@ impl std::fmt::Display for NextBlockResult {
             } => {
                 write!(
                     f,
-                    "Existing fork extended. Length: {}, Forkpoint Index: {}, Forkpoint Hash: {}, \
-                    Endpoint Index: {}, Endpoint Hash: {}",
-                    length, forkpoint_idx, forkpoint_hash, endpoint_idx, endpoint_hash
+                    "Extended an existing fork with the block.\n\
+                    A fork from index {} and hash {} has a new length {}, and its last block has index {} with hash {}.",
+                    forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
+                )
+            }
+            NextBlockResult::NewFork {
+                length,
+                forkpoint_idx,
+                forkpoint_hash,
+                endpoint_idx,
+                endpoint_hash,
+            } => {
+                write!(
+                    f,
+                    "Added a new fork from the main chain with the block\n\
+                    A fork from index {} and hash {} has a length {}, and its last block has index {} with hash {}.",
+                    forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
                 )
             }
         }
@@ -360,13 +370,13 @@ impl std::fmt::Display for ChainErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ChainErr::ChainIsEmpty => {
-                write!(f, "Chain is empty")
+                write!(f, "Chain is empty.")
             }
             ChainErr::ChainIsFork  => {
-                write!(f, "Chain doesn't begin at index 0")
+                write!(f, "Chain doesn't begin at index 0.")
             }
             ChainErr::InvalidSubChain (e) => {
-                write!(f, "Chain contains invalid blocks or contiguous blocks: {}", e)
+                write!(f, "Chain contains invalid blocks or contiguous blocks:\n{}.", e)
             }
         }
     }
