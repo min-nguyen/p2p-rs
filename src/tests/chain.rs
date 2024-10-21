@@ -26,13 +26,13 @@ mod chain_tests {
     fn test_chain_is_empty(){
         assert!(matches!(
             debug(Chain::from_vec(vec![])),
-            Err(ChainErr::ChainIsEmpty)));
+            Err(NextBlockErr::EmptyChain)));
     }
     #[test]
     fn test_chain_is_fork(){
         assert!(matches!(
             debug(Chain::from_vec(vec![Block { idx : 7, .. Block::genesis() }])),
-            Err(ChainErr::ChainIsFork { first_block_idx : 7 })));
+            Err(NextBlockErr::InvalidIndex { block_idx : 7, expected_idx: 0 })));
     }
     /*****************************
      * Tests for handling new blocks *

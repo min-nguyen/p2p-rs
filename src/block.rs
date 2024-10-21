@@ -168,6 +168,7 @@ impl Block {
         }
         Ok(())
     }
+
 }
 
 impl std::fmt::Display for Block {
@@ -222,7 +223,8 @@ pub enum NextBlockErr {
         computed_hash: String,
     },
     InvalidIndex {
-        block_idx: usize
+        block_idx: usize,
+        expected_idx: usize
     },
     InvalidChild { // Block has an inconsistent prev_hash and/or index with a specified parent
         block_idx: usize,
@@ -230,6 +232,7 @@ pub enum NextBlockErr {
         parent_block_idx: usize,
         parent_block_hash: String,
     },
+    EmptyChain
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -241,11 +244,14 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
                 write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, block_hash, computed_hash)
             }
-            NextBlockErr::InvalidIndex { block_idx } => {
-                write!(f, "Block {} has invalid index.", block_idx)
+            NextBlockErr::InvalidIndex { block_idx, expected_idx } => {
+                write!(f, "Block {} has invalid index, whereas we expected index {}.", block_idx, expected_idx)
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
+            },
+            NextBlockErr::EmptyChain => {
+                write!(f, "Chain is empty.")
             }
         }
     }

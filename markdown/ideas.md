@@ -22,17 +22,20 @@
             - [x] test merging an invalid fork suffix
         - [x] make chain struct contain a _private_ vector of blocks
         - [x] introduce additional data structures for tracking alternative chains and blocks
+        - [x] change Chain::choose_chain to return an informative result as a custom data type
         - [ ] handle new blocks by:
                 - [x] extending the main chain,
                 - [x] adding new (single-block) forks to the main chian
                 - [x] extending an existing chain from the main chain,
                 - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
+                - [ ] to do: automate switching from the main chain to a longer fork
                 - [ ] to do: avoid doing anything for duplicate blocks
-                            - introduce NextBlockErr::Duplicate
+                            - introduce NextBlockRes::Duplicate
                 - [ ] to do: avoid cloning blocks from an existing fork in order to represent the new fork
                             - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
-        - [ ] change Chain::choose_chain to return an informative result as a custom data type
-        - [ ] implement requesting new blocks until forming a valid fork suffix
+        - [ ] handle MissingBlocks in peer
+                - [ ] implement requesting new blocks until forming a valid fork suffix
+                     - use a FIFO data structure
 
 in parallel:
 - [ ] data structure for storing new block proposals and number of validations, before adding it to the chain

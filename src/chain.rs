@@ -24,7 +24,7 @@ impl Chain {
     }
 
     // Safely construct a chain from a vector of blocks
-    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, ChainErr> {
+    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
         let chain = Chain{main : blocks, forks : HashMap::new()};
         Self::validate_chain(&chain)?;
         Ok(chain)
@@ -197,16 +197,16 @@ impl Chain {
     }
 
     // Validate chain from head to tail, expecting it to begin at idx 0
-    pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        let first_block = chain.main.get(0).ok_or(ChainErr::ChainIsEmpty)?;
+    pub fn validate_chain(chain: &Chain) -> Result<(), NextBlockErr> {
+        let first_block = chain.main.get(0).ok_or(NextBlockErr::EmptyChain)?;
         if first_block.idx != 0 {
-            return Err( ChainErr::ChainIsFork { first_block_idx: first_block.idx });
+            return Err( NextBlockErr::InvalidIndex { block_idx: first_block.idx, expected_idx: 0 });
         }
-        Block::validate_blocks(&chain.main).map_err(|e| ChainErr::InvalidSubChain(e))
+        Block::validate_blocks(&chain.main)
     }
 
     // Choose the longest valid chain (defaulting to the local version).
-    pub fn choose_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, ChainErr> {
+    pub fn choose_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
         match Self::validate_chain(&remote)  {
             Ok(_) => {
                 if self.main.len() >= remote.main.len() {
