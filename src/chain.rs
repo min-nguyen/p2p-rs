@@ -33,14 +33,6 @@ impl Chain {
         self.main.clone()
     }
 
-    pub fn get(&self, idx: usize) -> Option<&Block> {
-        self.main.get(idx)
-    }
-
-    pub fn lookup(&self, hash: &String) -> Option<&Block> {
-        self.main.iter().find(|b: &&Block| b.hash == *hash)
-    }
-
     pub fn last(&self) -> &Block {
         self.main.last().expect("Chain should always be non-empty")
     }
@@ -49,15 +41,23 @@ impl Chain {
         self.main.len()
     }
 
-    pub fn split_off(&mut self, len: usize) -> Vec<Block> {
-        Block::split_off(&mut self.main, len)
+    pub fn get(&self, idx: usize) -> Option<&Block> {
+        self.main.get(idx)
     }
 
-    pub fn split_off_until<P>(&mut self, prop: P) -> Vec<Block>
-    where
-        P: Fn(&Block) -> bool,
-    {
-        Block::split_off_until(&mut self.main, prop)
+    pub fn find(&self, hash: &String) -> Option<&Block> {
+        Block::find(&self.main, hash)
+    }
+
+    // Safe split off that ensures the main chain is always non-empty
+    pub fn split_off(&mut self, len: usize) -> Option<Vec<Block>> {
+        if len == 0 {
+            None
+        }
+        else {
+            let main_chain_len = self.len();
+            Some(Block::split_off(&mut self.main, std::cmp::min(main_chain_len, len)))
+        }
     }
 
     // Check if block is in any fork, returning the fork point, end hash, and fork

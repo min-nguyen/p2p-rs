@@ -48,10 +48,12 @@ impl Block {
         blocks.push(new_block.clone());
     }
 
+    // Unsafe splitoff
     pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
-        blocks.split_off(std::cmp::min(blocks.len(), len))
+        blocks.split_off(len)
     }
 
+    // Unsafe splitoff until
     pub fn split_off_until<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
     where
         P: Fn(&Block) -> bool,
