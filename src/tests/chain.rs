@@ -42,12 +42,40 @@ mod chain_tests {
         let mut chain: Chain = Chain::genesis();
         let next_block = Block::mine_block(chain.last(), "next valid block");
 
+        // chain: [0]---[1]
         assert!(matches!(
             debug(chain.handle_new_block(next_block))
             , Ok(..)));
     }
     #[test]
-    fn test_old_block() {
+    fn test_adding_and_extending_forks() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_block(&format!("block {}", i));
+        }
+        // handle the next expected block from a forked_chain that is one block longer than the current chain
+        let mut forked_chain = chain.clone();
+        forked_chain.truncate(FORK_PREFIX_LEN);
+
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[*3*]
+        forked_chain.mine_block(&format!("block {} in fork", 0));
+        assert!(matches!(
+            debug(chain.handle_new_block(forked_chain.last().clone())),
+            Ok(NextBlockResult::NewFork { .. })
+        ));
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[*4*]---[*5*]
+        for i in 1..3 {
+            forked_chain.mine_block(&format!("block {} in fork", i));
+            assert!(matches!(
+                debug(chain.handle_new_block(forked_chain.last().clone())),
+                Ok(NextBlockResult::ExtendedFork { .. })
+            ));
+        }
+    }
+    #[test]
+    fn test_duplicate_block_in_main() {
         let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.mine_block(&format!("block {}", i))
@@ -55,10 +83,10 @@ mod chain_tests {
         // handle an old block from the current chain that is one block older than the tip
         let out_of_date_block: Block = chain.get(chain.last().idx - 1).unwrap().clone();
         // chain: [0]---[1]---[2]---[3]---[4]
-        // old:                |---[*3*]
+        //                     |---[*3*]
         assert!(matches!(
             debug(chain.handle_new_block(out_of_date_block)),
-            Ok( .. )   // to-do: implement Duplicateblock
+            Ok( NextBlockResult::NewFork { .. } )   // to-do: implement Duplicateblock
         ));
     }
     #[test]
@@ -74,68 +102,29 @@ mod chain_tests {
             forked_chain.mine_block(&format!("block {} in fork", i))
         }
         // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:               |----[3]---[*4*]
+        // fork:               |----[?]---[*4*]
         assert!(matches!(
             debug(chain.handle_new_block(forked_chain.last().clone())),
             Ok(NextBlockResult::MissingParent{..})
         ));
     }
-    // #[test]
-    // fn test_next_block_in_fork() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // handle the next expected block from a forked_chain that is one block longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 1 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
-    //     }
-    //     // chain: [0]---[1]---[2]---[3]---[4]
-    //     // fork:               |----[3]---[4]---[*5*]
-    //     assert!(matches!(
-    //         debug(chain.handle_new_block(forked_chain.last().clone())),
-    //         Err(NextBlockErr::MissingBlock { .. })
-    //     ));
-    // }
-    // #[test]
-    // fn test_block_too_new() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // handle the latest block from a duplicate chain that is 2 blocks longer than the current chain
-    //     let mut dup_chain: Chain = chain.clone();
-    //     dup_chain.mine_then_push_block("next block in dup chain");
-    //     dup_chain.mine_then_push_block("next block in dup chain");
-    //     // chain:      [0]---[1]---[2]---[3]---[4]
-    //     // duplicate:                           |---[5]---[*6*]
-    //     assert!(matches!(
-    //         debug(chain.handle_new_block(dup_chain.last().clone())),
-    //         Err(NextBlockErr::MissingBlock { .. })
-    //     ));
-    // }
-    // #[test]
-    // fn test_block_too_new_in_fork() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // handle the latest block from a forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
-    //     }
-    //     // chain:   [0]---[1]---[2]---[3]---[4]
-    //     // fork:                 |----[3]---[4]---[5]---[*6*]
-    //     assert!(matches!(
-    //         debug(chain.handle_new_block(forked_chain.last().clone())),
-    //         Err(NextBlockErr::MissingBlock { .. })
-    //     ));
-    // }
 
+    #[test]
+    fn test_missing_parent_in_main() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_block(&format!("block {}", i));
+        }
+        // handle a block from an up-to-date chain that is at a height 2 more than the current chain
+        let mut dup_chain: Chain = chain.clone();
+        dup_chain.mine_block("next block in dup chain");
+        dup_chain.mine_block("next block in dup chain");
+        // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
+        assert!(matches!(
+            debug(chain.handle_new_block(dup_chain.last().clone())),
+            Ok(NextBlockResult::MissingParent { .. })
+        ));
+    }
 
     // /*****************************
     //  * Tests for merging forks *
@@ -144,13 +133,13 @@ mod chain_tests {
     // fn test_valid_fork_longer(){
     //     let mut chain: Chain = Chain::genesis();
     //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
+    //         chain.mine_block(&format!("block {}", i));
     //     }
     //     // make a competing forked_chain that is 2 blocks longer than the current chain
     //     let mut forked_chain = chain.clone();
     //     forked_chain.truncate(FORK_PREFIX_LEN);
     //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
+    //         forked_chain.mine_block(&format!("block {} in fork", i));
     //     }
     //     // strip the common prefix between the current and forked chain
     //     let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
@@ -172,17 +161,17 @@ mod chain_tests {
     // fn test_valid_fork_shorter() {
     //     let mut chain: Chain = Chain::genesis();
     //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
+    //         chain.mine_block(&format!("block {}", i));
     //     }
     //     // make a competing forked_chain that is 2 blocks longer than the current chain
     //     let mut forked_chain = chain.clone();
     //     forked_chain.truncate(FORK_PREFIX_LEN);
     //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
+    //         forked_chain.mine_block(&format!("block {} in fork", i));
     //     }
     //     // then make the current chain 2 blocks longer than the forked_chain
     //     for i in CHAIN_LEN .. forked_chain.len() + 2 {
-    //         chain.mine_then_push_block(&format!("block {}", i));
+    //         chain.mine_block(&format!("block {}", i));
     //     }
     //     // strip the common prefix between the current and forked chain
     //     let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
@@ -199,88 +188,4 @@ mod chain_tests {
     //     // chain: [0]---[1]---[2]
     //     //                     |----[3]---[4]---[5]---[6]
     // }
-    // #[test]
-    // fn test_fork_is_empty() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     let mut empty_fork = vec![];
-    //     // chain: [0]---[1]---[2]---[3]---[4]
-    //     // fork:   ???
-    //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut empty_fork)),
-    //         Err(ForkErr::ForkIsEmpty { .. })
-    //     ));
-    // }
-    // #[test]
-    // fn test_fork_starts_at_genesis() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // make a competing forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
-    //     }
-    //     // try to merge the entire forked chain  rather than the fork.
-    //     // chain :  [0]---[1]---[2]---[3]---[4]
-    //     // "fork":  [0]---[1]---[2]---[3]---[4]---[5]---[6]
-    //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut forked_chain.to_vec())),
-    //         Err(ForkErr::ForkStartsAtGenesis{ .. })
-    //     ));
-    // }
-    // #[test]
-    // fn test_fork_incompatible() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // make a competing forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
-    //     }
-    //     // strip the common prefix between the current and forked chain, then **remove the first block** from the fork
-    //     let mut incompatible_fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec().split_off(1);
-    //     // try to merge a fork that is missing a reference to the current chain:
-    //     // chain: [0]---[1]---[2]---[3]---[4]
-    //     // fork:               |----[?]---[4]---[5]---[6]
-    //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut incompatible_fork)),
-    //         Err(ForkErr::ForkIncompatible{ .. })
-    //     ));
-    // }
-    // #[test]
-    // fn test_fork_invalid_subchain() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_then_push_block(&format!("block {}", i));
-    //     }
-    //     // make a competing forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_then_push_block(&format!("block {} in fork", i));
-    //     }
-    //     // strip the common prefix between the current and forked chain, and then **mutate the last block** in the fork
-    //     let mut invalid_subchain_fork: Vec<Block> = {
-    //         let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
-    //         let b: &mut Block = fork.last_mut().unwrap();
-    //         b.data = "corrupt data".to_string();
-    //         fork
-    //     };
-    //     // try to merge a fork that is corrupt subchain
-    //     // chain: [0]---[1]---[2]---[3]---[4]
-    //     // fork:               |----[3]---[4]---[5]---[X]
-    //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut invalid_subchain_fork)),
-    //         Err(ForkErr::InvalidSubChain{ .. })
-    //     ));
-    // }
-
 }

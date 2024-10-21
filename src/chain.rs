@@ -5,6 +5,8 @@
 */
 
 use serde::{Deserialize, Serialize};
+use crate::cryptutil::pretty_hex;
+
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
 use std::collections::HashMap;
 
@@ -77,6 +79,7 @@ impl Chain {
         if let Some(parent_block) = Block::find(&self.main, &block.prev_hash){
 
             Block::validate_child(parent_block, &block)?;
+            println!("Found valid parent block in main chain. \n{}\n{}", parent_block, block);
 
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
@@ -94,6 +97,7 @@ impl Chain {
                     = self.forks.entry(block.prev_hash.to_string()).or_insert(HashMap::new());
                 forks_from.insert(block.hash.to_string() // end hash
                                 , new_fork);
+                println!("Adding a single-block fork to the main chain");
                 Ok(NextBlockResult::NewFork {
                     length: 1,
                     forkpoint_idx: block.idx - 1,
@@ -110,6 +114,7 @@ impl Chain {
             let parent_block = Block::find(fork, &block.prev_hash).unwrap();
 
             Block::validate_child(parent_block, &block)?;
+            println!("Found valid parent block in a fork");
 
             // If its parent was the last block in the fork, append the block to the fork
             if endpoint_hash == parent_block.hash {
