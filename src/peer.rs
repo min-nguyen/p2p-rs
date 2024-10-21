@@ -16,6 +16,8 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
+use crate::chain::ChooseChainResult;
+
 use super::file;
 use super::block::{Block, NextBlockErr};
 use super::chain::{self, Chain};
@@ -117,15 +119,24 @@ impl Peer {
                                 \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
                     }
                 else {
-                    println!("Couldn't lookup BlockRequest for the hash:\n\t{}", block_hash);
+                    println!("Couldn't lookup BlockRequest for the hash:\n\
+                                 \"\t{}\"", block_hash);
                 }
             },
             PowMessage::ChainResponse{ chain , ..} => {
-                if self.chain.choose_chain(&chain){
-                    println!("Updated current chain to be remote peer's chain.")
-                }
-                else {
-                    println!("Keeping current chain over remote peer's chain (either invalid or not longer than ours).");
+                match self.chain.choose_chain(&chain){
+                    Ok(res@ChooseChainResult::ChooseMain{..}) => {
+                        println!("Keeping main chain over remote peer's chain: \n\
+                                    \"\t{}\"", res)
+                    }
+                    Ok(res@ChooseChainResult::ChooseOther{..}) => {
+                        println!("Updated current chain to be remote peer's chain: \n\
+                                    \"\t{}\"", res)
+                    }
+                    Err(e) => {
+                        println!("Remote chain couldn't be validated:\n\
+                                    \"\t{}\"", e)
+                    }
                 }
             },
             PowMessage::BlockResponse { .. } => {

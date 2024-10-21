@@ -4,7 +4,7 @@
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{
-        block::{Block, NextBlockErr}, chain::{Chain, ChainErr, NextBlockResult}, cryptutil::debug};
+        block::{Block, NextBlockResult, NextBlockErr}, chain::{Chain, ChainErr}, cryptutil::debug};
 
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;

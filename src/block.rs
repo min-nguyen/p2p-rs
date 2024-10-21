@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 use log::info;
 
-use super::cryptutil;
+use super::cryptutil::{self, pretty_hex};
 
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
@@ -36,13 +36,6 @@ pub enum NextBlockErr {
         parent_block_idx: usize,
         parent_block_hash: String,
     },
-    /* To-Do:
-    Duplicate {
-        block_idx: usize,
-        block_hash: String,
-        data: String
-    }
-    */
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -59,6 +52,63 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
+            }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum NextBlockResult {
+    MissingParent {
+        block_idx: usize,
+        block_parent_hash: String
+    },
+    ExtendedMain {
+        length: usize,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    },
+    ExtendedFork {
+        length: usize,
+        forkpoint_idx: usize,
+        forkpoint_hash: String,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    },
+    NewFork {
+        length: usize,
+        forkpoint_idx: usize,
+        forkpoint_hash: String,
+        endpoint_idx: usize,
+        endpoint_hash: String,
+    }
+    /* To-Do:
+    Duplicate Block
+    */
+}
+
+impl std::fmt::Display for NextBlockResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
+                write!(f, "Block's parent cannot be found in the current chain nor forks.\n\
+                           The missing parent has index {} and hash {}.", block_idx - 1, pretty_hex(block_parent_hash))
+            }
+            NextBlockResult::ExtendedMain { length, endpoint_idx, endpoint_hash } => {
+                write!(f, "Extended the main chain to new length {}.\n\
+                           Its last block has index {} with hash {}.", length, endpoint_idx, pretty_hex(endpoint_hash))
+            }
+            NextBlockResult::ExtendedFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
+                write!(f,  "Extended an existing fork from ({}, {}) on the main chain, to new length {}.\n\
+                            Its last block has index {} with hash {}.",
+                            forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
+                )
+            }
+            NextBlockResult::NewFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
+                write!( f, "Added a completely new fork from ({}, {}) on the main chain, with length {}. \n\
+                            Its last block has index {} with hash {}.",
+                            forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
+                )
             }
             // NextBlockErr::Duplicate { block_idx, block_hash,data } => {
             //     write!(f, "Block {} with hash {} and data {} already exists.", block_idx, block_hash, data)
@@ -187,6 +237,27 @@ impl Block {
             });
         }
         Ok(())
+    }
+
+    pub fn push(blocks: &mut Vec<Block>, new_block: &Block){
+        blocks.push(new_block.clone());
+    }
+
+    pub fn truncate(blocks: &mut Vec<Block>, len: usize){
+        blocks.truncate(std::cmp::min(blocks.len() - 1, len));
+    }
+
+    pub fn truncate_until<P>(blocks: &mut Vec<Block>, prop: P)
+    where
+        P: Fn(&Block) -> bool,
+    {
+        if let Some(idx) = blocks.iter().position(|block| prop(&block)){
+            blocks.truncate(idx);
+        }
+    }
+
+    pub fn find<'a>(blocks: &'a Vec<Block>, block_hash: &String) -> Option<&'a Block> {
+        blocks.iter().find(|block| &block.hash == block_hash)
     }
 }
 
