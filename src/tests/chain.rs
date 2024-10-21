@@ -55,7 +55,7 @@ mod chain_tests {
         }
         // handle the next expected block from a forked_chain that is one block longer than the current chain
         let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let _ = forked_chain.split_off(FORK_PREFIX_LEN);
 
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[*3*]
@@ -96,8 +96,8 @@ mod chain_tests {
             chain.mine_block(&format!("block {}", i));
         }
         // handle a competing block from a forked_chain that is the same length as the current chain
-        let mut forked_chain = chain.clone();
-        forked_chain.truncate(FORK_PREFIX_LEN);
+        let mut forked_chain: Chain = chain.clone();
+        let _ = forked_chain.split_off(FORK_PREFIX_LEN);
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) {
             forked_chain.mine_block(&format!("block {} in fork", i))
         }

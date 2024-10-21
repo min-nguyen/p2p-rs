@@ -5,7 +5,6 @@
 */
 
 use serde::{Deserialize, Serialize};
-use crate::cryptutil::pretty_hex;
 
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
 use std::collections::HashMap;
@@ -50,8 +49,15 @@ impl Chain {
         self.main.len()
     }
 
-    pub fn truncate(&mut self, len: usize){
-        Block::truncate(&mut self.main, len);
+    pub fn split_off(&mut self, len: usize) -> Vec<Block> {
+        Block::split_off(&mut self.main, len)
+    }
+
+    pub fn split_off_when<P>(&mut self, prop: P) -> Vec<Block>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        Block::split_off_when(&mut self.main, prop)
     }
 
     // Check if block is in any fork, returning the fork point, end hash, and fork
@@ -69,6 +75,15 @@ impl Chain {
         }
         None
     }
+
+    // pub fn switch_main(&mut self, (fork_point, end_point): (String, String)) -> Option<()>{
+    //     let fork = self.forks.get_mut(&fork_point)?.get_mut(&end_point)?;
+    //     if fork.last().expect("fork must be non-empty").idx > self.last().idx {
+    //         let suffix: Vec<Block> = Block::split_off_when(&mut self.main, |b| b.hash == fork_point);
+
+    //     }
+    //     Some (())
+    // }
 
     pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
@@ -140,7 +155,7 @@ impl Chain {
                 // Truncate the fork until the block's parent, then push the new block on
                 let new_fork: Vec<Block> = {
                     let mut fork_clone = fork.clone();
-                    Block::truncate_until(&mut fork_clone, |b| b.hash == block.prev_hash);
+                    let _ = Block::split_off_when(&mut fork_clone, |b| b.hash == block.prev_hash);
                     Block::push(&mut fork_clone, &block);
                     fork_clone
                 };

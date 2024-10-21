@@ -123,7 +123,7 @@ impl std::error::Error for NextBlockErr {}
 /* Block
   Records some or all of the most recent data not yet validated by the network.
 */
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct Block {
     // position in the chain
     pub idx: usize,
@@ -243,16 +243,19 @@ impl Block {
         blocks.push(new_block.clone());
     }
 
-    pub fn truncate(blocks: &mut Vec<Block>, len: usize){
-        blocks.truncate(std::cmp::min(blocks.len() - 1, len));
+    pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
+        blocks.split_off(std::cmp::min(blocks.len() - 1, len))
     }
 
-    pub fn truncate_until<P>(blocks: &mut Vec<Block>, prop: P)
+    pub fn split_off_when<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
     where
         P: Fn(&Block) -> bool,
     {
         if let Some(idx) = blocks.iter().position(|block| prop(&block)){
-            blocks.truncate(idx);
+            blocks.split_off(idx)
+        }
+        else {
+            vec![]
         }
     }
 
