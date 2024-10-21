@@ -6,7 +6,7 @@
 mod block_tests {
     use crate::{
         block::{Block, NextBlockErr},
-        cryptutil::{debug, encode_bytes_to_hex, ZERO_U32}};
+        cryptutil::{trace, encode_bytes_to_hex, ZERO_U32}};
 
     #[test]
     fn test_invalid_block_difficulty_check() {
@@ -34,7 +34,7 @@ mod block_tests {
         };
 
         assert!(matches!(
-            debug(Block::validate_block(&invalid_hash)),
+            trace(Block::validate_block(&invalid_hash)),
             Err(NextBlockErr::InconsistentHash { .. })
         ));
     }

@@ -1,10 +1,9 @@
 /*
     *Chain*:
-    - Chain, a safe wrapper around a vector of blocks, and error types
+    - Chain internals, a safe wrapper that manages a main chain and a hashmap of forks.
     - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
 */
 
-use libp2p::futures::stream::Next;
 use serde::{Deserialize, Serialize};
 
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
@@ -14,7 +13,7 @@ use std::collections::HashMap;
 pub struct Chain {
     main : Vec<Block>,
     // <fork point, <fork end hash, forked blocks>>
-    pub forks: HashMap<String, HashMap<String, Vec<Block>>>,
+    forks: HashMap<String, HashMap<String, Vec<Block>>>,
 }
 
 impl Chain {
@@ -24,7 +23,7 @@ impl Chain {
     }
 
     // Safely construct a chain from a vector of blocks
-    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, ChainErr> {
+    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
         let chain = Chain{main : blocks, forks : HashMap::new()};
         Self::validate_chain(&chain)?;
         Ok(chain)
@@ -197,16 +196,16 @@ impl Chain {
     }
 
     // Validate chain from head to tail, expecting it to begin at idx 0
-    pub fn validate_chain(chain: &Chain) -> Result<(), ChainErr> {
-        let first_block = chain.main.get(0).ok_or(ChainErr::ChainIsEmpty)?;
+    pub fn validate_chain(chain: &Chain) -> Result<(), NextBlockErr> {
+        let first_block = chain.main.get(0).ok_or(NextBlockErr::EmptyChain)?;
         if first_block.idx != 0 {
-            return Err( ChainErr::ChainIsFork { first_block_idx: first_block.idx });
+            return Err( NextBlockErr::InvalidIndex { block_idx: first_block.idx, expected_idx: 0 });
         }
-        Block::validate_blocks(&chain.main).map_err(|e| ChainErr::InvalidSubChain(e))
+        Block::validate_blocks(&chain.main)
     }
 
     // Choose the longest valid chain (defaulting to the local version).
-    pub fn choose_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, ChainErr> {
+    pub fn choose_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
         match Self::validate_chain(&remote)  {
             Ok(_) => {
                 if self.main.len() >= remote.main.len() {
@@ -256,29 +255,3 @@ impl std::fmt::Display for ChooseChainResult {
         }
     }
 }
-
-// For validating full chains
-#[derive(Debug)]
-pub enum ChainErr {
-    ChainIsEmpty,
-    ChainIsFork{first_block_idx : usize},
-    InvalidSubChain(NextBlockErr),
-}
-
-impl std::fmt::Display for ChainErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ChainErr::ChainIsEmpty => {
-                write!(f, "Chain is empty.")
-            }
-            ChainErr::ChainIsFork{first_block_idx}  => {
-                write!(f, "Chain begins at index {} instead of 0.", first_block_idx)
-            }
-            ChainErr::InvalidSubChain (e) => {
-                write!(f, "Chain contains invalid blocks or contiguous blocks:\n{}.", e)
-            }
-        }
-    }
-}
-
-impl std::error::Error for ChainErr {}

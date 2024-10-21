@@ -1,7 +1,8 @@
 /*
     *Block*: Provides the block and Proof-of-Work mining algorithm.
-    - Block internals and block error types
-    - Methods for hashing, mining, and validating a block.
+    - Block internals.
+    - Methods for hashing, mining, and validating blocks.
+    - Result and error types from handling new blocks.
 */
 
 use chrono::{DateTime, Utc};
@@ -34,7 +35,7 @@ pub struct Block {
 }
 
 impl Block {
-    // Genesis block, the very first block in a chain which never references any previous blocks.
+    // Construct a genesis block
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
           = (0, "genesis".to_string(), Utc::now().timestamp(), cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
@@ -42,12 +43,13 @@ impl Block {
       Block { idx, data, timestamp, prev_hash, nonce, hash }
     }
 
+    // Unsafe push
     pub fn push(blocks: &mut Vec<Block>, new_block: &Block){
         blocks.push(new_block.clone());
     }
 
     pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
-        blocks.split_off(std::cmp::min(blocks.len() - 1, len))
+        blocks.split_off(std::cmp::min(blocks.len(), len))
     }
 
     pub fn split_off_until<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
@@ -119,7 +121,7 @@ impl Block {
         cryptutil::encode_bytes_to_hex(&hash)
     }
 
-    // Validate a block as its own entity:
+    // Validate a block as its own entity
     pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
         //   check if block's hash has a valid number of leading zeros
         let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
@@ -145,6 +147,7 @@ impl Block {
         Ok(())
     }
 
+    // Validate two consecutive blocks
     pub fn validate_child(parent: &Block, child: &Block) -> Result<(), NextBlockErr>  {
         if parent.hash != child.prev_hash || parent.idx + 1 != child.idx {
             return Err(NextBlockErr::InvalidChild  {
@@ -157,6 +160,7 @@ impl Block {
         Ok(())
     }
 
+    // Validate a non-empty sequence of blocks (i.e. a subchain)
     pub fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
         let mut curr: &Block = blocks.first().expect("Subchain must be non-empty");
         Block::validate_block(curr)?;
@@ -168,6 +172,7 @@ impl Block {
         }
         Ok(())
     }
+
 }
 
 impl std::fmt::Display for Block {
@@ -208,49 +213,6 @@ impl std::fmt::Display for Block {
     }
 }
 
-// For validating whether one block is a valid next block for another.
-#[derive(Debug, Clone)]
-pub enum NextBlockErr {
-    DifficultyCheckFailed {
-        block_idx: usize,
-        hash_binary: String,
-        difficulty_prefix: String,
-    },
-    InconsistentHash {
-        block_idx: usize,
-        block_hash: String,
-        computed_hash: String,
-    },
-    InvalidIndex {
-        block_idx: usize
-    },
-    InvalidChild { // Block has an inconsistent prev_hash and/or index with a specified parent
-        block_idx: usize,
-        block_prev_hash: String,
-        parent_block_idx: usize,
-        parent_block_hash: String,
-    },
-}
-
-impl std::fmt::Display for NextBlockErr {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
-                write!(f, "Block {}'s hash {} does not meet the difficulty target {}.", block_idx, hash_binary, difficulty_prefix)
-            }
-            NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
-                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, block_hash, computed_hash)
-            }
-            NextBlockErr::InvalidIndex { block_idx } => {
-                write!(f, "Block {} has invalid index.", block_idx)
-            }
-            NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
-                write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
-            }
-        }
-    }
-}
-
 // The result of adding a new block to a blockchain network
 #[derive(Debug)]
 pub enum NextBlockResult {
@@ -286,8 +248,8 @@ impl std::fmt::Display for NextBlockResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
-                write!(f, "Block's parent cannot be found in the current chain nor forks.\n\
-                           \tThe missing parent has index {} and hash {}.", block_idx - 1, pretty_hex(block_parent_hash))
+                write!(f, "No update to main chain or forks. The parent of the specified block cannot be found.\n\
+                           \tThe missing parent has index and hash ({}, {}).", block_idx - 1, pretty_hex(block_parent_hash))
             }
             NextBlockResult::ExtendedMain { length, endpoint_idx, endpoint_hash } => {
                 write!(f, "Extended the main chain.\n\
@@ -316,6 +278,55 @@ impl std::fmt::Display for NextBlockResult {
         }
     }
 }
+
+// For validating whether one block is a valid next block for another.
+#[derive(Debug, Clone)]
+pub enum NextBlockErr {
+    DifficultyCheckFailed {
+        block_idx: usize,
+        hash_binary: String,
+        difficulty_prefix: String,
+    },
+    InconsistentHash {
+        block_idx: usize,
+        block_hash: String,
+        computed_hash: String,
+    },
+    InvalidIndex {
+        block_idx: usize,
+        expected_idx: usize
+    },
+    InvalidChild { // Block has an inconsistent prev_hash and/or index with a specified parent
+        block_idx: usize,
+        block_prev_hash: String,
+        parent_block_idx: usize,
+        parent_block_hash: String,
+    },
+    EmptyChain
+}
+
+impl std::fmt::Display for NextBlockErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
+                write!(f, "Block {}'s hash {} does not meet the difficulty target {}.", block_idx, hash_binary, difficulty_prefix)
+            }
+            NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
+                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, block_hash, computed_hash)
+            }
+            NextBlockErr::InvalidIndex { block_idx, expected_idx } => {
+                write!(f, "Block {} has invalid index, whereas we expected index {}.", block_idx, expected_idx)
+            }
+            NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
+                write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
+            },
+            NextBlockErr::EmptyChain => {
+                write!(f, "Chain is empty.")
+            }
+        }
+    }
+}
+
 
 impl std::error::Error for NextBlockErr {}
 

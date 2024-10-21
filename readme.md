@@ -85,7 +85,7 @@ Contains the network logic using GossipSub as the communication protocol and Mdn
 
 #### `chain.rs`
 Defines the blockchain and Proof-of-Work consensus algorithm.
-- Chain and chain error types
+- Chain internals, which manages a main chain and a hashmap of forks.
 - Methods for accessing, mining, extending, and validating a chain's blocks with respect to other blocks, chains, or forks.
 
 ```sh
@@ -94,8 +94,9 @@ cargo test chain -- --no capture
 
 #### `block.rs`
 Provides the block and Proof-of-Work mining algorithm.
-- Block internals and block error types
-- Methods for hashing, mining, and validating a block.
+- Block internals.
+- Methods for hashing, mining, and validating blocks.
+- Result and error types from handling new blocks.
 
 ```sh
 cargo test block -- --no capture

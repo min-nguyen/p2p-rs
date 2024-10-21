@@ -14,7 +14,7 @@
   *Reset blockchain*:
 └── Usage: `reset`
 ┌── Description:
-│     • Reset main chain to a single block.
+│     • Reset main chain to a single genesis block and delete existing forks.
 
   *Create new transaction*:
 └── Usage: `txn [data]`
@@ -32,8 +32,8 @@
   *Request chain from peers*:
 └── Usage: `req <"all" | [peer-id]>`
 ┌── Options:
-│     • `"all"`      - Request chain from all peers, and synchronise to the most up-to-date chain
-│     • `[peer-id]`  - Request chain from a specific peer, and synchronise to the most up-to-date chain
+│     • `"all"`      - Request chain from all peers and synchronise to the most up-to-date chain
+│     • `[peer-id]`  - Request chain from a specific peer and synchronise to the most up-to-date chain
 
   *Show peers/chain/transaction pool*:
 └── Usage: `show <"peers" | "chain" | "pool" | "forks">`

@@ -16,7 +16,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
-use crate::chain::ChooseChainResult;
+use crate::{block::NextBlockResult, chain::ChooseChainResult};
 
 use super::file;
 use super::block::{Block, NextBlockErr};
@@ -120,22 +120,22 @@ impl Peer {
                     }
                 else {
                     println!("Couldn't lookup BlockRequest for the hash:\n\
-                                 \"\t{}\"", block_hash);
+                                 \t\"{}\"", block_hash);
                 }
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.choose_chain(&chain){
                     Ok(res@ChooseChainResult::ChooseMain{..}) => {
                         println!("Keeping main chain over remote peer's chain: \n\
-                                    \"\t{}\"", res)
+                                    \t\"{}\"", res)
                     }
                     Ok(res@ChooseChainResult::ChooseOther{..}) => {
                         println!("Updated current chain to be remote peer's chain: \n\
-                                    \"\t{}\"", res)
+                                    \t\"{}\"", res)
                     }
                     Err(e) => {
                         println!("Remote chain couldn't be validated:\n\
-                                    \"\t{}\"", e)
+                                    \t\"{}\"", e)
                     }
                 }
             },
@@ -160,29 +160,31 @@ impl Peer {
                 // Validate block itself
                 match self.chain.handle_new_block(block.clone()){
                     Ok(res) =>{
-                        println!("{}", res);
-                        if remove_from_pool(&mut self.txn_pool, &block){
-                            println!("Deleted mined transaction from the local pool.");
+                        println!("Handled new block:\n\
+                                \t\"{}\"", res);
+                        match res {
+                            NextBlockResult::MissingParent { .. } =>
+                            {
+                                /* We don't do anything with this yet. */
+                                // let req = PowMessage::BlockRequest {
+                                //     transmit_type: TransmitType::ToAll,
+                                //     block_hash: block.prev_hash.clone(),
+                                //     sender_peer_id: self.swarm.local_peer_id().to_string()
+                                // };
+                                // swarm::publish_pow_msg(req, &mut self.swarm);
+                                // println!("Sent BlockRequest for missing block:\n\
+                                //         \t{}\n\
+                                //         to:\n\
+                                //         \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
+                            },
+                            _ => {
+                                if remove_from_pool(&mut self.txn_pool, &block){
+                                    println!("Deleted mined transaction from the local pool.");
+                                }
+                            }
                         }
-                        /* TO DO */
-                        /* match e {
-                            NextBlockErr::MissingBlock { .. } => {
-                                    let req = PowMessage::BlockRequest {
-                                        transmit_type: TransmitType::ToAll,
-                                        block_hash: block.prev_hash.clone(),
-                                        sender_peer_id: self.swarm.local_peer_id().to_string()
-                                    };
-                                    swarm::publish_pow_msg(req, &mut self.swarm);
-                                    println!("Sent BlockRequest for missing block:\n\
-                                            \t{}\n\
-                                            to:\n\
-                                            \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
-                                },
-                            _ => {}
-                        } */
                     }
                     Err(e) => {
-                        /* We don't do anything with this yet. */
                         println!("Couldn't validate the remote peer's block:\n\
                                 \t\"{}\"\n\
                                 Nothing to do.", e);

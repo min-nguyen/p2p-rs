@@ -4,7 +4,7 @@
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{
-        block::{Block, NextBlockResult, NextBlockErr}, chain::{Chain, ChainErr}, cryptutil::debug};
+        block::{Block, NextBlockResult, NextBlockErr}, chain::{Chain}, cryptutil::trace};
 
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
@@ -19,20 +19,20 @@ mod chain_tests {
             chain.mine_block(&format!("block {}", i));
         }
         assert!(matches!(
-            debug(Chain::from_vec(chain.to_vec())),
+            trace(Chain::from_vec(chain.to_vec())),
             Ok(_)));
     }
     #[test]
     fn test_chain_is_empty(){
         assert!(matches!(
-            debug(Chain::from_vec(vec![])),
-            Err(ChainErr::ChainIsEmpty)));
+            trace(Chain::from_vec(vec![])),
+            Err(NextBlockErr::EmptyChain)));
     }
     #[test]
     fn test_chain_is_fork(){
         assert!(matches!(
-            debug(Chain::from_vec(vec![Block { idx : 7, .. Block::genesis() }])),
-            Err(ChainErr::ChainIsFork { first_block_idx : 7 })));
+            trace(Chain::from_vec(vec![Block { idx : 7, .. Block::genesis() }])),
+            Err(NextBlockErr::InvalidIndex { block_idx : 7, expected_idx: 0 })));
     }
     /*****************************
      * Tests for handling new blocks *
@@ -44,7 +44,7 @@ mod chain_tests {
 
         // chain: [0]---[1]
         assert!(matches!(
-            debug(chain.handle_new_block(next_block))
+            trace(chain.handle_new_block(next_block))
             , Ok(..)));
     }
     #[test]
@@ -63,7 +63,7 @@ mod chain_tests {
         };
         forked_chain.mine_block(&format!("block {} in fork", 0));
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.last().clone())),
+            trace(chain.handle_new_block(forked_chain.last().clone())),
             Ok(NextBlockResult::NewFork { length : 1, .. })
         ));
         // chain: [0]---[1]---[2]---[3]---[4]
@@ -71,7 +71,7 @@ mod chain_tests {
         for i in 1..3 {
             forked_chain.mine_block(&format!("block {} in fork", i));
             assert!(matches!(
-                debug(chain.handle_new_block(forked_chain.last().clone())),
+                trace(chain.handle_new_block(forked_chain.last().clone())),
                 Ok(NextBlockResult::ExtendedFork { .. })
             ));
         }
@@ -87,7 +87,7 @@ mod chain_tests {
         println!("NESTED FORK {}", nested_forked_chain);
         nested_forked_chain.mine_block(&format!("block {} in nested fork", 0));
         assert!(matches!(
-            debug(chain.handle_new_block(nested_forked_chain.last().clone())),
+            trace(chain.handle_new_block(nested_forked_chain.last().clone())),
             Ok(NextBlockResult::NewFork {length : 3, .. })
         ));
         println!("NESTED FORK {}", nested_forked_chain);
@@ -97,7 +97,7 @@ mod chain_tests {
         for i in 1..3 {
             nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
             assert!(matches!(
-                debug(chain.handle_new_block(nested_forked_chain.last().clone())),
+                trace(chain.handle_new_block(nested_forked_chain.last().clone())),
                 Ok(NextBlockResult::ExtendedFork { .. })
             ));
         }
@@ -115,7 +115,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         //                     |---[*3*]
         assert!(matches!(
-            debug(chain.handle_new_block(out_of_date_block)),
+            trace(chain.handle_new_block(out_of_date_block)),
             Ok( NextBlockResult::NewFork { .. } )   // to-do: implement Duplicateblock
         ));
     }
@@ -134,7 +134,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[*4*]
         assert!(matches!(
-            debug(chain.handle_new_block(forked_chain.last().clone())),
+            trace(chain.handle_new_block(forked_chain.last().clone())),
             Ok(NextBlockResult::MissingParent{..})
         ));
     }
@@ -151,7 +151,7 @@ mod chain_tests {
         dup_chain.mine_block("next block in dup chain");
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
-            debug(chain.handle_new_block(dup_chain.last().clone())),
+            trace(chain.handle_new_block(dup_chain.last().clone())),
             Ok(NextBlockResult::MissingParent { .. })
         ));
     }
@@ -178,7 +178,7 @@ mod chain_tests {
     //     // fork:               |----[3]---[4]---[5]---[6]
     //     println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
     //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut fork)),
+    //         trace(chain.try_merge_fork(&mut fork)),
     //         Ok(())
     //     ));
     //     println!("Merged chain and fork : {}", chain);
@@ -210,7 +210,7 @@ mod chain_tests {
     //     // fork:               |----[3]---[4]---[5]---[6]
     //     println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
     //     assert!(matches!(
-    //         debug(chain.try_merge_fork(&mut fork)),
+    //         trace(chain.try_merge_fork(&mut fork)),
     //         Ok(())
     //     ));
     //     println!("Merged chain and fork : {}", chain);
