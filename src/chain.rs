@@ -80,8 +80,7 @@ impl Chain {
     // pub fn switch_main(&mut self, (fork_point, end_point): (String, String)) -> Option<()>{
     //     let fork = self.forks.get_mut(&fork_point)?.get_mut(&end_point)?;
     //     if fork.last().expect("fork must be non-empty").idx > self.last().idx {
-    //         let suffix: Vec<Block> = Block::split_off_when(&mut self.main, |b| b.hash == fork_point);
-
+    //         let suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == fork_point);
     //     }
     //     Some (())
     // }
@@ -95,7 +94,6 @@ impl Chain {
         if let Some(parent_block) = Block::find(&self.main, &block.prev_hash){
 
             Block::validate_child(parent_block, &block)?;
-            println!("Found valid parent block in main chain. \n{}\n{}", parent_block, block);
 
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
@@ -111,7 +109,7 @@ impl Chain {
                 let new_fork = vec![block.clone()];
                 let forks_from_parent = self.forks.entry(parent_block.hash.to_string()).or_insert(HashMap::new());
                 forks_from_parent.insert(block.hash.to_string(), new_fork);
-                println!("Adding a single-block fork to the main chain");
+
                 Ok(NextBlockResult::NewFork {
                     length: 1,
                     forkpoint_idx: block.idx - 1,
@@ -128,7 +126,6 @@ impl Chain {
             let parent_block = Block::find(fork, &block.prev_hash).unwrap();
 
             Block::validate_child(parent_block, &block)?;
-            println!("Found valid parent block in a fork");
 
             // If its parent was the last block in the fork, append the block to the fork
             if endpoint_hash == parent_block.hash {
@@ -159,12 +156,12 @@ impl Chain {
                     Block::push(&mut fork_clone, &block);
                     fork_clone
                 };
-                println!("New fork length : {}", new_fork.len());
+
                 // Insert the new fork into the map.
                 self.forks.entry(forkpoint_hash.clone()).and_modify(|forks: &mut HashMap<String, Vec<Block>>| {
                     forks.insert(block.hash.clone(), new_fork.clone());
                 });
-                println!("Adding a new fork that branches off an existing fork to the chain: \n\t{:?}", new_fork);
+
                 Ok(NextBlockResult::NewFork {
                     length: new_fork.len(),
                     forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,

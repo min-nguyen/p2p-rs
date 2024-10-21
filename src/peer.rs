@@ -296,7 +296,7 @@ impl Peer {
     }
     fn handle_cmd_reset(&mut self) {
         self.chain = chain::Chain::genesis();
-        println!("Current chain reset to a single block")
+        println!("Main chain reset to a single genesis block. Forks emptied.")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
         let opt_data: Option<String> =

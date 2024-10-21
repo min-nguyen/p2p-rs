@@ -9,12 +9,12 @@
   *Save chain*:
 └── Usage: `save ?[file_name]`
 ┌── Description:
-│     • Save the current chain to a specified file name, defaulting to the file name `blocks.json`.
+│     • Save the main chain to a specified file name, defaulting to the file name `blocks.json`.
 
   *Reset blockchain*:
 └── Usage: `reset`
 ┌── Description:
-│     • Reset current chain to a single block.
+│     • Reset main chain to a single block.
 
   *Create new transaction*:
 └── Usage: `txn [data]`
@@ -36,11 +36,12 @@
 │     • `[peer-id]`  - Request chain from a specific peer, and synchronise to the most up-to-date chain
 
   *Show peers/chain/transaction pool*:
-└── Usage: `show <"peers" | "chain" | "pool">`
+└── Usage: `show <"peers" | "chain" | "pool" | "forks">`
 ┌── Options:
 │     • `"peers"`   - Show list of discovered and connected peers
-│     • `"chain"`   - Show current chain
-│     • `"pool"`    - Show current transaction pool
+│     • `"chain"`   - Show main chain
+│     • `"pool"`    - Show transaction pool
+│     • `"forks"`   - Show forks from the main chain
 
   *Redial*:
 └── Usage: `redial`

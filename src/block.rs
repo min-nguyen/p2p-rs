@@ -121,10 +121,10 @@ impl Block {
 
     // Validate a block as its own entity:
     pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
-        //   check if block's hash has a valid number of leading zeros, ignoring the genesis block
+        //   check if block's hash has a valid number of leading zeros
         let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
         if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            if block.idx != 0 {
+            if block.idx != 0 { // ignore the genesis block
                 return Err(NextBlockErr::DifficultyCheckFailed {
                     block_idx:block.idx,
                     hash_binary,
@@ -287,21 +287,26 @@ impl std::fmt::Display for NextBlockResult {
         match self {
             NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
                 write!(f, "Block's parent cannot be found in the current chain nor forks.\n\
-                           The missing parent has index {} and hash {}.", block_idx - 1, pretty_hex(block_parent_hash))
+                           \tThe missing parent has index {} and hash {}.", block_idx - 1, pretty_hex(block_parent_hash))
             }
             NextBlockResult::ExtendedMain { length, endpoint_idx, endpoint_hash } => {
-                write!(f, "Extended the main chain to new length {}.\n\
-                           Its last block has index {} with hash {}.", length, endpoint_idx, pretty_hex(endpoint_hash))
+                write!(f, "Extended the main chain.\n\
+                           \tIts new endpoint and new length is ({}, {}) and {}.", endpoint_idx, pretty_hex(endpoint_hash), length)
             }
             NextBlockResult::ExtendedFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
-                write!(f,  "Extended an existing fork from ({}, {}) on the main chain, to new length {}.\n\
-                            Its last block has index {} with hash {}.",
+                write!(f,  "Extended an existing fork from from the main chain.\n\
+                            \tIts forkpoint and new length from the main chain is ({}, {}) and {}.\n\
+                            \tIts new endpoint is ({}, {}).",
                             forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
                 )
             }
             NextBlockResult::NewFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
-                write!( f, "Added a completely new fork from ({}, {}) on the main chain, with length {}. \n\
-                            Its last block has index {} with hash {}.",
+                match length {
+                    1 => writeln!(f, "Added a single-block fork from the main chain."),
+                    _ => writeln!(f, "Added a new fork that branches off an existing fork from the main chain.")
+                }?;
+                write!( f, "\tIts forkpoint and length from the main chain is ({}, {}) and {}. \n\
+                            \tIts endpoint is ({}, {}).",
                             forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
                 )
             }
