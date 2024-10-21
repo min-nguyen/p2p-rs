@@ -4,6 +4,7 @@
     - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
 */
 
+use libp2p::futures::stream::Next;
 use serde::{Deserialize, Serialize};
 
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
@@ -53,11 +54,11 @@ impl Chain {
         Block::split_off(&mut self.main, len)
     }
 
-    pub fn split_off_when<P>(&mut self, prop: P) -> Vec<Block>
+    pub fn split_off_until<P>(&mut self, prop: P) -> Vec<Block>
     where
         P: Fn(&Block) -> bool,
     {
-        Block::split_off_when(&mut self.main, prop)
+        Block::split_off_until(&mut self.main, prop)
     }
 
     // Check if block is in any fork, returning the fork point, end hash, and fork
@@ -108,10 +109,8 @@ impl Chain {
             // Otherwise attach a single-block fork to the main chain
             else {
                 let new_fork = vec![block.clone()];
-                let forks_from: &mut HashMap<String, Vec<Block>>
-                    = self.forks.entry(block.prev_hash.to_string()).or_insert(HashMap::new());
-                forks_from.insert(block.hash.to_string() // end hash
-                                , new_fork);
+                let forks_from_parent = self.forks.entry(parent_block.hash.to_string()).or_insert(HashMap::new());
+                forks_from_parent.insert(block.hash.to_string(), new_fork);
                 println!("Adding a single-block fork to the main chain");
                 Ok(NextBlockResult::NewFork {
                     length: 1,
@@ -133,15 +132,16 @@ impl Chain {
 
             // If its parent was the last block in the fork, append the block to the fork
             if endpoint_hash == parent_block.hash {
-                Block::push(fork, &block);
                 // Update the endpoint_hash of the extended fork in the map.
-                self.forks.entry(forkpoint_hash.clone()).and_modify(|forks| {
-                    let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("fork definitely exists.");
-                    forks.insert(block.hash.clone(), fork.clone());
-                });
-
+                let extended_fork: &Vec<Block> = {
+                    Block::push(fork, &block);
+                    self.forks.entry(forkpoint_hash.clone()).and_modify(|forks| {
+                        let fork: Vec<Block> = forks.remove(&endpoint_hash).expect("fork definitely exists.");
+                        forks.insert(block.hash.clone(), fork.clone());
+                    });
+                    self.forks.get(&forkpoint_hash).unwrap().get(&block.hash).unwrap()
+                };
                 println!("Extending an existing fork");
-                let extended_fork: &Vec<Block> = self.forks.get(&forkpoint_hash).unwrap().get(&block.hash).unwrap();
                 Ok(NextBlockResult::ExtendedFork {
                     length: extended_fork.len(),
                     forkpoint_idx: extended_fork.first().expect("fork is non-empty").idx - 1,
@@ -155,15 +155,16 @@ impl Chain {
                 // Truncate the fork until the block's parent, then push the new block on
                 let new_fork: Vec<Block> = {
                     let mut fork_clone = fork.clone();
-                    let _ = Block::split_off_when(&mut fork_clone, |b| b.hash == block.prev_hash);
+                    let _ = Block::split_off_until(&mut fork_clone, |b| b.hash == block.prev_hash);
                     Block::push(&mut fork_clone, &block);
                     fork_clone
                 };
+                println!("New fork length : {}", new_fork.len());
                 // Insert the new fork into the map.
                 self.forks.entry(forkpoint_hash.clone()).and_modify(|forks: &mut HashMap<String, Vec<Block>>| {
                     forks.insert(block.hash.clone(), new_fork.clone());
                 });
-                println!("Adding a new fork that branches off an existing fork to the chain");
+                println!("Adding a new fork that branches off an existing fork to the chain: \n\t{:?}", new_fork);
                 Ok(NextBlockResult::NewFork {
                     length: new_fork.len(),
                     forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,
@@ -204,14 +205,7 @@ impl Chain {
         if first_block.idx != 0 {
             return Err( ChainErr::ChainIsFork { first_block_idx: first_block.idx });
         }
-        let mut curr = first_block;
-        for i in 0..chain.len() - 1 {
-            let next = chain.get(i + 1).unwrap();
-            Block::validate_block(next).map_err(|e| ChainErr::InvalidSubChain(e))?;
-            Block::validate_child(curr, next).map_err(|e| ChainErr::InvalidSubChain(e))?;
-            curr = next;
-        }
-        Ok(())
+        Block::validate_blocks(&chain.main).map_err(|e| ChainErr::InvalidSubChain(e))
     }
 
     // Choose the longest valid chain (defaulting to the local version).

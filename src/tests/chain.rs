@@ -53,16 +53,18 @@ mod chain_tests {
         for i in 1..CHAIN_LEN {
             chain.mine_block(&format!("block {}", i));
         }
-        // handle the next expected block from a forked_chain that is one block longer than the current chain
-        let mut forked_chain = chain.clone();
-        let _ = forked_chain.split_off(FORK_PREFIX_LEN);
 
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[*3*]
+        let mut forked_chain = {
+            let mut f = chain.clone();
+            let _ = f.split_off(FORK_PREFIX_LEN);
+            f
+        };
         forked_chain.mine_block(&format!("block {} in fork", 0));
         assert!(matches!(
             debug(chain.handle_new_block(forked_chain.last().clone())),
-            Ok(NextBlockResult::NewFork { .. })
+            Ok(NextBlockResult::NewFork { length : 1, .. })
         ));
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[*4*]---[*5*]
@@ -73,6 +75,34 @@ mod chain_tests {
                 Ok(NextBlockResult::ExtendedFork { .. })
             ));
         }
+        println!("FORKED CHAIN {}", forked_chain);
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[4]---[5]
+        // nested fork:                    |----[*5*]
+        let mut nested_forked_chain = {
+                let mut f = forked_chain.clone();
+                let _ = f.split_off(f.len() - 1);
+                f
+        };
+        println!("NESTED FORK {}", nested_forked_chain);
+        nested_forked_chain.mine_block(&format!("block {} in nested fork", 0));
+        assert!(matches!(
+            debug(chain.handle_new_block(nested_forked_chain.last().clone())),
+            Ok(NextBlockResult::NewFork {length : 3, .. })
+        ));
+        println!("NESTED FORK {}", nested_forked_chain);
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[4]---[5]
+        // nested fork:                    |----[5]---[6]---[7]
+        for i in 1..3 {
+            nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
+            assert!(matches!(
+                debug(chain.handle_new_block(nested_forked_chain.last().clone())),
+                Ok(NextBlockResult::ExtendedFork { .. })
+            ));
+        }
+        println!("{}", nested_forked_chain);
+
     }
     #[test]
     fn test_duplicate_block_in_main() {
