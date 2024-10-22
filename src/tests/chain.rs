@@ -54,56 +54,94 @@ mod chain_tests {
             chain.mine_block(&format!("block {}", i));
         }
 
-        // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:               |----[*3*]
         let mut forked_chain = {
             let mut f = chain.clone();
             let _ = f.split_off(FORK_PREFIX_LEN);
             f
         };
-        forked_chain.mine_block(&format!("block {} in fork", 0));
-        assert!(matches!(
-            trace(chain.handle_new_block(forked_chain.last().clone())),
-            Ok(NextBlockResult::NewFork { length : 1, .. })
-        ));
-        // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:               |----[3]---[*4*]---[*5*]
-        for i in 1..3 {
-            forked_chain.mine_block(&format!("block {} in fork", i));
+
+        {
+            // chain: [0]---[1]---[2]---[3]---[4]
+            // fork:               |----[*3*]
+            forked_chain.mine_block(&format!("block {} in fork", 0));
+            println!("Forked chain {}", forked_chain);
             assert!(matches!(
                 trace(chain.handle_new_block(forked_chain.last().clone())),
-                Ok(NextBlockResult::ExtendedFork { .. })
+                Ok(NextBlockResult::NewFork { length : 1, .. })
             ));
         }
-        println!("FORKED CHAIN {}", forked_chain);
-        // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:               |----[3]---[4]---[5]
-        // nested fork:                    |----[*5*]
+
+        {
+            // chain: [0]---[1]---[2]---[3]---[4]
+            // fork:               |----[3]---[*4*]---[*5*]
+            for i in 1..3 {
+                forked_chain.mine_block(&format!("block {} in fork", i));
+                assert!(matches!(
+                    trace(chain.handle_new_block(forked_chain.last().clone())),
+                    Ok(NextBlockResult::ExtendedFork { .. })
+                ));
+            }
+            println!("Forked chain {}", forked_chain);
+        }
+
         let mut nested_forked_chain = {
                 let mut f = forked_chain.clone();
                 let _ = f.split_off(f.len() - 1);
                 f
         };
-        println!("NESTED FORK {}", nested_forked_chain);
-        nested_forked_chain.mine_block(&format!("block {} in nested fork", 0));
-        assert!(matches!(
-            trace(chain.handle_new_block(nested_forked_chain.last().clone())),
-            Ok(NextBlockResult::NewFork {length : 3, .. })
-        ));
-        println!("NESTED FORK {}", nested_forked_chain);
-        // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:               |----[3]---[4]---[5]
-        // nested fork:                    |----[5]---[6]---[7]
-        for i in 1..3 {
-            nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
+
+        {
+            // chain: [0]---[1]---[2]---[3]---[4]
+            // fork:               |----[3]---[4]---[5]
+            // nested fork:                    |----[*5*]
+            nested_forked_chain.mine_block(&format!("block {} in nested fork", 0));
+            println!("Nested fork {}", nested_forked_chain);
             assert!(matches!(
                 trace(chain.handle_new_block(nested_forked_chain.last().clone())),
-                Ok(NextBlockResult::ExtendedFork { .. })
+                Ok(NextBlockResult::NewFork {length : 3, .. })
             ));
         }
-        println!("{}", nested_forked_chain);
 
+        {
+            // chain: [0]---[1]---[2]---[3]---[4]
+            // fork:               |----[3]---[4]---[5]
+            // nested fork:                    |----[5]---[6]---[7]
+            for i in 1..3 {
+                nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
+                assert!(matches!(
+                    trace(chain.handle_new_block(nested_forked_chain.last().clone())),
+                    Ok(NextBlockResult::ExtendedFork { .. })
+                ));
+            }
+            println!("Nested fork {}", nested_forked_chain);
+        }
     }
+
+    // fn test_sync_main(){
+    //     let mut chain: Chain = Chain::genesis();
+    //     for i in 1..CHAIN_LEN {
+    //         chain.mine_block(&format!("block {}", i));
+    //     }
+
+    //     let mut forked_chain = {
+    //         let mut f = chain.clone();
+    //         let _ = f.split_off(FORK_PREFIX_LEN);
+    //         f
+    //     };
+    //     {
+    //         // chain: [0]---[1]---[2]---[3]---[4]
+    //         // fork:               |----[*3*]---[*4*]
+    //         forked_chain.mine_block("block 0 in fork");
+    //         for i in 0..2 {
+    //             forked_chain.mine_block(&format!("block {} in fork", i));
+    //             let NextBlockResult::_ = chain.handle_new_block(forked_chain.last().clone());
+    //         }
+
+    //         chain.sync_fork(fork_point, end_point)
+    //         println!("Forked chain {}", forked_chain);
+    //     }
+    // }
+
     #[test]
     fn test_duplicate_block_in_main() {
         let mut chain: Chain = Chain::genesis();
