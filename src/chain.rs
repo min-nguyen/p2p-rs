@@ -194,7 +194,25 @@ impl Chain {
         Block::validate_blocks(&chain.main)
     }
 
-    // Return a reference to the longest stored fork chain from head to tail, expecting it to begin at idx 0
+    // Update the main chain to a remote valid longer  chain.
+    pub fn sync_to_remote_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
+        match Self::validate_chain(&remote)  {
+            Ok(_) => {
+                if self.main.len() >= remote.main.len() {
+                    println!("Remote chain's length {} is not longer than ours of length {}.",  remote.main.len(), self.main.len());
+                    Ok(ChooseChainResult::ChooseMain { main_len: self.main.len(), other_len: remote.main.len() })
+                } else {
+                    *self = remote.clone();
+                    Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
+                }
+            }
+            Err(e) => {
+                Err(e)
+            }
+        }
+    }
+
+    // Return a reference to the longest stored fork
     pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{
         let longest_fork: Option<&'a Vec<Block>> = None;
 
@@ -209,8 +227,8 @@ impl Chain {
                     })
     }
 
-    // Swap the main chain to a valid longer fork.
-    pub fn sync_to_fork(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
+    // Swap the main chain to a longer stored fork
+    pub fn sync_to_local_fork(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
         let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
         let main: &mut Vec<Block> = &mut self.main;
         // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
@@ -227,23 +245,16 @@ impl Chain {
         Some (())
     }
 
-    // Update the main chain to a remote valid longer  chain.
-    pub fn choose_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
-        match Self::validate_chain(&remote)  {
-            Ok(_) => {
-                if self.main.len() >= remote.main.len() {
-                    println!("Remote chain's length {} is not longer than ours of length {}.",  remote.main.len(), self.main.len());
-                    Ok(ChooseChainResult::ChooseMain { main_len: self.main.len(), other_len: remote.main.len() })
-                } else {
-                    *self = remote.clone();
-                    Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
-                }
-            }
-            Err(e) => {
-                Err(e)
-            }
-        }
-    }
+    // // Swap the main chain to a valid longer fork.
+    // pub fn sync_to_remote_fork(&mut self, fork: Vec<Block>) -> Option<()>{
+    //     let mut last_result: <Result<NextBlockResult, NextBlockErr>> = None;
+
+    //     for block in fork {
+    //         last_result = self.handle_new_block(block);
+    //     }
+    //     sync_to_local_fork()
+    //     Some (())
+    // }
 }
 
 impl std::fmt::Display for Chain {

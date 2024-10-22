@@ -28,14 +28,14 @@
             - [x] adding new (single-block) forks to the main chian
             - [x] extending an existing chain from the main chain,
             - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
-            - [ ] to do: automate switching from the main chain to a longer fork
+            - [ ] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
+            - [ ] to do: handle MissingBlocks in peer
+                - [ ] implement requesting new blocks until forming a valid fork suffix
+                        - use a FIFO data structure
             - [ ] to do: avoid doing anything for duplicate blocks
                         - introduce NextBlockRes::Duplicate
             - [ ] to do: avoid cloning blocks from an existing fork in order to represent the new fork
                         - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
-        - [ ] handle MissingBlocks in peer
-            - [ ] implement requesting new blocks until forming a valid fork suffix
-                    - use a FIFO data structure
 
 in parallel:
 - [ ] data structure for storing new block proposals and number of validations, before adding it to the chain
