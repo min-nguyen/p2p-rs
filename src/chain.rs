@@ -76,19 +76,26 @@ impl Chain {
         None
     }
 
-    // pub fn switch_main(&mut self, (fork_point, end_point): (String, String)) -> Option<()>{
-    //     let fork = self.forks.get_mut(&fork_point)?.get_mut(&end_point)?;
-    //     if fork.last().expect("fork must be non-empty").idx > self.last().idx {
-    //         let suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == fork_point);
-    //     }
-    //     Some (())
-    // }
+    pub fn switch_main(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
+        let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
+        let main: &mut Vec<Block> = &mut self.main;
+        // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
+        if main.last().unwrap().idx  < fork.last().expect("fork must be non-empty").idx {
+            // truncate the main chain to the forkpoint
+            let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
+            // append the fork to the truncated mainchain
+            Block::append(main,  fork);
+            // remove the fork from the fork pool
+            self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
+            // insert the main chain as a new fork
+            self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
+        }
+        Some (())
+    }
 
     pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
-        let endpoint_idx = block.idx;
-        let endpoint_hash = block.hash.clone();
         // Search for the parent block in the main chain.
         if let Some(parent_block) = Block::find(&self.main, &block.prev_hash){
 
@@ -99,8 +106,8 @@ impl Chain {
                 Block::push(&mut self.main, &block);
                 Ok(NextBlockResult::ExtendedMain {
                         length: self.len(),
-                        endpoint_idx,
-                        endpoint_hash
+                        endpoint_idx: block.idx,
+                        endpoint_hash: block.hash
                     })
             }
             // Otherwise attach a single-block fork to the main chain
@@ -113,8 +120,8 @@ impl Chain {
                     length: 1,
                     forkpoint_idx: block.idx - 1,
                     forkpoint_hash: block.prev_hash,
-                    endpoint_idx,
-                    endpoint_hash
+                    endpoint_idx: block.idx,
+                    endpoint_hash: block.hash
                 })
             }
         }
@@ -138,12 +145,15 @@ impl Chain {
                     self.forks.get(&forkpoint_hash).unwrap().get(&block.hash).unwrap()
                 };
                 println!("Extending an existing fork");
+                let length =  extended_fork.len();
+                let forkpoint_idx = extended_fork.first().expect("fork is non-empty").idx - 1;
+                self.switch_main(&forkpoint_hash, &block.hash);
                 Ok(NextBlockResult::ExtendedFork {
-                    length: extended_fork.len(),
-                    forkpoint_idx: extended_fork.first().expect("fork is non-empty").idx - 1,
+                    length,
+                    forkpoint_idx,
                     forkpoint_hash,
-                    endpoint_idx,
-                    endpoint_hash
+                    endpoint_idx: block.idx,
+                    endpoint_hash: block.hash
                 })
             }
             // Otherwise create a new direct fork from the main chain, whose prefix is a clone of an existing fork's, with
@@ -161,12 +171,13 @@ impl Chain {
                     forks.insert(block.hash.clone(), new_fork.clone());
                 });
 
+                self.switch_main(&forkpoint_hash, &block.hash);
                 Ok(NextBlockResult::NewFork {
                     length: new_fork.len(),
                     forkpoint_idx: new_fork.first().expect("fork is non-empty").idx - 1,
                     forkpoint_hash,
-                    endpoint_idx,
-                    endpoint_hash
+                    endpoint_idx : block.idx,
+                    endpoint_hash : block.hash
                 })
             }
         }

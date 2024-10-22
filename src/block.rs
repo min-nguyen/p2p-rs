@@ -48,6 +48,11 @@ impl Block {
         blocks.push(new_block.clone());
     }
 
+    // Unsafe append
+    pub fn append(blocks_pref: &mut Vec<Block>, blocks_suff: &mut Vec<Block>){
+        blocks_pref.append(blocks_suff);
+    }
+
     // Unsafe splitoff
     pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
         blocks.split_off(len)
