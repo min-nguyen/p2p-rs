@@ -195,7 +195,7 @@ impl Chain {
     }
 
     // Update the main chain to a remote valid longer  chain.
-    pub fn sync_to_remote_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
+    pub fn sync_to_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
         match Self::validate_chain(&remote)  {
             Ok(_) => {
                 if self.main.len() >= remote.main.len() {
@@ -213,21 +213,30 @@ impl Chain {
     }
 
     // Swap the main chain to a longer stored fork
-    pub fn sync_to_local_fork(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
-        let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
+    pub fn sync_to_fork(&mut self, fork: &mut Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
+        Block::validate_blocks(fork)?;
+        // we know the fork is valid and hence non-empty
+        let (forkpoint, (endpoint, fork_last_idx))
+            = (fork.first().unwrap().prev_hash, { let end_block = fork.last().unwrap(); (end_block.hash, end_block.idx + 1)});
         let main: &mut Vec<Block> = &mut self.main;
+        let main_last_idx = self.last().idx;
         // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
-        if main.last().unwrap().idx < fork.last().expect("fork must be non-empty").idx {
+        if main_last_idx < fork_last_idx {
             // truncate the main chain to the forkpoint
-            let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
+            let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *forkpoint);
             // append the fork to the truncated mainchain
             Block::append(main,  fork);
-            // remove the fork from the fork pool
-            self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
+            // remove the fork from the fork pool, if it exists
+            if let Some(forks) =  self.forks.get(&forkpoint) {
+                forks.remove_entry(&endpoint);
+            }
             // insert the main chain as a new fork
-            self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
+            // self.forks.get_mut(&forkpoint).insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
+            Ok(ChooseChainResult::SwitchToFork { main_len: main_last_idx, other_len: fork_last_idx })
         }
-        Some (())
+        else {
+            Ok(ChooseChainResult::KeepMain { main_len: self.len(), other_len: end_idx })
+        }
     }
 
     // Return a reference to the longest stored fork

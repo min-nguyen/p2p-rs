@@ -169,7 +169,7 @@ impl Block {
 
     // Validate a non-empty sequence of blocks (i.e. a subchain)
     pub fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
-        let mut curr: &Block = blocks.first().expect("Subchain must be non-empty");
+        let mut curr: &Block = blocks.first().ok_or(NextBlockErr::EmptyChain)?;
         Block::validate_block(curr)?;
         for i in 0..blocks.len() - 1 {
             let next = blocks.get(i + 1).unwrap();
@@ -305,7 +305,8 @@ pub enum NextBlockErr {
         block_idx: usize,
         block_parent_hash: String
     },
-    EmptyChain
+    EmptyChain,
+    EmptyFork
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -328,6 +329,9 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::EmptyChain => {
                 write!(f, "Chain is empty.")
+            }
+            NextBlockErr::EmptyFork => {
+                write!(f, "Fork is empty.")
             }
         }
     }
