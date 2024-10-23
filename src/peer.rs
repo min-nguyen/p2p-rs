@@ -125,12 +125,16 @@ impl Peer {
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.sync_to_remote_chain(&chain){
-                    Ok(res@ChooseChainResult::ChooseMain{..}) => {
+                    Ok(res@ChooseChainResult::KeepMain{..}) => {
                         println!("Keeping main chain over remote peer's chain: \n\
                                     \t\"{}\"", res)
                     }
                     Ok(res@ChooseChainResult::ChooseOther{..}) => {
-                        println!("Updated current chain to be remote peer's chain: \n\
+                        println!("Updated main chain to be remote peer's chain: \n\
+                                    \t\"{}\"", res)
+                    }
+                    Ok(res@ChooseChainResult::SwitchToFork{..}) => {
+                        println!("Updated main chain to be a local fork: \n\
                                     \t\"{}\"", res)
                     }
                     Err(e) => {
@@ -160,34 +164,42 @@ impl Peer {
                 // Validate block itself
                 match self.chain.handle_new_block(block.clone()){
                     Ok(res) =>{
-                        println!("Handled new block:\n\
+                        println!("Block handled with update to chain or forks:\n\
                                 \t\"{}\"", res);
+                        if remove_from_pool(&mut self.txn_pool, &block){
+                            println!("Deleted mined transaction from the local pool.");
+                        }
                         match res {
-                            NextBlockResult::MissingParent { .. } =>
-                            {
-                                /* We don't do anything with this yet. */
-                                // let req = PowMessage::BlockRequest {
-                                //     transmit_type: TransmitType::ToAll,
-                                //     block_hash: block.prev_hash.clone(),
-                                //     sender_peer_id: self.swarm.local_peer_id().to_string()
-                                // };
-                                // swarm::publish_pow_msg(req, &mut self.swarm);
-                                // println!("Sent BlockRequest for missing block:\n\
-                                //         \t{}\n\
-                                //         to:\n\
-                                //         \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
-                            },
+                            // NextBlockResult::ExtendedFork
+                            //     { length, forkpoint_idx, forkpoint_hash, endpoint_idx, endpoint_hash } => {
+
+                            // }
                             _ => {
-                                if remove_from_pool(&mut self.txn_pool, &block){
-                                    println!("Deleted mined transaction from the local pool.");
-                                }
                             }
                         }
                     }
                     Err(e) => {
-                        println!("Couldn't validate the remote peer's block:\n\
-                                \t\"{}\"\n\
-                                Nothing to do.", e);
+                        println!("Block handled with no update to chain or forks\n\
+                                    \t\"{}\"", e);
+                        match e {
+                            // NextBlockErr::MissingParent { .. } =>
+                            //     {
+                            //         /* We don't do anything with this yet. */
+                            //         let req = PowMessage::BlockRequest {
+                            //             transmit_type: TransmitType::ToAll,
+                            //             block_hash: block.prev_hash.clone(),
+                            //             sender_peer_id: self.swarm.local_peer_id().to_string()
+                            //         };
+                            //         swarm::publish_pow_msg(req, &mut self.swarm);
+                            //         println!("Sent BlockRequest for missing block:\n\
+                            //                 \t{}\n\
+                            //                 to:\n\
+                            //                 \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
+                            //     },
+                            _ => {
+
+                            }
+                        }
                     }
                 }
             }

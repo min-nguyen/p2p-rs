@@ -161,7 +161,7 @@ impl Chain {
             }
         }
         else {
-            Ok(NextBlockResult::MissingParent {
+            Err(NextBlockErr::MissingParent {
                 block_idx: block.idx,
                 block_parent_hash: block.prev_hash
             })
@@ -200,7 +200,7 @@ impl Chain {
             Ok(_) => {
                 if self.main.len() >= remote.main.len() {
                     println!("Remote chain's length {} is not longer than ours of length {}.",  remote.main.len(), self.main.len());
-                    Ok(ChooseChainResult::ChooseMain { main_len: self.main.len(), other_len: remote.main.len() })
+                    Ok(ChooseChainResult::KeepMain { main_len: self.main.len(), other_len: remote.main.len() })
                 } else {
                     *self = remote.clone();
                     Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
@@ -210,6 +210,24 @@ impl Chain {
                 Err(e)
             }
         }
+    }
+
+    // Swap the main chain to a longer stored fork
+    pub fn sync_to_local_fork(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
+        let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
+        let main: &mut Vec<Block> = &mut self.main;
+        // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
+        if main.last().unwrap().idx < fork.last().expect("fork must be non-empty").idx {
+            // truncate the main chain to the forkpoint
+            let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
+            // append the fork to the truncated mainchain
+            Block::append(main,  fork);
+            // remove the fork from the fork pool
+            self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
+            // insert the main chain as a new fork
+            self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
+        }
+        Some (())
     }
 
     // Return a reference to the longest stored fork
@@ -227,32 +245,24 @@ impl Chain {
                     })
     }
 
-    // Swap the main chain to a longer stored fork
-    pub fn sync_to_local_fork(&mut self, fork_point: &String, end_point: &String) -> Option<()>{
-        let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
-        let main: &mut Vec<Block> = &mut self.main;
-        // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
-        if main.last().unwrap().idx  < fork.last().expect("fork must be non-empty").idx {
-            // truncate the main chain to the forkpoint
-            let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
-            // append the fork to the truncated mainchain
-            Block::append(main,  fork);
-            // remove the fork from the fork pool
-            self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
-            // insert the main chain as a new fork
-            self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
-        }
-        Some (())
-    }
-
-    // // Swap the main chain to a valid longer fork.
-    // pub fn sync_to_remote_fork(&mut self, fork: Vec<Block>) -> Option<()>{
-    //     let mut last_result: <Result<NextBlockResult, NextBlockErr>> = None;
-
-    //     for block in fork {
-    //         last_result = self.handle_new_block(block);
+    // pub fn store_fork(&mut self, fork: &mut Vec<Block>) -> Option<()>{
+    //     // check fork is non-empty and valid
+    //     Block::validate_blocks(fork)?;
+    //     let forkpoint = fork.first().unwrap().prev_hash;
+    //     if (self.find(forkpoint).is_some() || self.find_fork_mut(hash))
+    //     let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
+    //     let main: &mut Vec<Block> = &mut self.main;
+    //     // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
+    //     if main.last().unwrap().idx < fork.last().expect("fork must be non-empty").idx {
+    //         // truncate the main chain to the forkpoint
+    //         let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
+    //         // append the fork to the truncated mainchain
+    //         Block::append(main,  fork);
+    //         // remove the fork from the fork pool
+    //         self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
+    //         // insert the main chain as a new fork
+    //         self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
     //     }
-    //     sync_to_local_fork()
     //     Some (())
     // }
 }
@@ -268,7 +278,11 @@ impl std::fmt::Display for Chain {
 
 #[derive(Debug)]
 pub enum ChooseChainResult {
-    ChooseMain {
+    KeepMain {
+        main_len: usize,
+        other_len: usize
+    },
+    SwitchToFork {
         main_len: usize,
         other_len: usize
     },
@@ -281,11 +295,14 @@ pub enum ChooseChainResult {
 impl std::fmt::Display for ChooseChainResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ChooseChainResult::ChooseMain { main_len, other_len   } => {
-                write!(f, "Other chain length {} is not longer than main chain of length {}.", other_len, main_len)
+            ChooseChainResult::KeepMain { main_len, other_len   } => {
+                write!(f, "Main chain length {} is longer than other chain length {}.", main_len, other_len)
+            }
+            ChooseChainResult::SwitchToFork { main_len, other_len   } => {
+                write!(f, "Local fork length {} is longer than main chain length {}.", other_len, main_len)
             }
             ChooseChainResult::ChooseOther {  main_len,  other_len } => {
-                write!(f, "Other chain length {} is longer than main chain of length {}.", other_len, main_len)
+                write!(f, "Other chain length {} is longer than main chain length {}.", other_len, main_len)
             }
         }
     }

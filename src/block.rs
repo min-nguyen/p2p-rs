@@ -223,10 +223,6 @@ impl std::fmt::Display for Block {
 // The result of adding a new block to a blockchain network
 #[derive(Debug)]
 pub enum NextBlockResult {
-    MissingParent {
-        block_idx: usize,
-        block_parent_hash: String
-    },
     ExtendedMain {
         length: usize,
         endpoint_idx: usize,
@@ -254,10 +250,6 @@ pub enum NextBlockResult {
 impl std::fmt::Display for NextBlockResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NextBlockResult::MissingParent { block_idx, block_parent_hash } => {
-                write!(f, "No update to main chain or forks. The parent of the specified block cannot be found.\n\
-                           \tThe missing parent has index and hash ({}, {}).", block_idx - 1, pretty_hex(block_parent_hash))
-            }
             NextBlockResult::ExtendedMain { length, endpoint_idx, endpoint_hash } => {
                 write!(f, "Extended the main chain.\n\
                            \tIts new endpoint and new length is ({}, {}) and {}.", endpoint_idx, pretty_hex(endpoint_hash), length)
@@ -309,6 +301,10 @@ pub enum NextBlockErr {
         parent_block_idx: usize,
         parent_block_hash: String,
     },
+    MissingParent {
+        block_idx: usize,
+        block_parent_hash: String
+    },
     EmptyChain
 }
 
@@ -326,7 +322,10 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
-            },
+            }
+            NextBlockErr::MissingParent { block_idx, block_parent_hash } => {
+                write!(f, "Block {} is missing its parent with hash {} in the chain or forks.", block_idx, pretty_hex(block_parent_hash))
+            }
             NextBlockErr::EmptyChain => {
                 write!(f, "Chain is empty.")
             }

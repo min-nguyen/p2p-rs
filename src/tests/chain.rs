@@ -173,7 +173,7 @@ mod chain_tests {
         // fork:               |----[?]---[*4*]
         assert!(matches!(
             trace(chain.handle_new_block(forked_chain.last().clone())),
-            Ok(NextBlockResult::MissingParent{..})
+            Err(NextBlockErr::MissingParent{..})
         ));
     }
 
@@ -190,7 +190,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
             trace(chain.handle_new_block(dup_chain.last().clone())),
-            Ok(NextBlockResult::MissingParent { .. })
+            Err(NextBlockErr::MissingParent { .. })
         ));
     }
 
