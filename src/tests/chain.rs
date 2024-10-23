@@ -29,10 +29,18 @@ mod chain_tests {
             Err(NextBlockErr::EmptyChain)));
     }
     #[test]
-    fn test_chain_is_fork(){
+    fn test_chain_is_fork(){        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_block(&format!("block {}", i));
+        }
+
+        let fork = {
+            let mut c = chain.clone();
+            c.split_off(FORK_PREFIX_LEN).unwrap()
+        };
         assert!(matches!(
-            trace(Chain::from_vec(vec![Block { idx : 7, .. Block::genesis() }])),
-            Err(NextBlockErr::InvalidIndex { block_idx : 7, expected_idx: 0 })));
+            trace(Chain::from_vec(fork)),
+            Err(NextBlockErr::InvalidIndex { block_idx : 3, expected_idx: 0 })));
     }
     /*****************************
      * Tests for handling new blocks *
