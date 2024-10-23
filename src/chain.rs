@@ -197,6 +197,17 @@ impl Chain {
         }
     }
 
+    // Update the main chain to a remote valid longer chain.
+    pub fn sync_to_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
+        Self::validate_chain(&remote)?;
+        if self.main.len() >= remote.main.len() {
+            Ok(ChooseChainResult::KeepMain { main_len: self.main.len(), other_len: remote.main.len() })
+        } else {
+            *self = remote.clone();
+            Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
+        }
+    }
+
     // Validate fork, expecting its prev block to be in the main chain
     pub fn validate_fork(&self, fork: &Vec<Block>) -> Result<(), NextBlockErr> {
         Block::validate_blocks(fork)?;
@@ -210,27 +221,16 @@ impl Chain {
         }
     }
 
-    // Update the main chain to a remote valid longer  chain.
-    pub fn sync_to_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
-        Self::validate_chain(&remote)?;
-        if self.main.len() >= remote.main.len() {
-            Ok(ChooseChainResult::KeepMain { main_len: self.main.len(), other_len: remote.main.len() })
-        } else {
-            *self = remote.clone();
-            Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
-        }
-    }
-
     // Swap the main chain to a fork if longer
     pub fn sync_to_fork(&mut self, fork: &mut Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
         // check if fork is valid and hence non-empty
         Self::validate_fork(self, fork)?;
         let (forkpoint, (endpoint, fork_last_idx))
-            = (fork.first().unwrap().prev_hash.clone(), { let end_block = fork.last().unwrap(); (end_block.hash.clone(), end_block.idx + 1)});
+            = (fork.first().unwrap().prev_hash.clone(), { let end_block = fork.last().unwrap(); (end_block.hash.clone(), end_block.idx)});
 
-        let main_last_idx = self.last().idx;
+        let (main_len, other_len) = (self.last().idx + 1, fork_last_idx + 1);
         // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
-        if main_last_idx < fork_last_idx {
+        if main_len < other_len {
             // truncate the main chain to the forkpoint
             let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *forkpoint);
             // append the fork to the truncated mainchain
@@ -244,10 +244,10 @@ impl Chain {
                     .insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
 
             // self.forks.get_mut(&forkpoint).insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
-            Ok(ChooseChainResult::SwitchToFork { main_len: main_last_idx, other_len: fork_last_idx })
+            Ok(ChooseChainResult::SwitchToFork { main_len, other_len })
         }
         else {
-            Ok(ChooseChainResult::KeepMain { main_len: self.len(), other_len: fork_last_idx })
+            Ok(ChooseChainResult::KeepMain { main_len, other_len })
         }
     }
 

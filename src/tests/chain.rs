@@ -4,7 +4,7 @@
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{
-        block::{Block, NextBlockResult, NextBlockErr}, chain::{Chain}, cryptutil::trace};
+        block::{Block, NextBlockErr, NextBlockResult}, chain::{Chain, ChooseChainResult}, cryptutil::trace};
 
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
@@ -205,63 +205,64 @@ mod chain_tests {
     // /*****************************
     //  * Tests for merging forks *
     // *****************************/
-    // #[test]
-    // fn test_valid_fork_longer(){
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_block(&format!("block {}", i));
-    //     }
-    //     // make a competing forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_block(&format!("block {} in fork", i));
-    //     }
-    //     // strip the common prefix between the current and forked chain
-    //     let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
-    //     // Before:
-    //     // chain: [0]---[1]---[2]---[3]---[4]
-    //     // fork:               |----[3]---[4]---[5]---[6]
-    //     println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
-    //     assert!(matches!(
-    //         trace(chain.try_merge_fork(&mut fork)),
-    //         Ok(())
-    //     ));
-    //     println!("Merged chain and fork : {}", chain);
-    //     // After:
-    //     // chain: [0]---[1]---[2]
-    //     //                     |----[3]---[4]---[5]---[6]
+    #[test]
+    fn test_valid_fork_longer(){
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_block(&format!("block {}", i));
+        }
+        // make a competing forked_chain that is 2 blocks longer than the current chain
+        let mut forked_chain = chain.clone();
+        forked_chain.split_off(FORK_PREFIX_LEN);
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.mine_block(&format!("block {} in fork", i));
+        }
+        // strip the common prefix between the current and forked chain
+        let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
+        // Before:
+        // chain: [0]---[1]---[2]---[3]---[4]
+        // fork:               |----[3]---[4]---[5]---[6]
+        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
+        assert!(matches!(
+            trace(chain.sync_to_fork(&mut fork)),
+            Ok(ChooseChainResult::SwitchToFork { main_len: 5, other_len: 7 })
+        ));
+        println!("Merged chain and fork : {}", chain);
+        // After:
+        // chain: [0]---[1]---[2]
+        //                     |----[3]---[4]---[5]---[6]
 
-    // }
-    // #[test]
-    // fn test_valid_fork_shorter() {
-    //     let mut chain: Chain = Chain::genesis();
-    //     for i in 1..CHAIN_LEN {
-    //         chain.mine_block(&format!("block {}", i));
-    //     }
-    //     // make a competing forked_chain that is 2 blocks longer than the current chain
-    //     let mut forked_chain = chain.clone();
-    //     forked_chain.truncate(FORK_PREFIX_LEN);
-    //     for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
-    //         forked_chain.mine_block(&format!("block {} in fork", i));
-    //     }
-    //     // then make the current chain 2 blocks longer than the forked_chain
-    //     for i in CHAIN_LEN .. forked_chain.len() + 2 {
-    //         chain.mine_block(&format!("block {}", i));
-    //     }
-    //     // strip the common prefix between the current and forked chain
-    //     let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
-    //     // Before:
-    //     // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
-    //     // fork:               |----[3]---[4]---[5]---[6]
-    //     println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
-    //     assert!(matches!(
-    //         trace(chain.try_merge_fork(&mut fork)),
-    //         Ok(())
-    //     ));
-    //     println!("Merged chain and fork : {}", chain);
-    //     // After:
-    //     // chain: [0]---[1]---[2]
-    //     //                     |----[3]---[4]---[5]---[6]
-    // }
+    }
+
+    #[test]
+    fn test_valid_fork_shorter() {
+        let mut chain: Chain = Chain::genesis();
+        for i in 1..CHAIN_LEN {
+            chain.mine_block(&format!("block {}", i));
+        }
+        // make a competing forked_chain that is 2 blocks longer than the current chain
+        let mut forked_chain = chain.clone();
+        forked_chain.split_off(FORK_PREFIX_LEN);
+        for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
+            forked_chain.mine_block(&format!("block {} in fork", i));
+        }
+        // then make the current chain 2 blocks longer than the forked_chain
+        for i in CHAIN_LEN .. forked_chain.len() + 2 {
+            chain.mine_block(&format!("block {}", i));
+        }
+        // strip the common prefix between the current and forked chain
+        let mut fork: Vec<Block> = forked_chain.to_vec()[FORK_PREFIX_LEN..].to_vec();
+        // Before:
+        // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
+        // fork:               |----[3]---[4]---[5]---[6]
+        println!("Chain : {}\n\nFork suffix : {:?}\n", chain, fork);
+        assert!(matches!(
+            trace(chain.sync_to_fork(&mut fork)),
+            Ok(ChooseChainResult::KeepMain { main_len: 9, other_len : 7})
+        ));
+        println!("Merged chain and fork : {}", chain);
+        // After:
+        // chain: [0]---[1]---[2]
+        //                     |----[3]---[4]---[5]---[6]
+    }
 }

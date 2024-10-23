@@ -28,6 +28,13 @@
             - [x] adding new (single-block) forks to the main chian
             - [x] extending an existing chain from the main chain,
             - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
+            - [ ] to do: add tests for
+                - [ ] invalid forks
+                - [ ] valid forks
+                - [ ] merging remote forks as Vec<Block>
+                        - [x] shorter forks
+                        - [x] longer forks
+                - [ ] merging local forks in the pool
             - [ ] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
             - [ ] to do: handle MissingBlocks in peer
                 - [ ] implement requesting new blocks until forming a valid fork suffix
