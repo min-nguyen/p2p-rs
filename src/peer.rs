@@ -124,7 +124,7 @@ impl Peer {
                 }
             },
             PowMessage::ChainResponse{ chain , ..} => {
-                match self.chain.sync_to_remote_chain(&chain){
+                match self.chain.sync_to_chain(&chain){
                     Ok(res@ChooseChainResult::KeepMain{..}) => {
                         println!("Keeping main chain over remote peer's chain: \n\
                                     \t\"{}\"", res)
