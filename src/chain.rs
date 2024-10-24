@@ -266,25 +266,17 @@ impl Chain {
                     })
     }
 
-    // pub fn store_fork(&mut self, fork: &mut Vec<Block>) -> Option<()>{
-    //     // check fork is non-empty and valid
-    //     Block::validate_blocks(fork)?;
-    //     let forkpoint = fork.first().unwrap().prev_hash;
-    //     if (self.find(forkpoint).is_some() || self.find_fork_mut(hash))
-    //     let fork: &mut Vec<Block> = self.forks.get_mut(fork_point)?.get_mut(end_point)?;
-    //     let main: &mut Vec<Block> = &mut self.main;
-    //     // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
-    //     if main.last().unwrap().idx < fork.last().expect("fork must be non-empty").idx {
-    //         // truncate the main chain to the forkpoint
-    //         let main_suffix: Vec<Block> = Block::split_off_until(main, |b| b.hash == *fork_point);
-    //         // append the fork to the truncated mainchain
-    //         Block::append(main,  fork);
-    //         // remove the fork from the fork pool
-    //         self.forks.get_mut(fork_point)?.remove_entry(end_point)?;
-    //         // insert the main chain as a new fork
-    //         self.forks.get_mut(fork_point)?.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
-    //     }
-    //     Some (())
+    // pub fn store_fork(&mut self, fork: Vec<Block>) -> Result<(), NextBlockErr>{
+    //     // check if fork is valid and hence non-empty
+    //     Self::validate_fork(self, &fork)?;
+    //     let (forkpoint, endpoint)
+    //         = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+
+    //     self.forks.entry(forkpoint)
+    //             .or_insert(HashMap::new())
+    //             .insert(endpoint, fork);
+
+    //     Ok (())
     // }
 }
 

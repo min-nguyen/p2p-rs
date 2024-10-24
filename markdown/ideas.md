@@ -28,12 +28,21 @@
             - [x] adding new (single-block) forks to the main chian
             - [x] extending an existing chain from the main chain,
             - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
+            - [x] implement `sync_to_fork` for a Vec<Block>
+            - [ ] implement `sync_to_fork` for an entry `<forkpoint, endpoint>` stored in the pool
+            - [ ] perhaps modularise  `sync_to_fork`  for a Vec<Block> as instead:
+                1. storing the fork as an entry in the pool,
+                2. syncing to that fork in the local pool.
             - [ ] to do: add tests for
-                - [ ] invalid forks
-                - [ ] valid forks
-                - [ ] merging remote forks as Vec<Block>
-                        - [x] shorter forks
-                        - [x] longer forks
+                - [x] invalid forks (i.e. with missing parents)
+                - [x] valid forks
+                - [x] merging remote forks as Vec<Block>
+                        - [ ] shorter forks
+                           - [x] produces correct ChooseChain result
+                           - [ ] updates the state of the Chain and its forks correctly
+                        - [ ] longer forks
+                           - [x] produces correct ChooseChain result
+                           - [ ] updates the state of the Chain and its forks correctly
                 - [ ] merging local forks in the pool
             - [ ] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
             - [ ] to do: handle MissingBlocks in peer
