@@ -119,8 +119,7 @@ impl Chain {
             // Otherwise attach a single-block fork to the main chain
             else {
                 let new_fork = vec![block.clone()];
-                let forks_from_parent = self.forks.entry(parent_block.hash.to_string()).or_insert(HashMap::new());
-                forks_from_parent.insert(block.hash.to_string(), new_fork);
+                self.insert_fork(new_fork)?;
 
                 Ok(NextBlockResult::NewFork {
                     length: 1,
@@ -150,11 +149,13 @@ impl Chain {
                     });
                     self.forks.get(&forkpoint).unwrap().get(&block.hash).unwrap()
                 };
+                let length = extended_fork.len();
+                let forkpoint_idx =  extended_fork.first().unwrap().idx - 1;
                 // println!("Extending an existing fork");
 
                 Ok(NextBlockResult::ExtendedFork {
-                    length: extended_fork.len(),
-                    forkpoint_idx: extended_fork.first().unwrap().idx - 1,
+                    length,
+                    forkpoint_idx,
                     forkpoint_hash: forkpoint,
                     endpoint_idx: block.idx,
                     endpoint_hash: block.hash
@@ -169,14 +170,14 @@ impl Chain {
                     Block::push(&mut fork_clone, &block);
                     fork_clone
                 };
+                let length = nested_fork.len();
+                let forkpoint_idx = nested_fork.first().unwrap().idx - 1;
                 // Insert the new fork into the map.
-                self.forks.entry(forkpoint.clone()).and_modify(|forks: &mut HashMap<String, Vec<Block>>| {
-                    forks.insert(block.hash.clone(), nested_fork.clone());
-                });
+                self.insert_fork(nested_fork)?;
 
                 Ok(NextBlockResult::NewFork {
-                    length: nested_fork.len(),
-                    forkpoint_idx: nested_fork.first().unwrap().idx - 1,
+                    length,
+                    forkpoint_idx,
                     forkpoint_hash: forkpoint,
                     endpoint_idx: block.idx,
                     endpoint_hash: block.hash
