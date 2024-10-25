@@ -61,7 +61,7 @@ impl Chain {
     }
 
     // Check if block is in any fork, returning the fork point, end hash, and fork
-    pub fn find_fork_mut<'a>(&'a mut self, hash: &String)
+    fn find_fork_mut<'a>(&'a mut self, hash: &String)
         -> Option<(String, String, &'a mut Vec<Block>)> {
         // iterate through fork points
         for (fork_point, forks_from) in &mut self.forks {
@@ -74,6 +74,11 @@ impl Chain {
             }
         }
         None
+    }
+
+    // Check if block is in any fork, returning the fork point, end hash, and fork
+    pub fn get_forks<'a>(&'a mut self) -> &'a HashMap<String, HashMap<String, Vec<Block>>>{
+        &self.forks
     }
 
     pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
@@ -230,8 +235,8 @@ impl Chain {
         let (main_len, other_len) = (self.last().idx + 1, fork_last_idx + 1);
         if main_len < other_len {
             let forks: &mut HashMap<String, Vec<Block>> = self.forks.get_mut(&forkpoint).unwrap();
-            // remove the fork from the fork pool, if it exists
-            let mut fork = forks.remove_entry(&endpoint).unwrap().1;
+            // remove the fork from the fork pool
+            let mut fork = forks.remove_entry(&endpoint).expect("fork definitely exists; we just stored it").1;
             // truncate the main chain to the forkpoint, and append the fork to it
             let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *forkpoint);
             Block::append(&mut self.main, &mut fork);
