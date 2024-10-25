@@ -232,13 +232,11 @@ mod chain_tests {
     fn test_sync_to_fork_longer(){
         let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let main_endpoint = main_chain.last().hash.clone();
-        assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.get_forks().is_empty()), true));
 
         // Make a forked_chain that is 2 blocks longer than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
-        let mut fork: Vec<Block> = {
+        let fork: Vec<Block> = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
             for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
@@ -247,6 +245,9 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+        assert!(matches!(trace(main_chain.len()), 5));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
         // Then synchronise:
@@ -260,20 +261,14 @@ mod chain_tests {
 
         // Assert the state of the new chain and its stored forks
         assert!(matches!(trace(main_chain.len()), 7));
-        let try_get_merged_fork
-            = main_chain.get_forks().get(&forkpoint).and_then(|forks| forks.get(&endpoint));
-        assert!(matches!(trace(try_get_merged_fork), None));
-        let try_get_old_main
-            = main_chain.get_forks().get(&forkpoint).and_then(|forks| forks.get(&main_endpoint));
-        assert!(matches!(trace(try_get_old_main), Some(..)));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), Some(..)));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
     }
 
     #[test]
     fn test_sync_to_fork_shorter() {
         let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let main_endpoint = main_chain.last().hash.clone();
-        assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.get_forks().is_empty()), true));
 
         // Make a forked_chain that is 1 block shorter than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
@@ -287,6 +282,9 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+        assert!(matches!(trace(main_chain.len()), 5));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
 
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
@@ -300,12 +298,8 @@ mod chain_tests {
 
         // Assert the state of the new chain and its stored forks
         assert!(matches!(trace(main_chain.len()), 5));
-        let try_get_merged_fork
-            = main_chain.get_forks().get(&forkpoint).and_then(|forks| forks.get(&endpoint));
-        assert!(matches!(trace(try_get_merged_fork), Some(..)));
-        let try_get_old_main
-            = main_chain.get_forks().get(&forkpoint).and_then(|forks| forks.get(&main_endpoint));
-        assert!(matches!(trace(try_get_old_main), None));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), Some(..)));
     }
 
     #[test]

@@ -77,8 +77,26 @@ impl Chain {
     }
 
     // Check if block is in any fork, returning the fork point, end hash, and fork
-    pub fn get_forks<'a>(&'a mut self) -> &'a HashMap<String, HashMap<String, Vec<Block>>>{
-        &self.forks
+    pub fn lookup_fork_mut<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<&'a mut Vec<Block>>{
+        self.forks.get_mut(forkpoint).and_then(|forks| forks.get_mut(endpoint))
+    }
+
+    // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
+    pub fn insert_fork(&mut self, fork: Vec<Block>) -> Result<(String, String, usize), NextBlockErr>{
+        // check if fork is valid and hence non-empty
+        Self::validate_fork(self, &fork)?;
+
+        let (forkpoint, (endpoint, endidx))
+            = ( fork.first().unwrap().prev_hash.clone(),
+                { let end_block = fork.last().unwrap();
+                  (end_block.hash.clone(), end_block.idx)
+                });
+
+        self.forks.entry(forkpoint.clone())
+                                    .or_insert(HashMap::new())
+                                    .insert(endpoint.clone(), fork);
+
+        Ok ((forkpoint, endpoint, endidx))
     }
 
     pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
@@ -180,16 +198,6 @@ impl Chain {
         Block::push(&mut self.main, &new_block)
     }
 
-    pub fn show_forks(&self){
-        for (forkpoint, forks_from) in self.forks.iter(){
-            println!("Forks from {}", forkpoint);
-            for (i, (_, fork)) in forks_from.iter().enumerate(){
-                println!("Fork {}:", i);
-                fork.iter().for_each(|block| println!("{}", block));
-            }
-        }
-    }
-
     // Validate chain, expecting its first block to begin at idx 0
     pub fn validate_chain(&self) -> Result<(), NextBlockErr> {
         Block::validate_blocks(&self.main)?;
@@ -230,7 +238,7 @@ impl Chain {
     // Store a valid fork, and then swap the main chain to it if longer
     pub fn sync_to_fork(&mut self, fork: Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
         // clone and store fork
-        let (forkpoint, endpoint, fork_last_idx) = self.store_fork(fork)?;
+        let (forkpoint, endpoint, fork_last_idx) = self.insert_fork(fork)?;
         // if main chain is shorter than forked chain, swap its blocks from the forkpoint onwards
         let (main_len, other_len) = (self.last().idx + 1, fork_last_idx + 1);
         if main_len < other_len {
@@ -248,43 +256,6 @@ impl Chain {
         else {
             Ok(ChooseChainResult::KeepMain { main_len, other_len })
         }
-    }
-
-    // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
-    pub fn store_fork(&mut self, fork: Vec<Block>) -> Result<(String, String, usize), NextBlockErr>{
-        // check if fork is valid and hence non-empty
-        Self::validate_fork(self, &fork)?;
-
-        let (forkpoint, (endpoint, endidx))
-            = ( fork.first().unwrap().prev_hash.clone(),
-                { let end_block = fork.last().unwrap();
-                  (end_block.hash.clone(), end_block.idx)
-                });
-
-        self.forks.entry(forkpoint.clone())
-                                    .or_insert(HashMap::new())
-                                    .insert(endpoint.clone(), fork);
-                                    // .and_modify(|v| {
-                                    //      *v = fork.clone();
-                                    // })
-                                    // .or_insert(fork.clone());
-
-        Ok ((forkpoint, endpoint, endidx))
-    }
-
-    // Return a reference to the longest stored fork
-    pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{
-        let longest_fork: Option<&'a Vec<Block>> = None;
-
-        self.forks
-                .values()
-                .flat_map(|forks| forks.values())
-                .fold(longest_fork,
-                    |longest, current|
-                    match longest {
-                        Some(fork) if fork.len() >= current.len() => Some(fork),
-                        _ => Some(current),
-                    })
     }
 }
 
@@ -328,3 +299,28 @@ impl std::fmt::Display for ChooseChainResult {
         }
     }
 }
+
+pub fn show_forks(chain : &Chain){
+    for (forkpoint, forks_from) in chain.forks.iter(){
+        println!("Forks from {}", forkpoint);
+        for (i, (_, fork)) in forks_from.iter().enumerate(){
+            println!("Fork {}:", i);
+            fork.iter().for_each(|block| println!("{}", block));
+        }
+    }
+}
+
+// // Return a reference to the longest stored fork
+// pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{
+//     let longest_fork: Option<&'a Vec<Block>> = None;
+
+//     self.forks
+//             .values()
+//             .flat_map(|forks| forks.values())
+//             .fold(longest_fork,
+//                 |longest, current|
+//                 match longest {
+//                     Some(fork) if fork.len() >= current.len() => Some(fork),
+//                     _ => Some(current),
+//                 })
+// }
