@@ -255,7 +255,7 @@ impl std::fmt::Display for NextBlockResult {
                            \tIts new endpoint and new length is ({}, {}) and {}.", endpoint_idx, pretty_hex(endpoint_hash), length)
             }
             NextBlockResult::ExtendedFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
-                write!(f,  "Extended an existing fork from from the main chain.\n\
+                write!(f,  "Extended an existing fork from the main chain.\n\
                             \tIts forkpoint and new length from the main chain is ({}, {}) and {}.\n\
                             \tIts new endpoint is ({}, {}).",
                             forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)

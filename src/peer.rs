@@ -403,7 +403,7 @@ impl Peer {
                 self.txn_pool.iter().for_each(|txn| println!("{}", txn))
             }
             _ => {
-                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `peers`, or `pool`")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `forks`, `peers`, or `pool`")
             }
         }
     }
