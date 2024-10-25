@@ -197,14 +197,15 @@ impl Chain {
         }
     }
 
-    // Update the main chain to a remote valid longer chain.
-    pub fn sync_to_chain(&mut self, remote: &Chain) -> Result<ChooseChainResult, NextBlockErr> {
+    // Swap the main chain to a remote chain if valid and longer.
+    pub fn sync_to_chain(&mut self, remote: Chain) -> Result<ChooseChainResult, NextBlockErr> {
         Self::validate_chain(&remote)?;
-        if self.main.len() >= remote.main.len() {
-            Ok(ChooseChainResult::KeepMain { main_len: self.main.len(), other_len: remote.main.len() })
+        let (main_len, other_len) = (self.last().idx + 1, remote.last().idx + 1);
+        if main_len >= other_len {
+            Ok(ChooseChainResult::KeepMain { main_len, other_len })
         } else {
             *self = remote.clone();
-            Ok(ChooseChainResult::ChooseOther { main_len: self.main.len(), other_len: remote.main.len() })
+            Ok(ChooseChainResult::ChooseOther { main_len, other_len })
         }
     }
 
@@ -221,34 +222,49 @@ impl Chain {
         }
     }
 
-    // Swap the main chain to a fork if longer
-    pub fn sync_to_fork(&mut self, fork: &mut Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
-        // check if fork is valid and hence non-empty
-        Self::validate_fork(self, fork)?;
-        let (forkpoint, (endpoint, fork_last_idx))
-            = (fork.first().unwrap().prev_hash.clone(), { let end_block = fork.last().unwrap(); (end_block.hash.clone(), end_block.idx)});
-
+    // Store a valid fork, and then swap the main chain to it if longer
+    pub fn sync_to_fork(&mut self, fork: Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
+        // clone and store fork
+        let (forkpoint, endpoint, fork_last_idx) = self.store_fork(fork)?;
+        // if main chain is shorter than forked chain, swap its blocks from the forkpoint onwards
         let (main_len, other_len) = (self.last().idx + 1, fork_last_idx + 1);
-        // if the the main chain is shorter than the fork, swap its blocks from the forkpoint onwards
         if main_len < other_len {
-            // truncate the main chain to the forkpoint
-            let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *forkpoint);
-            // append the fork to the truncated mainchain
-            Block::append(&mut self.main,  fork);
+            let forks: &mut HashMap<String, Vec<Block>> = self.forks.get_mut(&forkpoint).unwrap();
             // remove the fork from the fork pool, if it exists
-            self.forks.get_mut(&forkpoint)
-                    .map(|forks| forks.remove_entry(&endpoint));
+            let mut fork = forks.remove_entry(&endpoint).unwrap().1;
+            // truncate the main chain to the forkpoint, and append the fork to it
+            let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *forkpoint);
+            Block::append(&mut self.main, &mut fork);
             // insert the main chain as a new fork
-            self.forks.entry(forkpoint)
-                    .or_insert(HashMap::new())
-                    .insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
+            forks.insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
 
-            // self.forks.get_mut(&forkpoint).insert(main_suffix.last().unwrap().hash.clone(), main_suffix);
             Ok(ChooseChainResult::SwitchToFork { main_len, other_len })
         }
         else {
             Ok(ChooseChainResult::KeepMain { main_len, other_len })
         }
+    }
+
+    // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
+    pub fn store_fork(&mut self, fork: Vec<Block>) -> Result<(String, String, usize), NextBlockErr>{
+        // check if fork is valid and hence non-empty
+        Self::validate_fork(self, &fork)?;
+
+        let (forkpoint, (endpoint, endidx))
+            = ( fork.first().unwrap().prev_hash.clone(),
+                { let end_block = fork.last().unwrap();
+                  (end_block.hash.clone(), end_block.idx)
+                });
+
+        self.forks.entry(forkpoint.clone())
+                                    .or_insert(HashMap::new())
+                                    .insert(endpoint.clone(), fork);
+                                    // .and_modify(|v| {
+                                    //      *v = fork.clone();
+                                    // })
+                                    // .or_insert(fork.clone());
+
+        Ok ((forkpoint, endpoint, endidx))
     }
 
     // Return a reference to the longest stored fork
@@ -265,19 +281,6 @@ impl Chain {
                         _ => Some(current),
                     })
     }
-
-    // pub fn store_fork(&mut self, fork: Vec<Block>) -> Result<(), NextBlockErr>{
-    //     // check if fork is valid and hence non-empty
-    //     Self::validate_fork(self, &fork)?;
-    //     let (forkpoint, endpoint)
-    //         = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
-
-    //     self.forks.entry(forkpoint)
-    //             .or_insert(HashMap::new())
-    //             .insert(endpoint, fork);
-
-    //     Ok (())
-    // }
 }
 
 impl std::fmt::Display for Chain {

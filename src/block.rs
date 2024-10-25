@@ -49,7 +49,7 @@ impl Block {
     }
 
     // Unsafe append
-    pub fn append(blocks_pref: &mut Vec<Block>, blocks_suff: &mut Vec<Block>){
+    pub fn append(blocks_pref: &mut Vec<Block>,  blocks_suff: &mut Vec<Block>){
         blocks_pref.append(blocks_suff);
     }
 

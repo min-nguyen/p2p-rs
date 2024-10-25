@@ -247,7 +247,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
         assert!(matches!(
-            trace(main_chain.sync_to_fork(&mut fork)),
+            trace(main_chain.sync_to_fork(fork)),
             Ok(ChooseChainResult::SwitchToFork { main_len: 5, other_len: 7 })
         ));
         println!("Merged chain and fork : {}", main_chain);
@@ -287,7 +287,7 @@ mod chain_tests {
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]---[5]---[6]---[7]---[8]
         assert!(matches!(
-            trace(main_chain.sync_to_fork(&mut fork)),
+            trace(main_chain.sync_to_fork(fork)),
             Ok(ChooseChainResult::KeepMain { main_len: 9, other_len : 7})
         ));
         println!("Merged chain and fork : {}", main_chain);
