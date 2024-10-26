@@ -36,11 +36,11 @@
 │     • `[peer-id]`  - Request chain from a specific peer and synchronise to the most up-to-date chain
 
   *Show peers/chain/forks/transaction pool*:
-└── Usage: `show <"peers" | "chain" | "pool" | "forks">`
+└── Usage: `show <"peers" | "chain" | "forks" | "pool" >`
 ┌── Options:
 │     • `"peers"`   - Show list of discovered and connected peers
 │     • `"chain"`   - Show main chain
-│     • `"chain"`   - Show fork pool
+│     • `"forks"`   - Show current forks from the main chain
 │     • `"pool"`    - Show transaction pool
 
   *Redial*:

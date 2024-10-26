@@ -33,7 +33,7 @@
             - [x] perhaps modularise  `sync_to_fork`  for a Vec<Block> as instead:
                 1. storing the fork as an entry in the pool,
                 2. syncing to that fork in the local pool.
-            - [ ] to do: add tests for
+            - [x] to do: add tests for
                 - [x] invalid forks (i.e. with missing parents)
                 - [x] valid forks
                 - [x] merging remote forks as Vec<Block>
@@ -43,7 +43,7 @@
                         - [x] longer forks
                            - [x] produces correct ChooseChain result
                            - [x] updates the state of the Chain and its forks correctly
-                - [ ] merging local forks in the pool
+                - [x] merging local forks in the pool
             - [ ] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
             - [ ] to do: handle MissingBlocks in peer
                 - [ ] implement requesting new blocks until forming a valid fork suffix
