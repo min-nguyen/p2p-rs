@@ -29,7 +29,7 @@
             - [x] extending an existing chain from the main chain,
             - [x] adding new (single-block) forks to existing forks, but representing this as its own new fork from the main chain
             - [x] implement `sync_to_fork` for a Vec<Block>
-            - [ ] implement `sync_to_fork` for an entry `<forkpoint, endpoint>` stored in the pool
+            - [x] implement `sync_to_fork` for an entry `<forkpoint, endpoint>` stored in the pool
             - [x] perhaps modularise  `sync_to_fork`  for a Vec<Block> as instead:
                 1. storing the fork as an entry in the pool,
                 2. syncing to that fork in the local pool.

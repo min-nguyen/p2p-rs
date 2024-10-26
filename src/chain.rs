@@ -66,7 +66,21 @@ impl Chain {
         }
     }
 
-    pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
+    pub fn handle_block_result(&mut self, res : NextBlockResult) -> Result<ChooseChainResult, NextBlockErr>{
+        match res {
+            NextBlockResult::ExtendedFork { fork_hash,end_hash, .. } => {
+                self.sync_to_fork(fork_hash, end_hash)
+            },
+            NextBlockResult::NewFork { fork_hash, end_hash, .. } => {
+                self.sync_to_fork(fork_hash, end_hash)
+            }
+            NextBlockResult::ExtendedMain { length, .. } => {
+                Ok(ChooseChainResult::KeepMain { main_len: length, other_len: None })
+            }
+        }
+    }
+
+    pub fn store_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
         // Search for the parent block in the main chain.
@@ -167,11 +181,11 @@ impl Chain {
     pub fn sync_to_chain(&mut self, remote: Chain) -> Result<ChooseChainResult, NextBlockErr> {
         Self::validate_chain(&remote)?;
         let (main_len, other_len) = (self.last().idx + 1, remote.last().idx + 1);
-        if main_len >= other_len {
-            Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })
-        } else {
+        if other_len > main_len {
             *self = remote.clone();
             Ok(ChooseChainResult::ChooseOther { main_len, other_len })
+        } else {
+            Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })
         }
     }
 
@@ -188,15 +202,8 @@ impl Chain {
         }
     }
 
-    // Store a valid fork and then swap the main chain to it if longer
-    pub fn sync_to_fork(&mut self, fork: Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
-        Self::validate_fork(&self, &fork)?;
-        let fork_id: ForkId = fork::insert_fork(&mut self.forks, fork.clone())?;
-        self.sync_to_local_fork(fork_id.fork_hash, fork_id.end_hash)
-    }
-
     // Swap the main chain to a fork in the pool if longer
-    pub fn sync_to_local_fork(&mut self, fork_hash: String, end_hash: String) -> Result<ChooseChainResult, NextBlockErr>{
+    pub fn sync_to_fork(&mut self, fork_hash: String, end_hash: String) -> Result<ChooseChainResult, NextBlockErr>{
         if let Some((_, fork_id)) = fork::lookup_fork_mut(&mut self.forks, &fork_hash, &end_hash) {
             let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
             if main_len < other_len {
@@ -210,13 +217,19 @@ impl Chain {
                 // insert the main chain as a new fork
                 fork::insert_fork(&mut self.forks, main_suffix)?;
 
-                return Ok(ChooseChainResult::SwitchToFork { main_len, other_len })
+                return Ok(ChooseChainResult::ChooseOther { main_len, other_len })
             }
             else {
                 return Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })
             }
         }
         Ok(ChooseChainResult::KeepMain { main_len: self.len(), other_len: None })
+    }
+
+    // Store a valid fork
+    pub fn add_fork(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+        Self::validate_fork(&self, &fork)?;
+        fork::insert_fork(&mut self.forks, fork.clone())
     }
 }
 
@@ -235,10 +248,6 @@ pub enum ChooseChainResult {
         main_len: usize,
         other_len: Option<usize>
     },
-    SwitchToFork {
-        main_len: usize,
-        other_len: usize
-    },
     ChooseOther {
         main_len: usize,
         other_len: usize
@@ -249,13 +258,14 @@ impl std::fmt::Display for ChooseChainResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ChooseChainResult::KeepMain { main_len, other_len   } => {
-                write!(f, "Main chain length {} is longer than other chain length {:?}.", main_len, other_len)
-            }
-            ChooseChainResult::SwitchToFork { main_len, other_len   } => {
-                write!(f, "Local fork length {} is longer than main chain length {}.", other_len, main_len)
+                write!(f, "Keeping current main chain with length {}", main_len)?;
+                if let Some(other_len) = other_len {
+                    write!(f, ", other chain/fork has total length {}.", other_len)?
+                }
+                write!(f, ".")
             }
             ChooseChainResult::ChooseOther {  main_len,  other_len } => {
-                write!(f, "Other chain length {} is longer than main chain length {}.", other_len, main_len)
+                write!(f, "Choosing other chain/fork with length {}, previous main chain has length {}.", other_len, main_len)
             }
         }
     }

@@ -252,12 +252,12 @@ impl std::fmt::Display for NextBlockResult {
         match self {
             NextBlockResult::ExtendedMain { length, end_idx, end_hash } => {
                 write!(f, "Extended the main chain.\n\
-                           \tIts new endpoint and new length is ({}, {}) and {}.", end_idx, pretty_hex(end_hash), length)
+                           \tIts endpoint and length is ({}, {}) and {}.", end_idx, pretty_hex(end_hash), length)
             }
             NextBlockResult::ExtendedFork { length, fork_idx, fork_hash, end_idx,  end_hash} => {
                 write!(f,  "Extended an existing fork from the main chain.\n\
-                            \tIts forkpoint and new length from the main chain is ({}, {}) and {}.\n\
-                            \tIts new endpoint is ({}, {}).",
+                            \tIts forkpoint and length is ({}, {}) and {}.\n\
+                            \tIts endpoint is ({}, {}).",
                             fork_idx, pretty_hex(fork_hash), length, end_idx, pretty_hex(end_hash)
                 )
             }
@@ -266,7 +266,7 @@ impl std::fmt::Display for NextBlockResult {
                     1 => writeln!(f, "Added a single-block fork from the main chain."),
                     _ => writeln!(f, "Added a new fork that branches off an existing fork from the main chain.")
                 }?;
-                write!( f, "\tIts forkpoint and length from the main chain is ({}, {}) and {}. \n\
+                write!( f, "\tIts forkpoint and length is ({}, {}) and {}. \n\
                             \tIts endpoint is ({}, {}).",
                             fork_idx, pretty_hex(fork_hash), length, end_idx, pretty_hex(end_hash)
                 )

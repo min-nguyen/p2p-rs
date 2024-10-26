@@ -133,10 +133,6 @@ impl Peer {
                         println!("Updated main chain to be remote peer's chain: \n\
                                     \t\"{}\"", res)
                     }
-                    Ok(res@ChooseChainResult::SwitchToFork{..}) => {
-                        println!("Updated main chain to be a local fork: \n\
-                                    \t\"{}\"", res)
-                    }
                     Err(e) => {
                         println!("Remote chain couldn't be validated:\n\
                                     \t\"{}\"", e)
@@ -162,18 +158,19 @@ impl Peer {
                     }
                 }
                 // Validate block itself
-                match self.chain.handle_new_block(block.clone()){
+                match self.chain.store_block(block.clone()){
                     Ok(res) =>{
-                        println!("Block handled with update to chain or forks:\n\
+                        println!("Block handled with update:\n\
                                 \t\"{}\"", res);
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
                         match res {
-                            // NextBlockResult::ExtendedFork
-                            //     { length, forkpoint_idx, forkpoint_hash, endpoint_idx, endpoint_hash } => {
-
-                            // }
+                            NextBlockResult::ExtendedFork { fork_hash, end_hash, .. } => {
+                                if let Ok(ChooseChainResult::ChooseOther { .. }) = self.chain.sync_to_fork(fork_hash, end_hash) {
+                                    println!("Updated main chain to a longer fork.")
+                                }
+                            }
                             _ => {
                             }
                         }

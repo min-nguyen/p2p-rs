@@ -45,18 +45,18 @@ mod chain_tests {
      * Tests for handling new blocks *
     *****************************/
     #[test]
-    fn test_handle_next_block() {
+    fn test_store_block_next() {
         let mut chain: Chain = init_chain(CHAIN_LEN);
         let next_block: Block = Block::mine_block(chain.last(), "next valid block");
 
         // chain: [0]---[1]---[2]---[3]---[4]----[*5*]
         assert!(matches!(
-            trace(chain.handle_new_block(next_block))
+            trace(chain.store_block(next_block))
             , Ok( NextBlockResult::ExtendedMain { length: 6, end_idx: 5, .. } )));
     }
 
     #[test]
-    fn test_handle_missing_parent() {
+    fn test_store_block_missing_parent() {
         let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.mine_block(&format!("block {}", i));
@@ -67,13 +67,13 @@ mod chain_tests {
         dup_chain.mine_block("next block in dup chain");
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
-            trace(chain.handle_new_block(dup_chain.last().clone())),
+            trace(chain.store_block(dup_chain.last().clone())),
             Err(NextBlockErr::MissingParent { .. })
         ));
     }
 
     #[test]
-    fn test_handle_duplicate_block() {
+    fn test_store_block_duplicate() {
         let mut chain: Chain = Chain::genesis();
         for i in 1..CHAIN_LEN {
             chain.mine_block(&format!("block {}", i))
@@ -83,13 +83,13 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         //                     |---[*3*]
         assert!(matches!(
-            trace(chain.handle_new_block(out_of_date_block)),
+            trace(chain.store_block(out_of_date_block)),
             Ok( NextBlockResult::NewFork { .. } )   // to-do: implement Duplicateblock
         ));
     }
 
     #[test]
-    fn test_handle_next_block_in_fork() {
+    fn test_store_block_fork() {
         let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let mut forked_chain = {
             let mut f = main_chain.clone();
@@ -98,12 +98,13 @@ mod chain_tests {
         };
 
         { // Adding new forks
-            // chain: [0]---[1]---[2]---....
+            // chain: [0]---[1]---[2]---[3]---[4]
             // fork:               |----[*3*]
             forked_chain.mine_block(&format!("block {} in fork", 0));
             println!("Forked chain {}", forked_chain);
+            let res = main_chain.store_block(forked_chain.last().clone());
             assert!(matches!(
-                trace(main_chain.handle_new_block(forked_chain.last().clone())),
+                trace(res),
                 Ok(NextBlockResult::NewFork { length : 1, .. })
             ));
         }
@@ -114,7 +115,7 @@ mod chain_tests {
             for i in 1..3 {
                 forked_chain.mine_block(&format!("block {} in fork", i));
                 assert!(matches!(
-                    trace(main_chain.handle_new_block(forked_chain.last().clone())),
+                    trace(main_chain.store_block(forked_chain.last().clone())),
                     Ok(NextBlockResult::ExtendedFork { .. })
                 ));
             }
@@ -134,7 +135,7 @@ mod chain_tests {
             nested_forked_chain.mine_block(&format!("block {} in nested fork", 0));
             println!("Nested forked chain {}", nested_forked_chain);
             assert!(matches!(
-                trace(main_chain.handle_new_block(nested_forked_chain.last().clone())),
+                trace(main_chain.store_block(nested_forked_chain.last().clone())),
                 Ok(NextBlockResult::NewFork {length : 3, .. })
             ));
         }
@@ -146,7 +147,7 @@ mod chain_tests {
             for i in 1..3 {
                 nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
                 assert!(matches!(
-                    trace(main_chain.handle_new_block(nested_forked_chain.last().clone())),
+                    trace(main_chain.store_block(nested_forked_chain.last().clone())),
                     Ok(NextBlockResult::ExtendedFork { .. })
                 ));
             }
@@ -155,7 +156,7 @@ mod chain_tests {
     }
 
     #[test]
-    fn test_handle_missing_parent_in_fork() {
+    fn test_store_block_fork_missing_parent() {
         // handle a competing block from a forked_chain that is the same length as the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[*4*]
@@ -169,7 +170,7 @@ mod chain_tests {
             forked_chain.mine_block(&format!("block {} in fork", i))
         };
         assert!(matches!(
-            trace(main_chain.handle_new_block(forked_chain.last().clone())),
+            trace(main_chain.store_block(forked_chain.last().clone())),
             Err(NextBlockErr::MissingParent{..})
         ));
     }
@@ -256,9 +257,15 @@ mod chain_tests {
         // Then synchronise:
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
+        let res
+            = main_chain
+                .add_fork(fork)
+                .and_then(|fork_id|
+                    main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
+
         assert!(matches!(
-            trace(main_chain.sync_to_fork(fork)),
-            Ok(ChooseChainResult::SwitchToFork { main_len: 5, other_len: 7 })
+            trace(res),
+            Ok(ChooseChainResult::ChooseOther { main_len: 5, other_len: 7 })
         ));
         println!("Merged chain and fork : {}", main_chain);
 
@@ -297,8 +304,11 @@ mod chain_tests {
 
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]
+        let res = main_chain.add_fork(fork)
+                    .and_then(|fork_id| main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
+
         assert!(matches!(
-            trace(main_chain.sync_to_fork(fork)),
+            trace(res),
             Ok(ChooseChainResult::KeepMain { main_len: 5, other_len : Some(4)})
         ));
         println!("Merged chain and fork : {}", main_chain);
@@ -336,7 +346,7 @@ mod chain_tests {
     //         forked_chain.mine_block("block 0 in fork");
     //         for i in 0..2 {
     //             forked_chain.mine_block(&format!("block {} in fork", i));
-    //             let NextBlockResult::_ = chain.handle_new_block(forked_chain.last().clone());
+    //             let NextBlockResult::_ = chain.store_block(forked_chain.last().clone());
     //         }
 
     //         chain.sync_fork(fork_point, end_point)
