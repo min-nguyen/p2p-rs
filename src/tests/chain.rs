@@ -104,7 +104,7 @@ mod chain_tests {
             println!("Forked chain {}", forked_chain);
             assert!(matches!(
                 trace(main_chain.handle_new_block(forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork { length : 1, .. })
+                Ok(NextBlockResult::NewFork { fork_length : 1, .. })
             ));
         }
 
@@ -135,7 +135,7 @@ mod chain_tests {
             println!("Nested forked chain {}", nested_forked_chain);
             assert!(matches!(
                 trace(main_chain.handle_new_block(nested_forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork {length : 3, .. })
+                Ok(NextBlockResult::NewFork {fork_length : 3, .. })
             ));
         }
 
@@ -246,8 +246,8 @@ mod chain_tests {
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
         // Then synchronise:
@@ -261,8 +261,8 @@ mod chain_tests {
 
         // Assert the state of the new chain and its stored forks
         assert!(matches!(trace(main_chain.len()), 7));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), Some(..)));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), Some(..)));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
     }
 
     #[test]
@@ -283,8 +283,8 @@ mod chain_tests {
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
 
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
@@ -298,8 +298,8 @@ mod chain_tests {
 
         // Assert the state of the new chain and its stored forks
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &main_endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork_mut(&forkpoint, &endpoint)), Some(..)));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), Some(..)));
     }
 
     #[test]

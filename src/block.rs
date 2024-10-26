@@ -229,14 +229,14 @@ pub enum NextBlockResult {
         endpoint_hash: String,
     },
     ExtendedFork {
-        length: usize,
+        fork_length: usize,
         forkpoint_idx: usize,
         forkpoint_hash: String,
         endpoint_idx: usize,
         endpoint_hash: String,
     },
     NewFork {
-        length: usize,
+        fork_length: usize,
         forkpoint_idx: usize,
         forkpoint_hash: String,
         endpoint_idx: usize,
@@ -254,21 +254,21 @@ impl std::fmt::Display for NextBlockResult {
                 write!(f, "Extended the main chain.\n\
                            \tIts new endpoint and new length is ({}, {}) and {}.", endpoint_idx, pretty_hex(endpoint_hash), length)
             }
-            NextBlockResult::ExtendedFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
+            NextBlockResult::ExtendedFork { fork_length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
                 write!(f,  "Extended an existing fork from the main chain.\n\
                             \tIts forkpoint and new length from the main chain is ({}, {}) and {}.\n\
                             \tIts new endpoint is ({}, {}).",
-                            forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
+                            forkpoint_idx, pretty_hex(forkpoint_hash), fork_length, endpoint_idx, pretty_hex(endpoint_hash)
                 )
             }
-            NextBlockResult::NewFork { length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
-                match length {
+            NextBlockResult::NewFork { fork_length, forkpoint_idx, forkpoint_hash, endpoint_idx,  endpoint_hash} => {
+                match fork_length {
                     1 => writeln!(f, "Added a single-block fork from the main chain."),
                     _ => writeln!(f, "Added a new fork that branches off an existing fork from the main chain.")
                 }?;
                 write!( f, "\tIts forkpoint and length from the main chain is ({}, {}) and {}. \n\
                             \tIts endpoint is ({}, {}).",
-                            forkpoint_idx, pretty_hex(forkpoint_hash), length, endpoint_idx, pretty_hex(endpoint_hash)
+                            forkpoint_idx, pretty_hex(forkpoint_hash), fork_length, endpoint_idx, pretty_hex(endpoint_hash)
                 )
             }
             // NextBlockErr::Duplicate { block_idx, block_hash,data } => {
