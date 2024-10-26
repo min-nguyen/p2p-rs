@@ -16,17 +16,18 @@ use std::collections::HashMap;
 pub struct Chain {
     main : Vec<Block>,
     forks: Forks,
+    orphans: Forks
 }
 
 impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
-        Self { main : vec![Block::genesis()], forks : HashMap::new() }
+        Self { main : vec![Block::genesis()], forks : HashMap::new(), orphans : HashMap::new() }
     }
 
     // Safely construct a chain from a vector of blocks
     pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
-        let chain = Chain{main : blocks, forks : HashMap::new()};
+        let chain = Chain{main : blocks, forks : HashMap::new(), orphans : HashMap::new()};
         Self::validate_chain(&chain)?;
         Ok(chain)
     }
@@ -66,6 +67,13 @@ impl Chain {
         }
     }
 
+    // pub fn handle_block(&mut self, block : Block) -> Result<ChooseChainResult, NextBlockErr>{
+    //     self.store_block(block)
+    //         .and_then(| res | {
+    //     self.handle_block_result(res)
+    //     })
+    // }
+
     pub fn handle_block_result(&mut self, res : NextBlockResult) -> Result<ChooseChainResult, NextBlockErr>{
         match res {
             NextBlockResult::ExtendedFork { fork_hash,end_hash, .. } => {
@@ -90,67 +98,39 @@ impl Chain {
 
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
-                Block::push(&mut self.main, &block);
-                Ok(NextBlockResult::ExtendedMain {
-                        length: self.len(),
-                        end_idx: block.idx,
-                        end_hash: block.hash
-                    })
+                Block::push_end(&mut self.main, block);
+                Ok(NextBlockResult::ExtendedMain { length: self.len(), end_idx: self.last().idx, end_hash: self.last().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
-                let new_fork = vec![block.clone()];
-                fork::insert_fork(&mut self.forks, new_fork)?;
+                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                    = fork::insert_fork(&mut self.forks, vec![block.clone()])?;
 
-                Ok(NextBlockResult::NewFork {
-                    length: 1,
-                    fork_idx: block.idx - 1,
-                    fork_hash: block.prev_hash,
-                    end_idx: block.idx,
-                    end_hash: block.hash
-                })
+                Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
             }
         }
         // Search for the parent block in the forks.
-        else if let Some(fork) = fork::find_fork( &self.forks, &block.prev_hash) {
-            let ForkId { fork_hash, fork_idx, end_hash, .. } = fork::identify_fork(fork)?;
-            let parent_block = Block::find(fork, &block.prev_hash).unwrap();
-
-            Block::validate_child(parent_block, &block)?;
+        else if let Some((fork, fork_id)) = fork::find_fork( &self.forks, &block.prev_hash) {
+            let parent = Block::find(fork, &block.prev_hash).unwrap();
+            Block::validate_child(parent, &block)?;
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
-            if end_hash == parent_block.hash {
-                let mut extended_fork: Vec<Block> = fork::remove_fork(&mut self.forks, &fork_hash, &end_hash).unwrap();
-                Block::push(&mut extended_fork, &block);
-                let length = extended_fork.len();
-                fork::insert_fork(&mut self.forks, extended_fork.clone())?;
+            if *fork_id.end_hash == parent.hash {
+                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                    = fork::extend_fork(&mut self.forks, &fork_id, block)?;
 
-                Ok(NextBlockResult::ExtendedFork {
-                    length,
-                    fork_idx,
-                    fork_hash,
-                    end_idx: block.idx,
-                    end_hash: block.hash
-                })
+                Ok(NextBlockResult::ExtendedFork {length, fork_idx, fork_hash, end_idx, end_hash })
             }
-            // Otherwise create a new direct fork from the main chain, cloning the prefix of an existing fork
+            // Otherwise create a new fork from the main chain that clones the prefix of an existing fork
             else {
-                let mut nested_fork: Vec<Block> = fork.clone();
-                Block::split_off_until(&mut nested_fork, |b| b.hash == block.prev_hash);
-                Block::push(&mut nested_fork, &block);
-                let length = nested_fork.len();
-                fork::insert_fork(&mut self.forks, nested_fork)?;
+                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                    = fork::nest_fork(&mut self.forks, &fork_id, block)?;
 
-                Ok(NextBlockResult::NewFork {
-                    length,
-                    fork_idx,
-                    fork_hash,
-                    end_idx: block.idx,
-                    end_hash: block.hash
-                })
+                Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
             }
         }
         else {
+
             Err(NextBlockErr::MissingParent {
                 block_idx: block.idx,
                 block_parent_hash: block.prev_hash
@@ -162,7 +142,7 @@ impl Chain {
     pub fn mine_block(&mut self, data: &str) {
         let last_block: &Block = self.last();
         let new_block = Block::mine_block(last_block, data);
-        Block::push(&mut self.main, &new_block)
+        Block::push_end(&mut self.main, new_block)
     }
 
     // Validate chain, expecting its first block to begin at idx 0

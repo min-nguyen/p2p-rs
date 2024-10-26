@@ -17,33 +17,37 @@ pub struct ForkId {
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
-pub fn find_fork<'a>(forks: &'a Forks, hash: &String) -> Option<&'a Vec<Block>> {
+pub fn find_fork<'a>(forks: &'a Forks, hash: &String) -> Option<(&'a Vec<Block>, ForkId)> {
     // iterate through fork points
     for (_, forks_from) in forks.iter() {
         // iterate through forks from the fork point
         for (_, fork) in forks_from {
             // iterate through blocks in the fork
             if let Some(_) = Block::find(&fork, hash) {
-                return Some(&fork)
+                let fork_id = identify_fork(fork).unwrap();
+                return Some((&fork, fork_id))
             }
         }
     }
     None
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
-pub fn find_fork_mut<'a>(forks: &'a mut Forks, hash: &String) -> Option<(String, String, &'a mut Vec<Block>)> {
-    // iterate through fork points
-    for (fork_point, forks_from) in forks.iter_mut() {
-        // iterate through forks from the fork point
-        for (end_hash, fork) in forks_from {
-            // iterate through blocks in the fork
-            if let Some(_) = Block::find(fork, hash) {
-                return Some((fork_point.clone(), end_hash.clone(), fork))
-            }
-        }
+// Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
+pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
+    if fork.is_empty() {
+        Err(NextBlockErr::NoBlocks)
     }
-    None
+    else {
+        let ((fork_hash, fork_idx), (end_hash, end_idx), length)
+            = ( {let first_block = fork.first().unwrap();
+                    (first_block.prev_hash.clone(), first_block.idx - 1)
+                },
+                { let end_block = fork.last().unwrap();
+                    (end_block.hash.clone(), end_block.idx)
+                },
+                fork.len());
+        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx, length})
+    }
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
@@ -79,20 +83,21 @@ pub fn insert_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<ForkId, NextBl
     Ok (fork_id)
 }
 
-// Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
-pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
-    if fork.is_empty() {
-        Err(NextBlockErr::NoBlocks)
-    }
-    else {
-        let ((fork_hash, fork_idx), (end_hash, end_idx), length)
-            = ( {let first_block = fork.first().unwrap();
-                    (first_block.prev_hash.clone(), first_block.idx - 1)
-                },
-                { let end_block = fork.last().unwrap();
-                    (end_block.hash.clone(), end_block.idx)
-                },
-                fork.len());
-        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx, length})
-    }
+pub fn extend_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
+    let mut fork: Vec<Block> = remove_fork(forks, &fork_id.fork_hash, &block.prev_hash).unwrap();
+    Block::push_end(&mut fork, block);
+    insert_fork(forks, fork)
+}
+
+pub fn prepend_fork(orphans: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
+    let mut fork: Vec<Block> = remove_fork(orphans, &fork_id.fork_hash, &block.prev_hash).unwrap();
+    Block::push_front(&mut fork, block);
+    insert_fork(orphans, fork)
+}
+
+pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
+    let mut fork: Vec<Block> = lookup_fork(forks, &fork_id.fork_hash, &fork_id.end_hash).unwrap().clone(); //fork.clone();
+    Block::split_off_until(&mut fork, |b| b.hash == block.prev_hash);
+    Block::push_end(&mut fork, block);
+    insert_fork(forks, fork)
 }

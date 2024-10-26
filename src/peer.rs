@@ -16,7 +16,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
-use crate::{block::NextBlockResult, chain::ChooseChainResult};
+use crate::{block::NextBlockResult, chain::ChooseChainResult, swarm::connected_peers};
 
 use super::file;
 use super::block::{Block, NextBlockErr};
@@ -139,9 +139,11 @@ impl Peer {
                     }
                 }
             },
-            PowMessage::BlockResponse { .. } => {
-                /* We don't do anything with this yet. */
-            },
+            PowMessage::BlockResponse { block, .. } |
+            //  => {
+            //     /* We don't do anything with this yet. */
+
+            // },
             PowMessage::NewBlock { block, .. } => {
                 // Validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
@@ -179,20 +181,20 @@ impl Peer {
                         println!("Block handled with no update to chain or forks\n\
                                     \t\"{}\"", e);
                         match e {
-                            // NextBlockErr::MissingParent { .. } =>
-                            //     {
-                            //         /* We don't do anything with this yet. */
-                            //         let req = PowMessage::BlockRequest {
-                            //             transmit_type: TransmitType::ToAll,
-                            //             block_hash: block.prev_hash.clone(),
-                            //             sender_peer_id: self.swarm.local_peer_id().to_string()
-                            //         };
-                            //         swarm::publish_pow_msg(req, &mut self.swarm);
-                            //         println!("Sent BlockRequest for missing block:\n\
-                            //                 \t{}\n\
-                            //                 to:\n\
-                            //                 \t{:?}", block.prev_hash, get_peers(&mut self.swarm).1);
-                            //     },
+                            NextBlockErr::MissingParent { .. } =>
+                                {
+                                    /* We don't do anything with this yet. */
+                                    let req = PowMessage::BlockRequest {
+                                        transmit_type: TransmitType::ToAll,
+                                        block_hash: block.prev_hash.clone(),
+                                        sender_peer_id: self.swarm.local_peer_id().to_string()
+                                    };
+                                    swarm::publish_pow_msg(req, &mut self.swarm);
+                                    println!("Sent BlockRequest for missing block:\n\
+                                            \t{}\n\
+                                            to:\n\
+                                            \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
+                                },
                             _ => {
 
                             }

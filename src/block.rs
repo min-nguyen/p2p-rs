@@ -44,14 +44,20 @@ impl Block {
     }
 
     // Unsafe push
-    pub fn push(blocks: &mut Vec<Block>, new_block: &Block){
+    pub fn push_end(blocks: &mut Vec<Block>, new_block: Block){
         blocks.push(new_block.clone());
+    }
+
+    // Unsafe push
+    pub fn push_front(blocks: &mut Vec<Block>, new_block: Block){
+        blocks.insert(0, new_block.clone());
     }
 
     // Unsafe append
     pub fn append(blocks_pref: &mut Vec<Block>,  blocks_suff: &mut Vec<Block>){
         blocks_pref.append(blocks_suff);
     }
+
 
     // Unsafe splitoff
     pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
