@@ -140,12 +140,8 @@ impl Peer {
                 }
             },
             PowMessage::BlockResponse { block, .. } |
-            //  => {
-            //     /* We don't do anything with this yet. */
-
-            // },
             PowMessage::NewBlock { block, .. } => {
-                // Validate transaction inside the block, *if any*, and return early if invalid
+                // validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
                     match Transaction::validate_transaction(&txn) {
                         Ok (()) => {
@@ -159,14 +155,14 @@ impl Peer {
                         }
                     }
                 }
-                // Validate block itself
+                // validate the block itself and store it
                 match self.chain.store_block(block.clone()){
-                    Ok(res) =>{
-                        println!("Block handled with update:\n\
-                                \t\"{}\"", res);
+                    Ok(res) => {
+                        println!("Block handled with update:\n\t\"{}\"", res);
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
+                        // update the state of the main chain
                         match self.chain.handle_block_result(res) {
                             Ok(ChooseChainResult::ChooseOther { .. }) => {
                                     println!("Updated main chain to a longer fork.")
@@ -176,8 +172,7 @@ impl Peer {
                         }
                     }
                     Err(e) => {
-                        println!("Block handled with no update to chain or forks\n\
-                                    \t\"{}\"", e);
+                        println!("Block handled with no update to chain or forks\n\t\"{}\"", e);
                         match e {
                             NextBlockErr::MissingParent { block_parent_hash,.. } =>
                                 {
@@ -386,10 +381,6 @@ impl Peer {
             "forks"   => {
                 println!("Current forks:\n");
                 chain::show_forks(&self.chain);
-            }
-            "orphans"   => {
-                println!("Current orphans:\n");
-                chain::show_orphans(&self.chain);
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)

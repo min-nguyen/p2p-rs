@@ -1,5 +1,5 @@
 /*
-    *Fork*: Auxiliary helpers for managing forks, independent of a chain
+    *Fork*: Auxiliary helpers for managing forks, independent of a chain.
 */
 
 use super::block::{Block::{self}, NextBlockErr};
@@ -7,8 +7,7 @@ use std::collections::HashMap;
 
 // <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
-// <missing parent hash, orphaned blocks>
-pub type Orphans = HashMap<String, Vec<Block>>;
+
 #[derive(Clone)]
 pub struct ForkId {
     pub fork_hash: String,

@@ -53,7 +53,7 @@ cargo run
 ┌── Options:
 │     • `"peers"`   - Show list of discovered and connected peers
 │     • `"chain"`   - Show current chain
-│     • `"chain"`   - Show current fork pool
+│     • `"forks"`   - Show current fork pool
 │     • `"pool"`    - Show current transaction pool
 
   *Redial*:
@@ -102,6 +102,9 @@ Provides the block and Proof-of-Work mining algorithm.
 ```sh
 cargo test block -- --no capture
 ```
+
+#### `fork.rs`
+Auxiliary helpers for identifying and updating a pool of forks.
 
 #### `transaction.rs`
 Provides the transaction form.
