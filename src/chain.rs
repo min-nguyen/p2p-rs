@@ -168,7 +168,7 @@ impl Chain {
         Self::validate_chain(&remote)?;
         let (main_len, other_len) = (self.last().idx + 1, remote.last().idx + 1);
         if main_len >= other_len {
-            Ok(ChooseChainResult::KeepMain { main_len, other_len })
+            Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })
         } else {
             *self = remote.clone();
             Ok(ChooseChainResult::ChooseOther { main_len, other_len })
@@ -188,26 +188,35 @@ impl Chain {
         }
     }
 
-    // Store a valid fork, and then swap the main chain to it if longer
+    // Store a valid fork and then swap the main chain to it if longer
     pub fn sync_to_fork(&mut self, fork: Vec<Block>) -> Result<ChooseChainResult, NextBlockErr>{
         Self::validate_fork(&self, &fork)?;
-        let (forkpoint, endpoint) = fork::insert_fork(&mut self.forks, fork.clone())?;
-        // if main chain is shorter than forked chain, swap its blocks from the forkpoint onwards
-        let (main_len, other_len) = (self.last().idx + 1, fork.last().unwrap().idx + 1);
-        if main_len < other_len {
-            // remove the fork from the fork pool
-            let mut fork = fork::remove_fork(&mut self.forks, &forkpoint, &endpoint).expect("fork definitely exists; we just stored it");
-            // truncate the main chain to the forkpoint, and append the fork to it
-            let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *forkpoint);
-            Block::append(&mut self.main, &mut fork);
-            // insert the main chain as a new fork
-            fork::insert_fork(&mut self.forks, main_suffix)?;
+        let fork_id: ForkId = fork::insert_fork(&mut self.forks, fork.clone())?;
+        self.sync_to_local_fork(fork_id.fork_hash, fork_id.end_hash)
+    }
 
-            Ok(ChooseChainResult::SwitchToFork { main_len, other_len })
+    // Swap the main chain to a fork in the pool if longer
+    pub fn sync_to_local_fork(&mut self, fork_hash: String, end_hash: String) -> Result<ChooseChainResult, NextBlockErr>{
+        if let Some((_, fork_id)) = fork::lookup_fork_mut(&mut self.forks, &fork_hash, &end_hash) {
+            let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
+            if main_len < other_len {
+                // remove the fork from the fork pool
+                let mut fork
+                    = fork::remove_fork(&mut self.forks, &fork_id.fork_hash, &fork_id.end_hash)
+                            .expect("fork definitely exists; we just stored it");
+                // truncate the main chain to the forkpoint, and append the fork to it
+                let main_suffix: Vec<Block> = Block::split_off_until(&mut self.main, |b| b.hash == *fork_id.fork_hash);
+                Block::append(&mut self.main, &mut fork);
+                // insert the main chain as a new fork
+                fork::insert_fork(&mut self.forks, main_suffix)?;
+
+                return Ok(ChooseChainResult::SwitchToFork { main_len, other_len })
+            }
+            else {
+                return Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })
+            }
         }
-        else {
-            Ok(ChooseChainResult::KeepMain { main_len, other_len })
-        }
+        Ok(ChooseChainResult::KeepMain { main_len: self.len(), other_len: None })
     }
 }
 
@@ -224,7 +233,7 @@ impl std::fmt::Display for Chain {
 pub enum ChooseChainResult {
     KeepMain {
         main_len: usize,
-        other_len: usize
+        other_len: Option<usize>
     },
     SwitchToFork {
         main_len: usize,
@@ -240,7 +249,7 @@ impl std::fmt::Display for ChooseChainResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ChooseChainResult::KeepMain { main_len, other_len   } => {
-                write!(f, "Main chain length {} is longer than other chain length {}.", main_len, other_len)
+                write!(f, "Main chain length {} is longer than other chain length {:?}.", main_len, other_len)
             }
             ChooseChainResult::SwitchToFork { main_len, other_len   } => {
                 write!(f, "Local fork length {} is longer than main chain length {}.", other_len, main_len)

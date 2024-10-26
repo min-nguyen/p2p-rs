@@ -7,6 +7,7 @@ use std::collections::HashMap;
 
 // <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
+#[derive(Clone)]
 pub struct ForkId {
     pub fork_hash: String,
     pub fork_idx: usize,
@@ -51,8 +52,15 @@ pub fn lookup_fork<'a>(forks: &'a Forks, forkpoint: &String, endpoint: &String) 
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
-pub fn lookup_fork_mut<'a>(forks: &'a mut Forks, forkpoint: &String, endpoint: &String) -> Option<&'a mut Vec<Block>>{
-    forks.get_mut(forkpoint).and_then(|forks| forks.get_mut(endpoint))
+pub fn lookup_fork_mut<'a>(forks: &'a mut Forks, forkpoint: &String, endpoint: &String) -> Option<(&'a mut Vec<Block>, ForkId)>{
+    forks.get_mut(forkpoint)
+        .and_then(|forks| {
+            forks.get_mut(endpoint)
+                .map(|fork| {
+                    let fork_id = identify_fork(fork);
+                    (fork, fork_id.unwrap())
+                }
+        )})
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
@@ -61,14 +69,14 @@ pub fn remove_fork<'a>(forks: &mut Forks,  forkpoint: &String, endpoint: &String
 }
 
 // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
-pub fn insert_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<(String, String), NextBlockErr>{
-    let ForkId { fork_hash, end_hash, .. } = identify_fork(&fork)?;
+pub fn insert_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+    let fork_id = identify_fork(&fork)?;
 
-    forks.entry(fork_hash.clone())
+    forks.entry(fork_id.fork_hash.clone())
                 .or_insert(HashMap::new())
-                .insert(end_hash.clone(), fork);
+                .insert(fork_id.end_hash.clone(), fork);
 
-    Ok ((fork_hash, end_hash))
+    Ok (fork_id)
 }
 
 // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index

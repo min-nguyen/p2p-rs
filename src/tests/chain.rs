@@ -299,7 +299,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         assert!(matches!(
             trace(main_chain.sync_to_fork(fork)),
-            Ok(ChooseChainResult::KeepMain { main_len: 5, other_len : 4})
+            Ok(ChooseChainResult::KeepMain { main_len: 5, other_len : Some(4)})
         ));
         println!("Merged chain and fork : {}", main_chain);
 
