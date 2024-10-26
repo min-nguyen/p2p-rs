@@ -1,5 +1,5 @@
 /*
-    *Fork*: Auxiliary helpers for managing forks, independent of a chain
+    *Fork*: Auxiliary helpers for managing forks, independent of a chain.
 */
 
 use super::block::{Block::{self}, NextBlockErr};

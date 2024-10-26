@@ -103,6 +103,9 @@ Provides the block and Proof-of-Work mining algorithm.
 cargo test block -- --no capture
 ```
 
+#### `fork.rs`
+Auxiliary helpers for identifying and updating a pool of forks.
+
 #### `transaction.rs`
 Provides the transaction form.
 - Transaction type.
