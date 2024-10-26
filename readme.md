@@ -48,13 +48,13 @@ cargo run
 │     • `"all"`      - Request chain from all peers, and synchronise to the most up-to-date chain
 │     • `[peer-id]`  - Request chain from a specific peer, and synchronise to the most up-to-date chain
 
-  *Show peers/chain/transaction pool*:
-└── Usage: `show <"peers" | "chain" | "forks" | "pool">`
+  *Show peers/chain/forks/transaction pool*:
+└── Usage: `show <"peers" | "chain" | "forks" | "pool" >`
 ┌── Options:
 │     • `"peers"`   - Show list of discovered and connected peers
-│     • `"chain"`   - Show current chain
-│     • `"forks"`   - Show current fork pool
-│     • `"pool"`    - Show current transaction pool
+│     • `"chain"`   - Show main chain
+│     • `"forks"`   - Show current forks from the main chain
+│     • `"pool"`    - Show transaction pool
 
   *Redial*:
 └── Usage: `redial`
