@@ -92,12 +92,6 @@ pub fn extend_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result
     insert_fork(forks, fork)
 }
 
-pub fn prepend_fork(orphans: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
-    let mut fork: Vec<Block> = remove_fork(orphans, &fork_id.fork_hash, &fork_id.end_hash).unwrap();
-    Block::push_front(&mut fork, block);
-    insert_fork(orphans, fork)
-}
-
 pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
     let mut fork: Vec<Block> = lookup_fork(forks, &fork_id.fork_hash, &fork_id.end_hash).unwrap().clone(); //fork.clone();
     Block::split_off_until(&mut fork, |b| b.hash == block.prev_hash);
