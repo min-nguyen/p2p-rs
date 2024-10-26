@@ -3,7 +3,7 @@ pub mod file;
 pub mod peer;
 pub mod block;
 pub mod chain;
-// pub mod fork;
+pub mod fork;
 pub mod transaction;
 pub mod message;
 pub mod swarm;

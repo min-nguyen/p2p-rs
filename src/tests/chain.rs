@@ -4,7 +4,7 @@
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
     use crate::{
-        block::{Block, NextBlockErr, NextBlockResult}, chain::{Chain, ChooseChainResult}, cryptutil::trace};
+        block::{Block, NextBlockErr, NextBlockResult}, chain::{Chain, ChooseChainResult}, cryptutil::trace, fork};
 
     const CHAIN_LEN : usize = 5;
     const FORK_PREFIX_LEN : usize = 3;
@@ -245,9 +245,12 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+
+        // Assert initial state of chain and its stored forks
+        let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks,&forkpoint, &main_endpoint)), None));
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
         // Then synchronise:
@@ -259,10 +262,11 @@ mod chain_tests {
         ));
         println!("Merged chain and fork : {}", main_chain);
 
-        // Assert the state of the new chain and its stored forks
+        // Assert final state of the chain and its stored forks
+        let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 7));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), Some(..)));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), Some(..)));
+        assert!(matches!(trace(fork::lookup_fork(forks,&forkpoint, &endpoint)), None));
     }
 
     #[test]
@@ -282,9 +286,12 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+
+        // Assert initial state of chain and its stored forks
+        let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), None));
 
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
@@ -296,10 +303,11 @@ mod chain_tests {
         ));
         println!("Merged chain and fork : {}", main_chain);
 
-        // Assert the state of the new chain and its stored forks
+        // Assert final state of the chain and its stored forks
+        let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &main_endpoint)), None));
-        assert!(matches!(trace(main_chain.lookup_fork(&forkpoint, &endpoint)), Some(..)));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), Some(..)));
     }
 
     #[test]
