@@ -6,6 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::fork::ForkId;
+
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
 use super::fork::{self, Forks};
 use std::collections::HashMap;
@@ -13,7 +15,6 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain {
     main : Vec<Block>,
-    // <fork point, <fork end hash, forked blocks>>
     forks: Forks,
 }
 
@@ -21,10 +22,6 @@ impl Chain {
     // New chain with a single genesis block
     pub fn genesis() -> Self {
         Self { main : vec![Block::genesis()], forks : HashMap::new() }
-    }
-
-    pub fn forks<'a>(&'a self) -> &'a Forks {
-        &self.forks
     }
 
     // Safely construct a chain from a vector of blocks
@@ -36,6 +33,10 @@ impl Chain {
 
     pub fn to_vec(&self) -> Vec<Block> {
         self.main.clone()
+    }
+
+    pub fn forks<'a>(&'a self) -> &'a Forks {
+        &self.forks
     }
 
     pub fn last(&self) -> &Block {
@@ -65,7 +66,6 @@ impl Chain {
         }
     }
 
-
     pub fn handle_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
@@ -79,8 +79,8 @@ impl Chain {
                 Block::push(&mut self.main, &block);
                 Ok(NextBlockResult::ExtendedMain {
                         length: self.len(),
-                        endpoint_idx: block.idx,
-                        endpoint_hash: block.hash
+                        end_idx: block.idx,
+                        end_hash: block.hash
                     })
             }
             // Otherwise attach a single-block fork to the main chain
@@ -89,34 +89,34 @@ impl Chain {
                 fork::insert_fork(&mut self.forks, new_fork)?;
 
                 Ok(NextBlockResult::NewFork {
-                    fork_length: 1,
-                    forkpoint_idx: block.idx - 1,
-                    forkpoint_hash: block.prev_hash,
-                    endpoint_idx: block.idx,
-                    endpoint_hash: block.hash
+                    length: 1,
+                    fork_idx: block.idx - 1,
+                    fork_hash: block.prev_hash,
+                    end_idx: block.idx,
+                    end_hash: block.hash
                 })
             }
         }
         // Search for the parent block in the forks.
         else if let Some(fork) = fork::find_fork( &self.forks, &block.prev_hash) {
-            let ((forkpoint, forkpoint_idx), (endpoint, endpoint_idx), fork_len) = fork::identify_fork(fork)?;
+            let ForkId { fork_hash, fork_idx, end_hash, .. } = fork::identify_fork(fork)?;
             let parent_block = Block::find(fork, &block.prev_hash).unwrap();
 
             Block::validate_child(parent_block, &block)?;
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
-            if endpoint == parent_block.hash {
-                let mut extended_fork: Vec<Block> = fork::remove_fork(&mut self.forks, &forkpoint, &endpoint).unwrap();
+            if end_hash == parent_block.hash {
+                let mut extended_fork: Vec<Block> = fork::remove_fork(&mut self.forks, &fork_hash, &end_hash).unwrap();
                 Block::push(&mut extended_fork, &block);
-                let fork_length = extended_fork.len();
+                let length = extended_fork.len();
                 fork::insert_fork(&mut self.forks, extended_fork.clone())?;
 
                 Ok(NextBlockResult::ExtendedFork {
-                    fork_length,
-                    forkpoint_idx,
-                    forkpoint_hash: forkpoint,
-                    endpoint_idx: block.idx,
-                    endpoint_hash: block.hash
+                    length,
+                    fork_idx,
+                    fork_hash,
+                    end_idx: block.idx,
+                    end_hash: block.hash
                 })
             }
             // Otherwise create a new direct fork from the main chain, cloning the prefix of an existing fork
@@ -124,15 +124,15 @@ impl Chain {
                 let mut nested_fork: Vec<Block> = fork.clone();
                 Block::split_off_until(&mut nested_fork, |b| b.hash == block.prev_hash);
                 Block::push(&mut nested_fork, &block);
-                let fork_length = nested_fork.len();
+                let length = nested_fork.len();
                 fork::insert_fork(&mut self.forks, nested_fork)?;
 
                 Ok(NextBlockResult::NewFork {
-                    fork_length,
-                    forkpoint_idx,
-                    forkpoint_hash: forkpoint,
-                    endpoint_idx: block.idx,
-                    endpoint_hash: block.hash
+                    length,
+                    fork_idx,
+                    fork_hash,
+                    end_idx: block.idx,
+                    end_hash: block.hash
                 })
             }
         }

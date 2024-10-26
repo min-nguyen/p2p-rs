@@ -52,7 +52,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]----[*5*]
         assert!(matches!(
             trace(chain.handle_new_block(next_block))
-            , Ok( NextBlockResult::ExtendedMain { length: 6, endpoint_idx: 5, .. } )));
+            , Ok( NextBlockResult::ExtendedMain { length: 6, end_idx: 5, .. } )));
     }
 
     #[test]
@@ -104,7 +104,7 @@ mod chain_tests {
             println!("Forked chain {}", forked_chain);
             assert!(matches!(
                 trace(main_chain.handle_new_block(forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork { fork_length : 1, .. })
+                Ok(NextBlockResult::NewFork { length : 1, .. })
             ));
         }
 
@@ -135,7 +135,7 @@ mod chain_tests {
             println!("Nested forked chain {}", nested_forked_chain);
             assert!(matches!(
                 trace(main_chain.handle_new_block(nested_forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork {fork_length : 3, .. })
+                Ok(NextBlockResult::NewFork {length : 3, .. })
             ));
         }
 

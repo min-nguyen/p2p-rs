@@ -1,13 +1,19 @@
 /*
-    *Chain*:
-    - Chain internals, a safe wrapper that manages a main chain and a hashmap of forks.
-    - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
+    *Fork*: Auxiliary helpers for managing forks, independent of a chain
 */
 
 use super::block::{Block::{self}, NextBlockErr};
 use std::collections::HashMap;
 
+// <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
+pub struct ForkId {
+    pub fork_hash: String,
+    pub fork_idx: usize,
+    pub end_hash: String,
+    pub end_idx: usize,
+    pub length: usize
+}
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn find_fork<'a>(forks: &'a Forks, hash: &String) -> Option<&'a Vec<Block>> {
@@ -56,22 +62,22 @@ pub fn remove_fork<'a>(forks: &mut Forks,  forkpoint: &String, endpoint: &String
 
 // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
 pub fn insert_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<(String, String), NextBlockErr>{
-    let ((forkpoint, _), (endpoint, _), _) = identify_fork(&fork)?;
+    let ForkId { fork_hash, end_hash, .. } = identify_fork(&fork)?;
 
-    forks.entry(forkpoint.clone())
+    forks.entry(fork_hash.clone())
                 .or_insert(HashMap::new())
-                .insert(endpoint.clone(), fork);
+                .insert(end_hash.clone(), fork);
 
-    Ok ((forkpoint, endpoint))
+    Ok ((fork_hash, end_hash))
 }
 
 // Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
-pub fn identify_fork(fork: &Vec<Block>) -> Result<((String, usize), (String, usize), usize), NextBlockErr>{
+pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
     if fork.is_empty() {
         Err(NextBlockErr::NoBlocks)
     }
     else {
-        let (forkpoint, endpoint, fork_len)
+        let ((fork_hash, fork_idx), (end_hash, end_idx), length)
             = ( {let first_block = fork.first().unwrap();
                     (first_block.prev_hash.clone(), first_block.idx - 1)
                 },
@@ -79,6 +85,6 @@ pub fn identify_fork(fork: &Vec<Block>) -> Result<((String, usize), (String, usi
                     (end_block.hash.clone(), end_block.idx)
                 },
                 fork.len());
-        Ok ((forkpoint, endpoint, fork_len))
+        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx, length})
     }
 }
