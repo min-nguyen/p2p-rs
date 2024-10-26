@@ -259,7 +259,7 @@ mod chain_tests {
         //                     |----[3]---[4]---[5]---[6]
         let res
             = main_chain
-                .add_fork(fork)
+                .connect_fork(fork)
                 .and_then(|fork_id|
                     main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
 
@@ -304,8 +304,10 @@ mod chain_tests {
 
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]
-        let res = main_chain.add_fork(fork)
-                    .and_then(|fork_id| main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
+        let res
+            = main_chain
+                .connect_fork(fork)
+                .and_then(|fork_id| main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
 
         assert!(matches!(
             trace(res),

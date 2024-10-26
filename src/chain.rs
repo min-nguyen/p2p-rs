@@ -207,7 +207,7 @@ impl Chain {
     }
 
     // Store a valid fork
-    pub fn add_fork(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+    pub fn connect_fork(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
         Self::validate_fork(&self, &fork)?;
         fork::insert_fork(&mut self.forks, fork.clone())
     }
