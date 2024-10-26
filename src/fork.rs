@@ -7,6 +7,8 @@ use std::collections::HashMap;
 
 // <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
+// <missing parent hash, orphaned blocks>
+pub type Orphans = HashMap<String, Vec<Block>>;
 #[derive(Clone)]
 pub struct ForkId {
     pub fork_hash: String,
@@ -17,13 +19,15 @@ pub struct ForkId {
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
-pub fn find_fork<'a>(forks: &'a Forks, hash: &String) -> Option<(&'a Vec<Block>, ForkId)> {
+pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<(&'a Vec<Block>, ForkId)>
+    where
+    P: Fn(&Block) -> bool  {
     // iterate through fork points
     for (_, forks_from) in forks.iter() {
         // iterate through forks from the fork point
         for (_, fork) in forks_from {
             // iterate through blocks in the fork
-            if let Some(_) = Block::find(&fork, hash) {
+            if let Some(_) = Block::find(&fork, &prop) {
                 let fork_id = identify_fork(fork).unwrap();
                 return Some((&fork, fork_id))
             }
@@ -84,13 +88,13 @@ pub fn insert_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<ForkId, NextBl
 }
 
 pub fn extend_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
-    let mut fork: Vec<Block> = remove_fork(forks, &fork_id.fork_hash, &block.prev_hash).unwrap();
+    let mut fork: Vec<Block> = remove_fork(forks, &fork_id.fork_hash, &fork_id.end_hash).unwrap();
     Block::push_end(&mut fork, block);
     insert_fork(forks, fork)
 }
 
 pub fn prepend_fork(orphans: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
-    let mut fork: Vec<Block> = remove_fork(orphans, &fork_id.fork_hash, &block.prev_hash).unwrap();
+    let mut fork: Vec<Block> = remove_fork(orphans, &fork_id.fork_hash, &fork_id.end_hash).unwrap();
     Block::push_front(&mut fork, block);
     insert_fork(orphans, fork)
 }

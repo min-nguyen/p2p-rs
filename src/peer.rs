@@ -107,7 +107,7 @@ impl Peer {
                         \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                if let Some(b)= self.chain.find(&block_hash){
+                if let Some(b)= self.chain.lookup_block_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
                             block: b.clone()
@@ -167,11 +167,9 @@ impl Peer {
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
-                        match res {
-                            NextBlockResult::ExtendedFork { fork_hash, end_hash, .. } => {
-                                if let Ok(ChooseChainResult::ChooseOther { .. }) = self.chain.sync_to_fork(fork_hash, end_hash) {
+                        match self.chain.handle_block_result(res) {
+                            Ok(ChooseChainResult::ChooseOther { .. }) => {
                                     println!("Updated main chain to a longer fork.")
-                                }
                             }
                             _ => {
                             }
@@ -181,12 +179,12 @@ impl Peer {
                         println!("Block handled with no update to chain or forks\n\
                                     \t\"{}\"", e);
                         match e {
-                            NextBlockErr::MissingParent { .. } =>
+                            NextBlockErr::MissingParent { block_parent_hash,.. } =>
                                 {
                                     /* We don't do anything with this yet. */
                                     let req = PowMessage::BlockRequest {
                                         transmit_type: TransmitType::ToAll,
-                                        block_hash: block.prev_hash.clone(),
+                                        block_hash: block_parent_hash,
                                         sender_peer_id: self.swarm.local_peer_id().to_string()
                                     };
                                     swarm::publish_pow_msg(req, &mut self.swarm);
@@ -388,6 +386,10 @@ impl Peer {
             "forks"   => {
                 println!("Current forks:\n");
                 chain::show_forks(&self.chain);
+            }
+            "orphans"   => {
+                println!("Current orphans:\n");
+                chain::show_orphans(&self.chain);
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)

@@ -58,7 +58,6 @@ impl Block {
         blocks_pref.append(blocks_suff);
     }
 
-
     // Unsafe splitoff
     pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
         blocks.split_off(len)
@@ -77,8 +76,11 @@ impl Block {
         }
     }
 
-    pub fn find<'a>(blocks: &'a Vec<Block>, block_hash: &String) -> Option<&'a Block> {
-        blocks.iter().find(|block| &block.hash == block_hash)
+    pub fn find<'a, P>(blocks: &'a Vec<Block>, prop: P) -> Option<&'a Block>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        blocks.iter().find(|block|  prop(&block))
     }
 
     // Find a valid nonce and hash to construct a new block
@@ -308,7 +310,7 @@ pub enum NextBlockErr {
         parent_block_hash: String,
     },
     MissingParent {
-        block_idx: usize,
+        block_parent_idx: usize,
         block_parent_hash: String
     },
     NoBlocks
@@ -329,8 +331,8 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
             }
-            NextBlockErr::MissingParent { block_idx, block_parent_hash } => {
-                write!(f, "Block {} is missing its parent with hash {} in the chain or forks.", block_idx, pretty_hex(block_parent_hash))
+            NextBlockErr::MissingParent { block_parent_idx, block_parent_hash } => {
+                write!(f, "Block {} is missing its parent {} with hash {} in the chain or forks.", block_parent_idx + 1, block_parent_idx, pretty_hex(block_parent_hash))
             }
             NextBlockErr::NoBlocks => {
                 write!(f, "Chain or fork is empty.")
