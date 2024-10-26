@@ -7,8 +7,7 @@ use std::collections::HashMap;
 
 // <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
-// <missing parent hash, orphaned blocks>
-pub type Orphans = HashMap<String, Vec<Block>>;
+
 #[derive(Clone)]
 pub struct ForkId {
     pub fork_hash: String,
@@ -91,12 +90,6 @@ pub fn extend_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result
     let mut fork: Vec<Block> = remove_fork(forks, &fork_id.fork_hash, &fork_id.end_hash).unwrap();
     Block::push_end(&mut fork, block);
     insert_fork(forks, fork)
-}
-
-pub fn prepend_fork(orphans: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
-    let mut fork: Vec<Block> = remove_fork(orphans, &fork_id.fork_hash, &fork_id.end_hash).unwrap();
-    Block::push_front(&mut fork, block);
-    insert_fork(orphans, fork)
 }
 
 pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<ForkId, NextBlockErr> {
