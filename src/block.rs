@@ -345,7 +345,7 @@ impl std::fmt::Display for NextBlockErr {
                 write!(f, "Block {} with hash {} is a duplicate, already stored in the main chain or forks.", block_idx, block_hash)
             }
             NextBlockErr::UnrelatedGenesis {genesis_hash} => {
-                write!(f, "Block belongs to a chain with a different genesis {}.", pretty_hex(genesis_hash))
+                write!(f, "Block(s) belong to a chain with a different genesis, {}.", pretty_hex(genesis_hash))
             }
             NextBlockErr::NoBlocks => {
                 write!(f, "Chain or fork is empty.")
