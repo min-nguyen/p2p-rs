@@ -195,11 +195,15 @@ impl Chain {
     }
 
     // Swap the main chain to a remote chain if valid and longer.
-    pub fn sync_to_chain(&mut self, remote: Chain) -> Result<ChooseChainResult, NextBlockErr> {
-        Self::validate_chain(&remote)?;
-        let (main_len, other_len) = (self.last().idx + 1, remote.last().idx + 1);
-        if other_len > main_len {
-            *self = remote.clone();
+    pub fn sync_to_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
+        Self::validate_chain(&other)?;
+        let (main_genesis, other_genesis) = (self.main.first().unwrap().hash.clone(), other.main.first().unwrap().hash.clone());
+        if main_genesis != other_genesis {
+            return Err (NextBlockErr::UnrelatedGenesis { genesis_hash: other_genesis  })
+        }
+        let (main_len, other_len) = (self.last().idx + 1, other.last().idx + 1);
+        if main_len < other_len {
+            *self = other.clone();
             Ok(ChooseChainResult::ChooseOther { main_len, other_len })
         } else {
             Ok(ChooseChainResult::KeepMain { main_len, other_len: Some(other_len) })

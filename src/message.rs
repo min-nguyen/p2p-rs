@@ -26,17 +26,17 @@ pub enum PowMessage {
         transmit_type : TransmitType,
         chain : chain::Chain
     },
+    NewBlock {
+        transmit_type : TransmitType, // always ToAll
+        block : block::Block
+    },
     BlockRequest {
-       transmit_type : TransmitType,  // ToOne or ToAll
-       block_hash : String,
-       sender_peer_id : String
+        transmit_type : TransmitType,  // ToOne or ToAll
+        block_hash : String,
+        sender_peer_id : String
     },
     BlockResponse {
         transmit_type : TransmitType,   // always ToOne
-        block : block::Block
-    },
-    NewBlock {
-        transmit_type : TransmitType, // always ToAll
         block : block::Block
     },
 }
@@ -48,12 +48,12 @@ impl std::fmt::Display for PowMessage {
                 write!(f, "ChainRequest {{\n Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
             PowMessage::ChainResponse { transmit_type, chain } =>
                 write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} }}", transmit_type, chain),
+            PowMessage::NewBlock { transmit_type, block } =>
+                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
             PowMessage::BlockRequest { transmit_type, block_hash, sender_peer_id } =>
                 write!(f, "BlockRequest {{\n Transmit Type: {:?}, Block Hash: {}, Sender Peer Id: {} }}", transmit_type, block_hash, sender_peer_id),
             PowMessage::BlockResponse { transmit_type, block } =>
                 write!(f, "BlockResponse {{\n Transmit Type: {:?}, Block: {} }}", transmit_type, block),
-            PowMessage::NewBlock { transmit_type, block } =>
-                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
         }
     }
 }
