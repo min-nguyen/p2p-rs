@@ -113,8 +113,16 @@ impl Chain {
     pub fn store_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
-        // Search for the parent block in the main chain.
-        if let Some(parent_block) = Block::find(&self.main, |parent: &Block| parent.hash == block.prev_hash){
+        // Search for block in the main chain.
+        if let Some(..) = Block::find(&self.main, |b: &Block| b.hash == block.hash) {
+            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
+        }
+        // Search for block in the forks.
+        else if let Some(..) = fork::find_fork( &self.forks, |b| b.hash == block.hash) {
+            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
+        }
+        // Search for parent block in the forks.
+        else if let Some(parent_block) = Block::find(&self.main, |parent: &Block| parent.hash == block.prev_hash){
 
             Block::validate_child(parent_block, &block)?;
 
@@ -131,7 +139,7 @@ impl Chain {
                 Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
             }
         }
-        // Search for the parent block in the forks.
+        // Search for parent block in the forks.
         else if let Some((fork, fork_id)) = fork::find_fork( &self.forks, |parent| parent.hash == block.prev_hash) {
             let parent = Block::find(fork, |parent| parent.hash == block.prev_hash).unwrap();
             Block::validate_child(parent, &block)?;
@@ -151,13 +159,19 @@ impl Chain {
                 Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
             }
         }
+        // Otherwise, report a missing block that connects it to the current network
         else {
-            // Insert as a single-block orphan
-            insert_orphan(&mut self.orphans, vec![block.clone()])?;
-            Err(NextBlockErr::MissingParent {
-                    block_parent_idx: block.idx - 1,
-                    block_parent_hash: block.prev_hash
-            })
+            if block.idx > 0 {
+                // Insert as a single-block orphan
+                insert_orphan(&mut self.orphans, vec![block.clone()])?;
+                Err(NextBlockErr::MissingParent {
+                        block_parent_idx: block.idx - 1,
+                        block_parent_hash: block.prev_hash
+                })
+            }
+            else { // block.idx == 0 && not in main chain or forks
+                Err(NextBlockErr::UnrelatedGenesis { genesis_hash: block.hash })
+            }
         }
     }
 
@@ -197,7 +211,7 @@ impl Chain {
         Block::validate_blocks(fork)?;
         let first_block = fork.first().unwrap();
         if first_block.idx == 0 {
-            return Err(NextBlockErr::DifferentGenesis { block_idx: first_block.idx, block_hash: first_block.hash.clone() })
+            return Err(NextBlockErr::UnrelatedGenesis { genesis_hash: first_block.hash.clone() })
         }
         if let Some(forkpoint) = self.lookup_block_hash( &first_block.prev_hash) {
             Block::validate_child(forkpoint, first_block)?;

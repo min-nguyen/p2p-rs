@@ -196,9 +196,17 @@ fn filter_dup_transactions(message: &gossipsub::GossipsubMessage) -> MessageId {
       data.hash(&mut hasher);
     }
     // allow duplicates of other message payloads (e.g. several requests).
-    else {
-      message.hash(&mut hasher);
-    }
+    message.hash(&mut hasher);
+    // else {
+    //     if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
+    //         match pow_msg {
+    //                   PowMessage::ChainResponse { .. }
+    //                 | PowMessage::BlockResponse {  .. }
+    //                 =>  data.hash(&mut hasher),
+    //                 | _ => message.hash(&mut hasher),
+    //             }
+    //     }
+    // }
     gossipsub::MessageId::from(hasher.finish().to_string())
 }
 
