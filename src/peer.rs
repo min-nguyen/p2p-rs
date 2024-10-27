@@ -113,7 +113,7 @@ impl Peer {
                             block: b.clone()
                         };
                         swarm::publish_pow_msg(resp, &mut self.swarm);
-                        println!("Sent ChainResponse with target:\n\
+                        println!("Sent BlockResponse with target:\n\
                                  \t{}\n\
                                  broadcasted to connected peers:\n\
                                 \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
@@ -176,7 +176,6 @@ impl Peer {
                         match e {
                             NextBlockErr::MissingParent { block_parent_hash,.. } =>
                                 {
-                                    /* We don't do anything with this yet. */
                                     let req = PowMessage::BlockRequest {
                                         transmit_type: TransmitType::ToAll,
                                         block_hash: block_parent_hash,

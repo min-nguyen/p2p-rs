@@ -38,7 +38,7 @@ impl Block {
     // Construct a genesis block
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
-          = (0, "genesis".to_string(), Utc::now().timestamp(), cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
+          = (0, "genesis".to_string(), 1730051971, cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
       let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
       Block { idx, data, timestamp, prev_hash, nonce, hash }
     }
@@ -313,6 +313,13 @@ pub enum NextBlockErr {
         block_parent_idx: usize,
         block_parent_hash: String
     },
+    Duplicate {
+        block_idx: usize,
+        block_hash: String,
+    },
+    UnrelatedGenesis {
+        genesis_hash: String
+    },
     NoBlocks
 }
 
@@ -333,6 +340,12 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::MissingParent { block_parent_idx, block_parent_hash } => {
                 write!(f, "Block {} is missing its parent {} with hash {} in the chain or forks.", block_parent_idx + 1, block_parent_idx, pretty_hex(block_parent_hash))
+            }
+            NextBlockErr::Duplicate {block_idx, block_hash} => {
+                write!(f, "Block {} with hash {} is a duplicate, already stored in the main chain or forks.", block_idx, block_hash)
+            }
+            NextBlockErr::UnrelatedGenesis {genesis_hash} => {
+                write!(f, "Block belongs to a chain with a different genesis {}.", pretty_hex(genesis_hash))
             }
             NextBlockErr::NoBlocks => {
                 write!(f, "Chain or fork is empty.")
