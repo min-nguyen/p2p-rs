@@ -153,20 +153,17 @@ impl Peer {
                         println!("Block handled with no update to chain or forks, due to:\n\t\"{}\"", e);
                         match e {
                             NextBlockErr::MissingParent { block_parent_hash,.. } => {
-                                info!("To do: reintroduce handling of missing parents.")
-                                    /*
-                                        let req = PowMessage::BlockRequest {
-                                            transmit_type: TransmitType::ToAll,
-                                            block_hash: block_parent_hash,
-                                            sender_peer_id: self.swarm.local_peer_id().to_string()
-                                        };
-                                        swarm::publish_pow_msg(req, &mut self.swarm);
-                                        println!("Sent BlockRequest for missing block:\n\
-                                                \t{}\n\
-                                                to:\n\
-                                                \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
-                                            },
-                                    */
+                                info!("To do: reintroduce handling of missing parents.");
+                                let req = PowMessage::BlockRequest {
+                                    transmit_type: TransmitType::ToAll,
+                                    block_hash: block_parent_hash,
+                                    sender_peer_id: self.swarm.local_peer_id().to_string()
+                                };
+                                swarm::publish_pow_msg(req, &mut self.swarm);
+                                println!("Sent BlockRequest for missing block:\n\
+                                        \t{}\n\
+                                        to:\n\
+                                        \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
                             },
                             _ => {}
                         }
@@ -175,11 +172,9 @@ impl Peer {
                 }
             }
             PowMessage::BlockResponse { block, .. } => {
-                info!("To do: reintroduce handling of BlockResponses")
+                // info!("To do: reintroduce handling of BlockResponses")
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                info!("To do: reintroduce handling of BlockRequests")
-                /*
                 if let Some(b)= self.chain.lookup_block_hash(&block_hash){
                         let resp = PowMessage::BlockResponse {
                             transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
@@ -195,7 +190,7 @@ impl Peer {
                     println!("Couldn't lookup BlockRequest for the hash:\n\
                                  \t\"{}\"", block_hash);
                 }
-                */
+
             }
         }
     }

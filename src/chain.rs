@@ -183,8 +183,7 @@ impl Chain {
         Block::validate_blocks(fork)?;
         let first_block = fork.first().unwrap();
         if let Some(forkpoint) = self.lookup_block_hash( &first_block.prev_hash) {
-            Block::validate_child(forkpoint, first_block)?;
-            Ok (())
+            Block::validate_child(forkpoint, first_block)
         }
         else {
             Err(NextBlockErr::MissingParent { block_parent_idx: first_block.idx - 1, block_parent_hash: first_block.prev_hash.clone()})
