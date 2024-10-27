@@ -81,13 +81,13 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                                 | PowMessage::BlockResponse { ref transmit_type, .. }
                                 | PowMessage::BlockRequest { ref transmit_type, .. }
                                 | PowMessage::NewBlock { ref transmit_type, .. } =>
-                                match transmit_type {
-                                    TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
-                                        => send_local_peer(&self.pow_sender, pow_msg),
-                                    TransmitType::ToAll
-                                        => send_local_peer(&self.pow_sender, pow_msg),
-                                    _   => info!("Ignoring received message -- not for us.")
-                                }
+                                    match transmit_type {
+                                        TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
+                                            => send_local_peer(&self.pow_sender, pow_msg),
+                                        TransmitType::ToAll
+                                            => send_local_peer(&self.pow_sender, pow_msg),
+                                        _   => info!("Ignoring received message -- not for us.")
+                                    }
                             }
                     }
                     else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
@@ -147,7 +147,7 @@ pub async fn set_up_blockchain_swarm(
                 // increase max size of messages published size
                 .max_transmit_size(MAX_MESSAGE_SIZE)
                 // time a connection is maintained to a peer without being in the mesh and without receiving/sending a message to them
-                .idle_timeout(Duration::from_secs(120))
+                .idle_timeout(Duration::from_secs(600))
                 // number of heartbeats to keep in cache
                 .history_length(12)
                 .max_messages_per_rpc(Some(500))
@@ -196,9 +196,7 @@ fn filter_dup_transactions(message: &gossipsub::GossipsubMessage) -> MessageId {
       data.hash(&mut hasher);
     }
     // allow duplicates of other message payloads (e.g. several requests).
-    else {
-      message.hash(&mut hasher);
-    }
+    message.hash(&mut hasher);
     gossipsub::MessageId::from(hasher.finish().to_string())
 }
 

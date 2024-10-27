@@ -52,7 +52,6 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    // orphans : HashMap<String, Vec<Block>>,
     txn_pool : HashSet<Transaction>
 }
 
@@ -63,7 +62,6 @@ impl Peer {
     pub async fn run(&mut self){
         println!("Enter `help` to see the command menu.");
         loop {
-            // The select macro waits for several async processes, handling the first one that finishes.
             let evt: Option<EventType> = {
                 tokio::select! {
                     pow_event = self.pow_receiver.recv()
@@ -72,7 +70,6 @@ impl Peer {
                         => Some(EventType::TxnEvent(txn_event.expect("txn event exists"))),
                     std_event = self.from_stdin.next_line()
                         => Some(EventType::StdEvent(std_event.expect("can get line").expect("can read line from stdin"))),
-                    // Swarm Event; we don't need to explicitly do anything with it, and is handled by the BlockBehaviour.
                     swarm_event = self.swarm.select_next_some()
                         => { Self::handle_swarm_event(swarm_event); None }
                 }
@@ -106,23 +103,6 @@ impl Peer {
                          broadcasted to connected peers:\n\
                         \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
-            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
-                if let Some(b)= self.chain.lookup_block_hash(&block_hash){
-                        let resp = PowMessage::BlockResponse {
-                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
-                            block: b.clone()
-                        };
-                        swarm::publish_pow_msg(resp, &mut self.swarm);
-                        println!("Sent ChainResponse with target:\n\
-                                 \t{}\n\
-                                 broadcasted to connected peers:\n\
-                                \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
-                    }
-                else {
-                    println!("Couldn't lookup BlockRequest for the hash:\n\
-                                 \t\"{}\"", block_hash);
-                }
-            },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.sync_to_chain(chain){
                     Ok(res@ChooseChainResult::KeepMain{..}) => {
@@ -139,7 +119,6 @@ impl Peer {
                     }
                 }
             },
-            PowMessage::BlockResponse { block, .. } |
             PowMessage::NewBlock { block, .. } => {
                 // validate transaction inside the block, *if any*, and return early if invalid
                 if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
@@ -162,7 +141,6 @@ impl Peer {
                         if remove_from_pool(&mut self.txn_pool, &block){
                             println!("Deleted mined transaction from the local pool.");
                         }
-                        // update the state of the main chain
                         match self.chain.handle_block_result(res) {
                             Ok(ChooseChainResult::ChooseOther { .. }) => {
                                     println!("Updated main chain to a longer fork.")
@@ -172,28 +150,52 @@ impl Peer {
                         }
                     }
                     Err(e) => {
-                        println!("Block handled with no update to chain or forks\n\t\"{}\"", e);
+                        println!("Block handled with no update to chain or forks, due to:\n\t\"{}\"", e);
                         match e {
-                            NextBlockErr::MissingParent { block_parent_hash,.. } =>
-                                {
-                                    /* We don't do anything with this yet. */
-                                    let req = PowMessage::BlockRequest {
-                                        transmit_type: TransmitType::ToAll,
-                                        block_hash: block_parent_hash,
-                                        sender_peer_id: self.swarm.local_peer_id().to_string()
-                                    };
-                                    swarm::publish_pow_msg(req, &mut self.swarm);
-                                    println!("Sent BlockRequest for missing block:\n\
-                                            \t{}\n\
-                                            to:\n\
-                                            \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
-                                },
-                            _ => {
-
-                            }
+                            NextBlockErr::MissingParent { block_parent_hash,.. } => {
+                                info!("To do: reintroduce handling of missing parents.")
+                                    /*
+                                        let req = PowMessage::BlockRequest {
+                                            transmit_type: TransmitType::ToAll,
+                                            block_hash: block_parent_hash,
+                                            sender_peer_id: self.swarm.local_peer_id().to_string()
+                                        };
+                                        swarm::publish_pow_msg(req, &mut self.swarm);
+                                        println!("Sent BlockRequest for missing block:\n\
+                                                \t{}\n\
+                                                to:\n\
+                                                \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
+                                            },
+                                    */
+                            },
+                            _ => {}
                         }
+
                     }
                 }
+            }
+            PowMessage::BlockResponse { block, .. } => {
+                info!("To do: reintroduce handling of BlockResponses")
+            },
+            PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
+                info!("To do: reintroduce handling of BlockRequests")
+                /*
+                if let Some(b)= self.chain.lookup_block_hash(&block_hash){
+                        let resp = PowMessage::BlockResponse {
+                            transmit_type: TransmitType::ToOne(sender_peer_id.clone()),
+                            block: b.clone()
+                        };
+                        swarm::publish_pow_msg(resp, &mut self.swarm);
+                        println!("Sent BlockResponse with target:\n\
+                                 \t{}\n\
+                                 broadcasted to connected peers:\n\
+                                \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
+                    }
+                else {
+                    println!("Couldn't lookup BlockRequest for the hash:\n\
+                                 \t\"{}\"", block_hash);
+                }
+                */
             }
         }
     }

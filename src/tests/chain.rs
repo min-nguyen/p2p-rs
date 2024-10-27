@@ -68,7 +68,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
             trace(chain.store_block(dup_chain.last().clone())),
-            Err(NextBlockErr::MissingParent { .. })
+            Err(NextBlockErr::MissingParent { block_parent_idx:5, .. })
         ));
     }
 
@@ -84,7 +84,7 @@ mod chain_tests {
         //                     |---[*3*]
         assert!(matches!(
             trace(chain.store_block(out_of_date_block)),
-            Ok( NextBlockResult::NewFork { .. } )   // to-do: implement Duplicateblock
+            Err( NextBlockErr::Duplicate { block_idx: 3, .. } )   // to-do: implement Duplicateblock
         ));
     }
 
