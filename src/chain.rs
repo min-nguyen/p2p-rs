@@ -83,30 +83,35 @@ impl Chain {
 
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
-        if let Some(orphan) = self.orphans.get_mut(&block.hash) {
+        // Search for block in the orphans.
+        if let Some(..) = fork::find_orphan(&self.orphans, |b| b.hash == block.hash){
+            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
+        }
+        // Search for child block at the head of the orphans.
+        else if let Some( orphan) = self.orphans.get_mut(&block.hash) {
             Block::validate_child(&block, &orphan.first().unwrap())?;
             let orphan_id: OrphanId    = fork::prepend_orphan(&mut self.orphans, block)?;
             let upd_orphan: Vec<Block> = fork::lookup_orphan(&self.orphans, &orphan_id).unwrap().clone();
             match self.connect_orphan_as_fork(upd_orphan) {
                 Ok(fork_id) => {
-                    return Ok(NextBlockResult::NewFork {
+                    Ok(NextBlockResult::NewFork {
                         length: fork_id.length, fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
                         end_idx:  fork_id.end_idx, end_hash:  fork_id.end_hash,
                     })
                 },
-                Err(e) => return Err(e),
+                Err(e) => Err(e),
             }
         }
         else {
-            todo!("{}",
-            format!("Need to handle receiving a block {} that doesn't connect to any orphaned branches in {:?} ", block, self.orphans))
+            // Shouldn't happen
+            Err(NextBlockErr::StrayParent { block_idx: block.idx, block_hash: block.hash })
         }
     }
 
     // Connect a fork not currently in the fork pool
     pub fn connect_orphan_as_fork(&mut self, orphan: Vec<Block>) -> Result<ForkId, NextBlockErr>{
         Self::validate_fork(&self, &orphan)?;
-        let _ = fork::remove_orphan(&mut self.orphans, &orphan.first().unwrap().hash);
+        fork::remove_orphan(&mut self.orphans, &fork::identify_orphan(&orphan)?);
         fork::insert_nonempty_fork(&mut self.forks, orphan)
     }
 
@@ -140,7 +145,7 @@ impl Chain {
             }
         }
         // Search for parent block in the forks.
-        else if let Some((fork, fork_id)) = fork::find_fork( &self.forks, |parent| parent.hash == block.prev_hash) {
+        else if let Some((fork_id, fork)) = fork::find_fork( &self.forks, |parent| parent.hash == block.prev_hash) {
             let parent = Block::find(fork, |parent| parent.hash == block.prev_hash).unwrap();
             Block::validate_child(parent, &block)?;
 

@@ -98,10 +98,8 @@ impl Peer {
                     chain: self.chain.clone(),
                 };
                 swarm::publish_pow_msg(resp, &mut  self.swarm);
-                println!("Sent ChainResponse with target:\n\
-                         \t{}\n\
-                         broadcasted to connected peers:\n\
-                        \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
+                println!("Broadcasted a ChainResponse with intended target:\n\
+                         \t{}\nto connected peers:\n\t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.sync_to_chain(chain){
@@ -132,7 +130,7 @@ impl Peer {
                                 \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
                     }
                 else {
-                    println!("Couldn't lookup BlockRequest for the hash:\n\
+                    println!("Couldn't lookup a BlockRequest in the main chain for the following hash:\n\
                                  \t\"{}\"", block_hash);
                 }
             }
@@ -223,20 +221,17 @@ impl Peer {
                         println!("Block handled with no update to chain or forks, due to:\n\t\"{}\"", e);
                         match e {
                             NextBlockErr::MissingParent { block_parent_hash,.. } => {
-                                info!("To do: reintroduce handling of missing parents.")
-                                    /*
-                                        let req = PowMessage::BlockRequest {
-                                            transmit_type: TransmitType::ToAll,
-                                            block_hash: block_parent_hash,
-                                            sender_peer_id: self.swarm.local_peer_id().to_string()
-                                        };
-                                        swarm::publish_pow_msg(req, &mut self.swarm);
-                                        println!("Sent BlockRequest for missing block:\n\
-                                                \t{}\n\
-                                                to:\n\
-                                                \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
-                                            },
-                                    */
+                                let req = PowMessage::BlockRequest {
+                                    transmit_type: TransmitType::ToAll,
+                                    block_hash: block_parent_hash,
+                                    sender_peer_id: self.swarm.local_peer_id().to_string()
+                                };
+                                swarm::publish_pow_msg(req, &mut self.swarm);
+                                println!("Sent BlockRequest for missing block:\n\
+                                        \t{}\n\
+                                        to:\n\
+                                        \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
+
                             },
                             _ => {}
                         }

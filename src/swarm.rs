@@ -193,10 +193,12 @@ fn filter_dup_transactions(message: &gossipsub::GossipsubMessage) -> MessageId {
 
     // filter out duplicate transactions by hashing only on the payload (i.e. the transaction).
     if *topic == TXN_TOPIC.hash(){
-      data.hash(&mut hasher);
+        data.hash(&mut hasher);
     }
     // allow duplicates of other message payloads (e.g. several requests).
-    message.hash(&mut hasher);
+    else {
+        message.hash(&mut hasher);
+    }
     gossipsub::MessageId::from(hasher.finish().to_string())
 }
 

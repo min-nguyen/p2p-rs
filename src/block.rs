@@ -303,24 +303,29 @@ pub enum NextBlockErr {
         block_idx: usize,
         expected_idx: usize
     },
-    InvalidChild { // Block has an inconsistent prev_hash and/or index with a specified parent
+    InvalidChild {
         block_idx: usize,
         block_prev_hash: String,
         parent_block_idx: usize,
         parent_block_hash: String,
-    },
+    }, // Block has an inconsistent prev_hash and/or index with a specified parent
+    UnrelatedGenesis {
+        genesis_hash: String
+    },  // Block belongs to a chain with a different genesis root
     MissingParent {
         block_parent_idx: usize,
         block_parent_hash: String
-    },
+    },  // Block is missing a parent that connects it to the main chain or forks
+    StrayParent {
+        block_idx: usize,
+        block_hash: String,
+    }, // Block represents a missing parent that but connecting to any orphaned branches,
     Duplicate {
         block_idx: usize,
         block_hash: String,
-    },
-    UnrelatedGenesis {
-        genesis_hash: String
-    },
+    }, // Block exists in the main chain, forks, or orphans
     NoBlocks
+       // Block used in a context with an empty chain or fork
 }
 
 impl std::fmt::Display for NextBlockErr {
@@ -349,6 +354,9 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::NoBlocks => {
                 write!(f, "Chain or fork is empty.")
+            }
+            NextBlockErr::StrayParent { block_idx, block_hash } => {
+                write!(f, "Block {} with hash {} represents a missing parent but has no children in the orphans.", block_idx, block_hash)
             }
         }
     }

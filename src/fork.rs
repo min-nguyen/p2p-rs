@@ -18,7 +18,7 @@ pub struct ForkId {
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
-pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<(&'a Vec<Block>, ForkId)>
+pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<( ForkId, &'a Vec<Block>)>
     where
     P: Fn(&Block) -> bool  {
     // iterate through fork points
@@ -28,7 +28,7 @@ pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<(&'a Vec<Block>, Fo
             // iterate through blocks in the fork
             if let Some(_) = Block::find(&fork, &prop) {
                 let fork_id = identify_fork(fork).unwrap();
-                return Some((&fork, fork_id))
+                return Some((fork_id, &fork))
             }
         }
     }
@@ -111,6 +111,19 @@ pub fn identify_orphan(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
     else {
         Ok(orphan.first().unwrap().prev_hash.clone())
     }
+}
+
+// Check if block is in any fork, returning the fork point, end hash, and fork
+pub fn find_orphan<'a, P>(orphans: &'a Orphans, prop: P) -> Option<(OrphanId, &'a Vec<Block>)>
+    where
+    P: Fn(&Block) -> bool  {
+        for (forkpoint, orphan) in orphans {
+            // iterate through blocks in the fork
+            if let Some(_) = Block::find(&orphan, &prop) {
+                return Some((forkpoint.clone(), &orphan))
+            }
+        }
+    None
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
