@@ -44,11 +44,11 @@
                            - [x] produces correct ChooseChain result
                            - [x] updates the state of the Chain and its forks correctly
                 - [x] merging local forks in the pool
-            - [ ] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
-            - [ ] to do: handle MissingBlocks in peer
-                - [ ] implement requesting new blocks until forming a valid fork suffix
+            - [x] to do: automate (maybe not, due to disrupting current tests) or provide an explicit command for switching from the main chain to a longer fork
+            - [x] to do: handle MissingBlocks in peer
+                - [x] implement requesting new blocks until forming a valid fork suffix
                         - use a FIFO data structure
-            - [ ] to do: avoid doing anything for duplicate blocks
+            - [x] to do: avoid doing anything for duplicate blocks
                         - introduce NextBlockRes::Duplicate
             - [ ] to do: avoid cloning blocks from an existing fork in order to represent the new fork
                         - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
