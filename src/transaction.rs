@@ -29,12 +29,12 @@ pub enum TransactionErr {
     HashMismatch {
         stored_hash: String,
         computed_hash: String,
-    },                           // stored hash is inconsistent with its computed hash
+    },
     SigInvalid {
         pubk : String,
         hash : String,
         sig  : String
-    }                            // hash and signature couldn't be verified with public key
+    }
 }
 
 impl fmt::Display for TransactionErr {

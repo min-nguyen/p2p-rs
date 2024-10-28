@@ -24,7 +24,7 @@ use tokio::sync::mpsc::{self, UnboundedSender};
 use log::{debug, error, info, warn};
 use std::time::Duration;
 
-use super::message::{PowMessage, TxnMessage, TransmitType};
+use super::message::{PowMessage, TxnMessage};
 
 pub static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));

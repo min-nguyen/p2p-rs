@@ -6,7 +6,6 @@
     - Manages a local Transaction pool (which it may mine new blocks for).
 */
 
-
 use libp2p::{
     PeerId,
     futures::StreamExt,
@@ -14,17 +13,15 @@ use libp2p::{
 };
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
-use std::{collections::{HashMap, HashSet}, hash::Hash};
-
-use crate::{block::NextBlockResult, chain::ChooseChainResult, cryptutil::pretty_hex, swarm::connected_peers};
+use std::collections::HashSet;
 
 use super::file;
-use super::block::{Block, NextBlockErr};
+use super::cryptutil::pretty_hex;
+use super::block::{Block, NextBlockResult, NextBlockErr};
 use super::chain::{self, Chain};
 use super::transaction::Transaction;
-use super::message::{PowMessage, TxnMessage, TransmitType};
+use super::message::{PowMessage, TxnMessage};
 use super::swarm::{self as swarm, BlockchainBehaviour};
-
 
 const DEFAULT_FILE_PATH: &str = "blocks.json";
 
@@ -52,7 +49,7 @@ pub struct Peer {
     txn_receiver : UnboundedReceiver<TxnMessage>,
     swarm : Swarm<BlockchainBehaviour>,
     chain : Chain,
-    txn_pool : HashSet<Transaction>
+    txns : HashSet<Transaction>
 }
 
 impl Peer {
@@ -146,7 +143,7 @@ impl Peer {
         match store_block(&mut self.chain, block.clone()) {
             Ok(res) => {
                 println!("Handled: Block resulted in update.\n\t\"{}\"", res);
-                if remove_from_pool(&mut self.txn_pool, &block) {
+                if remove_from_pool(&mut self.txns, &block) {
                     info!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
@@ -180,7 +177,7 @@ impl Peer {
             TxnMessage::NewTransaction { txn, .. } => {
                 match Transaction::validate_transaction(&txn) {
                     Ok (()) => {
-                        self.txn_pool.insert(txn);
+                        self.txns.insert(txn);
                         println!("Action taken. Added new transaction to pool.");
                     }
                     Err (e) => {
@@ -224,7 +221,7 @@ impl Peer {
                 let arg = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
                 self.handle_cmd_mine(arg)
             }
-            // `show <chain | peers | pool >` lists the local chain, discovered & connected peers, or transaction pool
+            // `show <chain | forks | orphans | peers | txns >` lists the main chain, forks, orphans, discovered & connected peers, or transaction pool
             cmd if cmd.starts_with("show") => {
                 let arg = cmd.strip_prefix("show").expect("can strip `show`").trim() ;
                 self.handle_cmd_show(arg);
@@ -245,7 +242,7 @@ impl Peer {
         }
         else {
             let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
-            self.txn_pool.insert(txn.clone());
+            self.txns.insert(txn.clone());
             println!("Added the new following transaction to pool: \n{}\t", txn);
             let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn, source: self.swarm.local_peer_id().to_string() };
             swarm::publish_txn_msg(txn_msg.clone(), &mut self.swarm);
@@ -279,7 +276,7 @@ impl Peer {
         let opt_data: Option<String> =
             // Retrieve data as the next transaction (as a string) from the pool
             if args.is_empty()  {
-                extract_from_pool(&mut self.txn_pool)
+                extract_from_pool(&mut self.txns)
                 .map(|txn|
                     {   // assuming we can always safely serialize a transaction (which should be the case)..
                         println!("Retrieved and transaction with hash {} from the pool.", txn.hash);
@@ -332,7 +329,7 @@ impl Peer {
     fn handle_cmd_show(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `show` missing an argument `chain`, `peers`, or `pool`")
+                println!("Command error: `show` missing an argument `chain`, `forks`, `peers`, or `txns`")
             }
             "chain"   => {
                 println!("Current chain:\n\
@@ -356,10 +353,10 @@ impl Peer {
             }
             "pool"   => {
                 println!("Current transaction pool:\n");
-                self.txn_pool.iter().for_each(|txn| println!("{}", txn))
+                self.txns.iter().for_each(|txn| println!("{}", txn))
             }
             _ => {
-                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `forks`, `peers`, or `pool`")
+                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `forks`, `peers`, or `txns`")
             }
         }
     }
@@ -438,29 +435,25 @@ pub async fn set_up_peer() -> Peer {
         , txn_receiver
         , swarm
         , chain
-        // , orphans: HashMap::new()
-        , txn_pool: HashSet::new()
+        , txns: HashSet::new()
     }
 }
 
-fn remove_from_pool(txn_pool : &mut HashSet<Transaction>, block: &Block) -> bool {
+fn remove_from_pool(txns : &mut HashSet<Transaction>, block: &Block) -> bool {
     if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
-        return txn_pool.remove(&txn)
+        return txns.remove(&txn)
     }
     false
 }
-fn extract_from_pool(txn_pool: &mut HashSet<Transaction>) -> Option<Transaction> {
-    if let Some(txn) = txn_pool.iter().next() {
-        // txn_pool.remove(&txn); //  doesn't work: we immutably borrowing txn_pool, via &txn, while mutably borrowing it, via txn_pool.remove(..)
-        let txn_to_return = txn.clone(); // clone the value, so that we stop immutably borrowing txn_pool
-        txn_pool.remove(&txn_to_return);
+fn extract_from_pool(txns: &mut HashSet<Transaction>) -> Option<Transaction> {
+    if let Some(txn) = txns.iter().next() {
+        // txns.remove(&txn); //  doesn't work: we immutably borrowing txns, via &txn, while mutably borrowing it, via txns.remove(..)
+        let txn_to_return = txn.clone(); // clone the value, so that we stop immutably borrowing txns
+        txns.remove(&txn_to_return);
         Some(txn_to_return)
     } else {
         None // If the pool is empty
     }
-}
-fn peek_at_pool<'a>(txn_pool : &'a mut HashSet<Transaction>) -> Option<&'a Transaction> {
-    txn_pool.iter().peekable().next()
 }
 
 fn print_user_commands(){
