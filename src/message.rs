@@ -5,6 +5,8 @@
 */
 
 use serde::{Deserialize, Serialize};
+use crate::chain::abbreviate_chain;
+
 use super::block;
 use super::chain;
 use super::transaction;
@@ -45,10 +47,10 @@ pub enum PowMessage {
 impl std::fmt::Display for PowMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PowMessage::ChainRequest { transmit_type, sender_peer_id } =>
-                write!(f, "ChainRequest {{\n Transmit Type: {:?}, Sender Peer Id: {} }}", transmit_type, sender_peer_id),
-            PowMessage::ChainResponse { transmit_type, chain } =>
-                write!(f, "ChainResponse {{\n Transmit Type: {:?},\n Chain: {} }}", transmit_type, chain),
+            PowMessage::ChainRequest {  sender_peer_id , ..} =>
+                write!(f, "Chain request from {}", sender_peer_id),
+            PowMessage::ChainResponse { chain, .. } =>
+                write!(f, "Chain response {} ", abbreviate_chain(chain)),
             PowMessage::NewBlock { transmit_type, block } =>
                 write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
             PowMessage::BlockRequest { transmit_type, block_idx, block_hash, sender_peer_id } =>

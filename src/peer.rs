@@ -89,7 +89,7 @@ impl Peer {
     }
     // Blockchain event.
     fn handle_pow_event(&mut self, msg: PowMessage) {
-        println!("Received the following message:\n\
+        info!("Received the following message:\n\
                   {}", msg);
         match msg {
             PowMessage::ChainRequest { sender_peer_id, .. } => {
@@ -98,23 +98,16 @@ impl Peer {
                     chain: self.chain.clone(),
                 };
                 swarm::publish_pow_msg(resp, &mut  self.swarm);
-                println!("Broadcasted a ChainResponse with intended target:\n\
-                         \t{}\nto connected peers:\n\t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
+                println!("Broadcasted our chain with intended target:\n\t{}", sender_peer_id);
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.sync_to_chain(chain){
-                    Ok(res@ChooseChainResult::KeepMain{..}) => {
-                        println!("Keeping main chain over remote peer's chain: \n\
-                                    \t\"{}\"", res)
-                    }
-                    Ok(res@ChooseChainResult::ChooseOther{..}) => {
-                        println!("Updated main chain to be remote peer's chain: \n\
-                                    \t\"{}\"", res)
-                    }
-                    Err(e) => {
-                        println!("Remote chain couldn't be validated:\n\
-                                    \t\"{}\"", e)
-                    }
+                    Ok(res@ChooseChainResult::KeepMain{..}) =>
+                        println!("Keeping main chain over remote peer's chain:\n\t\"{}\"", res),
+                    Ok(res@ChooseChainResult::ChooseOther{..}) =>
+                        println!("Updated main chain to be remote peer's chain:\n\t\"{}\"", res),
+                    Err(e) =>
+                        println!("Remote chain couldn't be validated:\n\t\"{}\"", e)
                 }
             },
             PowMessage::BlockRequest { sender_peer_id, block_hash, .. } => {
@@ -128,10 +121,9 @@ impl Peer {
                                  \t{}\n\
                                  broadcasted to connected peers:\n\
                                 \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
-                    }
+                }
                 else {
-                    println!("Couldn't lookup a BlockRequest in the main chain for the following hash:\n\
-                                 \t\"{}\"", block_hash);
+                    info!("Couldn't lookup a BlockRequest in the main chain for hash:\n\t\"{}\"", block_hash);
                 }
             }
             PowMessage::BlockResponse { block, .. } => self.handle_block(block, Chain::store_orphan_block),
@@ -147,7 +139,7 @@ impl Peer {
         if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data) {
             match Transaction::validate_transaction(&txn) {
                 Ok(()) => {
-                    println!("Successfully validated transaction inside the remote peer's block.")
+                    info!("Successfully validated transaction inside the remote peer's block.")
                 },
                 Err(e) => {
                     println!("Couldn't validate transaction inside the remote peer's block, due to:\n\t\"{}\"\nIgnoring new block.", e);
@@ -160,7 +152,7 @@ impl Peer {
             Ok(res) => {
                 println!("Block handled with update:\n\t\"{}\"", res);
                 if remove_from_pool(&mut self.txn_pool, &block) {
-                    println!("Deleted mined transaction from the local pool.");
+                    info!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
                 match self.chain.handle_block_result(res) {

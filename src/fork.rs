@@ -14,7 +14,6 @@ pub struct ForkId {
     pub fork_idx: usize,
     pub end_hash: String,
     pub end_idx: usize,
-    pub length: usize
 }
 
 // Check if block is in any fork, returning the fork point, end hash, and fork
@@ -41,15 +40,14 @@ pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
         Err(NextBlockErr::NoBlocks)
     }
     else {
-        let ((fork_hash, fork_idx), (end_hash, end_idx), length)
+        let ((fork_hash, fork_idx), (end_hash, end_idx))
             = ( {let first_block = fork.first().unwrap();
                     (first_block.prev_hash.clone(), first_block.idx - 1)
                 },
                 { let end_block = fork.last().unwrap();
                     (end_block.hash.clone(), end_block.idx)
-                },
-                fork.len());
-        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx, length})
+                });
+        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx})
     }
 }
 

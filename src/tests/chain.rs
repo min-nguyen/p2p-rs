@@ -52,7 +52,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]----[*5*]
         assert!(matches!(
             trace(chain.store_new_block(next_block))
-            , Ok( NextBlockResult::ExtendedMain { length: 6, end_idx: 5, .. } )));
+            , Ok( NextBlockResult::ExtendedMain { end_idx: 5, .. } )));
     }
 
     #[test]
@@ -105,7 +105,7 @@ mod chain_tests {
             let res = main_chain.store_new_block(forked_chain.last().clone());
             assert!(matches!(
                 trace(res),
-                Ok(NextBlockResult::NewFork { length : 1, .. })
+                Ok(NextBlockResult::NewFork { fork_idx: 2, end_idx: 3, .. })
             ));
         }
 
@@ -116,7 +116,7 @@ mod chain_tests {
                 forked_chain.mine_block(&format!("block {} in fork", i));
                 assert!(matches!(
                     trace(main_chain.store_new_block(forked_chain.last().clone())),
-                    Ok(NextBlockResult::ExtendedFork { .. })
+                    Ok(NextBlockResult::ExtendedFork { fork_idx: 2, .. })
                 ));
             }
             println!("Forked chain {}", forked_chain);
@@ -136,7 +136,7 @@ mod chain_tests {
             println!("Nested forked chain {}", nested_forked_chain);
             assert!(matches!(
                 trace(main_chain.store_new_block(nested_forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork {length : 3, .. })
+                Ok(NextBlockResult::NewFork {fork_idx: 2, end_idx: 5, .. })
             ));
         }
 
@@ -148,7 +148,7 @@ mod chain_tests {
                 nested_forked_chain.mine_block(&format!("block {} in nested fork", i));
                 assert!(matches!(
                     trace(main_chain.store_new_block(nested_forked_chain.last().clone())),
-                    Ok(NextBlockResult::ExtendedFork { .. })
+                    Ok(NextBlockResult::ExtendedFork { fork_idx: 2, .. })
                 ));
             }
             println!("Nested forked chain {}", nested_forked_chain);

@@ -75,8 +75,8 @@ impl Chain {
             NextBlockResult::NewFork { fork_hash, end_hash, .. } => {
                 self.sync_to_fork(fork_hash, end_hash)
             }
-            NextBlockResult::ExtendedMain { length, .. } => {
-                Ok(ChooseChainResult::KeepMain { main_len: length, other_len: None })
+            NextBlockResult::ExtendedMain {end_idx, .. } => {
+                Ok(ChooseChainResult::KeepMain { main_len: end_idx + 1, other_len: None })
             }
         }
     }
@@ -95,7 +95,7 @@ impl Chain {
             match self.connect_orphan_as_fork(upd_orphan) {
                 Ok(fork_id) => {
                     Ok(NextBlockResult::NewFork {
-                        length: fork_id.length, fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
+                        fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
                         end_idx:  fork_id.end_idx, end_hash:  fork_id.end_hash,
                     })
                 },
@@ -134,14 +134,14 @@ impl Chain {
             // See if we can append the block to the main chain
             if self.last().hash == parent_block.hash {
                 Block::push_end(&mut self.main, block);
-                Ok(NextBlockResult::ExtendedMain { length: self.len(), end_idx: self.last().idx, end_hash: self.last().hash.clone() })
+                Ok(NextBlockResult::ExtendedMain { end_idx: self.last().idx, end_hash: self.last().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
-                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
                     = fork::insert_nonempty_fork(&mut self.forks, vec![block.clone()])?;
 
-                Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
+                Ok(NextBlockResult::NewFork {fork_idx, fork_hash, end_idx, end_hash })
             }
         }
         // Search for parent block in the forks.
@@ -151,17 +151,17 @@ impl Chain {
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
             if *fork_id.end_hash == parent.hash {
-                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
                     = fork::extend_fork(&mut self.forks, &fork_id, block)?;
 
-                Ok(NextBlockResult::ExtendedFork {length, fork_idx, fork_hash, end_idx, end_hash })
+                Ok(NextBlockResult::ExtendedFork {fork_idx, fork_hash, end_idx, end_hash })
             }
             // Otherwise create a new fork from the main chain that clones the prefix of an existing fork
             else {
-                let ForkId { length, fork_idx, fork_hash, end_idx, end_hash}
+                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
                     = fork::nest_fork(&mut self.forks, &fork_id, block)?;
 
-                Ok(NextBlockResult::NewFork {length, fork_idx, fork_hash, end_idx, end_hash })
+                Ok(NextBlockResult::NewFork {fork_idx, fork_hash, end_idx, end_hash })
             }
         }
         // Otherwise, report a missing block that connects it to the current network
@@ -313,6 +313,11 @@ pub fn show_orphans(chain : &Chain){
         println!("Orphaned branch {}:\n\t{:?}\n", i, orphan.1);
     }
 }
+
+pub fn abbreviate_chain(chain: &Chain) -> String {
+    format!("... [idx: {}, hash: {}]", chain.last().idx, chain.last().hash)
+}
+
 // // Return a reference to the longest stored fork
 // pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{
 //     let longest_fork: Option<&'a Vec<Block>> = None;
@@ -326,39 +331,4 @@ pub fn show_orphans(chain : &Chain){
 //                     Some(fork) if fork.len() >= current.len() => Some(fork),
 //                     _ => Some(current),
 //                 })
-// }
-
-
-// Handle it as an orphan for a child block in the orphans
-// else {
-//     if let Some((orphan_fork, fork_id)) =
-//             fork::find_fork( &self.orphans, |child| child.prev_hash == block.hash)  {
-//        let child = Block::find(orphan_fork, |child| child.prev_hash == block.hash).unwrap();
-//        Block::validate_child(&block, &child)?;
-
-//        // If its child was the first block in the orphan fork, prepend the block and update the forkpoint key
-//        if fork_id.fork_hash == child.prev_hash {
-//         println!("Found tip of orphan");
-//             let ForkId {  fork_idx, fork_hash, ..}
-//                 = fork::prepend_fork(&mut self.orphans, &fork_id, block)?;
-//             Err(NextBlockErr::MissingParent {
-//                 block_parent_idx: fork_idx,
-//                 block_parent_hash: fork_hash
-//             })
-//        }
-//        else {
-//         /* This should not happen */
-//            Err(NextBlockErr::MissingParent {
-//                 block_parent_idx: block.idx - 1,
-//                block_parent_hash: block.prev_hash
-//            })
-//        }
-//    }
-// else {
-        // let ForkId {  fork_idx, fork_hash, ..}
-        //     = fork::insert_fork(&mut self.orphans, vec![block.clone()])?;
-        // Err(NextBlockErr::MissingParent {
-        //         block_parent_idx: fork_idx,
-        //         block_parent_hash: fork_hash
-        // })
 // }

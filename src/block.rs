@@ -232,19 +232,16 @@ impl std::fmt::Display for Block {
 #[derive(Debug)]
 pub enum NextBlockResult {
     ExtendedMain {
-        length: usize,
         end_idx: usize,
         end_hash: String,
     },
     ExtendedFork {
-        length: usize,
         fork_idx: usize,
         fork_hash: String,
         end_idx: usize,
         end_hash: String,
     },
     NewFork {
-        length: usize,
         fork_idx: usize,
         fork_hash: String,
         end_idx: usize,
@@ -258,25 +255,23 @@ pub enum NextBlockResult {
 impl std::fmt::Display for NextBlockResult {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NextBlockResult::ExtendedMain { length, end_idx, end_hash } => {
+            NextBlockResult::ExtendedMain { end_idx, end_hash } => {
                 write!(f, "Extended the main chain.\n\
-                           \tIts endpoint and length is ({}, {}) and {}.", end_idx, pretty_hex(end_hash), length)
+                           \tIts endpoint is ({}, {})", end_idx, pretty_hex(end_hash))
             }
-            NextBlockResult::ExtendedFork { length, fork_idx, fork_hash, end_idx,  end_hash} => {
+            NextBlockResult::ExtendedFork { fork_idx, fork_hash, end_idx,  end_hash} => {
                 write!(f,  "Extended an existing fork from the main chain.\n\
-                            \tIts forkpoint and length is ({}, {}) and {}.\n\
-                            \tIts endpoint is ({}, {}).",
-                            fork_idx, pretty_hex(fork_hash), length, end_idx, pretty_hex(end_hash)
+                            \tIts forkpoint is ({}, {}) and endpoint is ({}, {}).",
+                            fork_idx, pretty_hex(fork_hash), end_idx, pretty_hex(end_hash)
                 )
             }
-            NextBlockResult::NewFork { length, fork_idx, fork_hash, end_idx,  end_hash} => {
-                match length {
+            NextBlockResult::NewFork { fork_idx, fork_hash, end_idx,  end_hash} => {
+                match end_idx - fork_idx {
                     1 => writeln!(f, "Added a single-block fork from the main chain."),
                     _ => writeln!(f, "Added a new fork that branches off an existing fork from the main chain.")
                 }?;
-                write!( f, "\tIts forkpoint and length is ({}, {}) and {}. \n\
-                            \tIts endpoint is ({}, {}).",
-                            fork_idx, pretty_hex(fork_hash), length, end_idx, pretty_hex(end_hash)
+                write!( f, "\tIts forkpoint is ({}, {}) and endpoint is ({}, {}).",
+                            fork_idx, pretty_hex(fork_hash), end_idx, pretty_hex(end_hash)
                 )
             }
             // NextBlockErr::Duplicate { block_idx, block_hash,data } => {
