@@ -16,7 +16,7 @@ use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::{collections::{HashMap, HashSet}, hash::Hash};
 
-use crate::{block::NextBlockResult, chain::ChooseChainResult, swarm::connected_peers};
+use crate::{block::NextBlockResult, chain::ChooseChainResult, cryptutil::pretty_hex, swarm::connected_peers};
 
 use super::file;
 use super::block::{Block, NextBlockErr};
@@ -134,113 +134,58 @@ impl Peer {
                                  \t\"{}\"", block_hash);
                 }
             }
-            PowMessage::BlockResponse { block, .. } => {
-                // validate transaction inside the block, *if any*, and return early if invalid
-                if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
-                    match Transaction::validate_transaction(&txn) {
-                        Ok (()) => {
-                            println!("Successfully validated transaction inside the remote peer's block.")
-                        }
-                        Err (e) => {
-                            println!("Couldn't validate transaction inside the remote peer's block, due to:\n\
-                                    \t\"{}\"\n\
-                                    Ignoring new block.", e);
-                            return
-                        }
-                    }
-                }
-                match self.chain.store_orphan_block(block.clone()){
-                    Ok(res) => {
-                        println!("Orphan Block handled with update to chain or forks:\n\t\"{}\"", res);
-                        if remove_from_pool(&mut self.txn_pool, &block){
-                            println!("Deleted mined transaction from the local pool.");
-                        }
-                        // update the state of the main chain
-                        match self.chain.handle_block_result(res) {
-                            Ok(ChooseChainResult::ChooseOther { .. }) => {
-                                    println!("Updated main chain to a longer Orphan fork.")
-                            }
-                            e => { println!("{:?}", e)
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!("Block handled with no update to chain or forks\n\t\"{}\"", e);
-                        match e {
-                            NextBlockErr::MissingParent { block_parent_hash,.. } =>
-                                {
-                                    let req = PowMessage::BlockRequest {
-                                        transmit_type: TransmitType::ToAll,
-                                        block_hash: block_parent_hash,
-                                        sender_peer_id: self.swarm.local_peer_id().to_string()
-                                    };
-                                    swarm::publish_pow_msg(req, &mut self.swarm);
-                                    println!("Sent BlockRequest for missing block:\n\
-                                            \t{}\n\
-                                            to:\n\
-                                            \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
-                                },
-                            _ => {
+            PowMessage::BlockResponse { block, .. } => self.handle_block(block, Chain::store_orphan_block),
+            PowMessage::NewBlock { block, .. }      => self.handle_block(block, Chain::store_new_block),
+        }
+    }
 
-                            }
-                        }
-                    }
+    fn handle_block<F>(&mut self, block: Block, store_block: F)
+    where
+        F: FnOnce(&mut Chain, Block) -> Result<NextBlockResult, NextBlockErr>,
+    {
+        // Validate transaction inside the block, if any, and return early if invalid
+        if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data) {
+            match Transaction::validate_transaction(&txn) {
+                Ok(()) => {
+                    println!("Successfully validated transaction inside the remote peer's block.")
+                },
+                Err(e) => {
+                    println!("Couldn't validate transaction inside the remote peer's block, due to:\n\t\"{}\"\nIgnoring new block.", e);
+                    return;
                 }
             }
-            PowMessage::NewBlock { block, .. } => {
-                // validate transaction inside the block, *if any*, and return early if invalid
-                if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data){
-                    match Transaction::validate_transaction(&txn) {
-                        Ok (()) => {
-                            println!("Successfully validated transaction inside the remote peer's block.")
-                        }
-                        Err (e) => {
-                            println!("Couldn't validate transaction inside the remote peer's block, due to:\n\
-                                    \t\"{}\"\n\
-                                    Ignoring new block.", e);
-                            return
-                        }
-                    }
+        }
+
+        match store_block(&mut self.chain, block.clone()) {
+            Ok(res) => {
+                println!("Block handled with update:\n\t\"{}\"", res);
+                if remove_from_pool(&mut self.txn_pool, &block) {
+                    println!("Deleted mined transaction from the local pool.");
                 }
-                // validate the block itself and store it
-                match self.chain.store_new_block(block.clone()){
-                    Ok(res) => {
-                        println!("Block handled with update:\n\t\"{}\"", res);
-                        if remove_from_pool(&mut self.txn_pool, &block){
-                            println!("Deleted mined transaction from the local pool.");
-                        }
-                        match self.chain.handle_block_result(res) {
-                            Ok(ChooseChainResult::ChooseOther { .. }) => {
-                                    println!("Updated main chain to a longer fork.")
-                            }
-                            _ => {
-                            }
-                        }
+                // Update the state of the main chain
+                match self.chain.handle_block_result(res) {
+                    Ok(ChooseChainResult::ChooseOther { .. }) => {
+                        println!("Updated main chain to a longer fork.")
                     }
-                    Err(e) => {
-                        println!("Block handled with no update to chain or forks, due to:\n\t\"{}\"", e);
-                        match e {
-                            NextBlockErr::MissingParent { block_parent_hash,.. } => {
-                                let req = PowMessage::BlockRequest {
-                                    transmit_type: TransmitType::ToAll,
-                                    block_hash: block_parent_hash,
-                                    sender_peer_id: self.swarm.local_peer_id().to_string()
-                                };
-                                swarm::publish_pow_msg(req, &mut self.swarm);
-                                println!("Sent BlockRequest for missing block:\n\
-                                        \t{}\n\
-                                        to:\n\
-                                        \t{:?}", block.prev_hash, connected_peers(&mut self.swarm));
-
-                            },
-                            _ => {}
-                        }
-
-                    }
+                    _ => {}
+                }
+            }
+            Err(e) => {
+                println!("Block handled with no update to chain or forks\n\t\"{}\"", e);
+                if let NextBlockErr::MissingParent { block_parent_hash, block_parent_idx } = e {
+                    let req = PowMessage::BlockRequest {
+                        transmit_type: TransmitType::ToAll,
+                        block_idx: block_parent_idx,
+                        block_hash: block_parent_hash.clone(),
+                        sender_peer_id: self.swarm.local_peer_id().to_string(),
+                    };
+                    swarm::publish_pow_msg(req, &mut self.swarm);
+                    println!("Sent BlockRequest for missing block {} with hash {}", block_parent_idx, pretty_hex(&block_parent_hash));
                 }
             }
         }
     }
+
     // Transaction event.
     fn handle_txn_event(&mut self, msg: TxnMessage) {
         match msg {
