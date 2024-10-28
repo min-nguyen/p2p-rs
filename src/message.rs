@@ -22,40 +22,54 @@ pub enum TransmitType {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PowMessage {
     ChainRequest {                    // ToOne or ToAll
-        transmit_type : TransmitType,
-        sender_peer_id : String
+        target : Option<String>,
+        source : String
     },
     ChainResponse {                   // always ToOne
-        transmit_type : TransmitType,
+        target : String,
+        source : String,
         chain : chain::Chain
     },
-    NewBlock {
-        transmit_type : TransmitType, // always ToAll
-        block : block::Block
-    },
     BlockRequest {
-        transmit_type : TransmitType,  // ToOne or ToAll
+        target: Option<String>,
+        source : String,
         block_idx: usize,
-        block_hash : String,
-        sender_peer_id : String
+        block_hash : String
     },
     BlockResponse {
-        transmit_type : TransmitType,   // always ToOne
-        block : block::Block
+        target : String,
+        source : String,
+        block : block::Block,
     },
+    NewBlock {
+        source : String,
+        block : block::Block,
+    },
+}
+
+impl PowMessage {
+    pub fn source(&self) -> &String {
+        match self {
+            PowMessage::ChainRequest { source, .. }
+            | PowMessage::ChainResponse { source, .. }
+            | PowMessage::BlockRequest { source, .. }
+            | PowMessage::BlockResponse { source, .. }
+            | PowMessage::NewBlock { source, .. } => source,
+        }
+    }
 }
 
 impl std::fmt::Display for PowMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PowMessage::ChainRequest {  sender_peer_id , ..} =>
-                write!(f, "Chain request from {}", sender_peer_id),
+            PowMessage::ChainRequest {..} =>
+                write!(f, "Chain request"),
             PowMessage::ChainResponse { chain, .. } =>
-                write!(f, "Chain response that has length {} ", chain.len()),
+                write!(f, "Chain response that has length {}", chain.len()),
             PowMessage::NewBlock {  block , ..} =>
-                write!(f, "New block with idx {} }}", block.idx),
-            PowMessage::BlockRequest {  block_idx, block_hash, sender_peer_id, .. } =>
-                write!(f, "Block request for idx {} with hash {} from PeerId({}) ", block_idx, pretty_hex(block_hash), pretty_hex(sender_peer_id)),
+                write!(f, "New block with idx {}", block.idx),
+            PowMessage::BlockRequest {  block_idx, block_hash, .. } =>
+                write!(f, "Block request for idx {} with hash {}", block_idx, pretty_hex(block_hash)),
             PowMessage::BlockResponse {  block, .. } =>
                 write!(f, "Block response for idx {} with hash {}", block.idx, pretty_hex(&block.hash)),
         }
@@ -65,6 +79,23 @@ impl std::fmt::Display for PowMessage {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum TxnMessage {
     NewTransaction {
-        txn : transaction::Transaction
+        txn : transaction::Transaction,
+        source : String
+    }
+}
+
+impl TxnMessage {
+    pub fn source(&self) -> &String {
+        match &self {
+            TxnMessage::NewTransaction { source, .. } => source
+        }
+    }
+}
+impl std::fmt::Display for TxnMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TxnMessage::NewTransaction {txn, ..} =>
+                write!(f, "New transaction\n{}", txn),
+        }
     }
 }

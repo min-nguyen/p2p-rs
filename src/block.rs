@@ -38,7 +38,8 @@ impl Block {
     // Construct a genesis block
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
-          = (0, "genesis".to_string(), 1730051971, cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
+          = (0, "genesis".to_string(), 0 //1730051971
+          , cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
       let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
       Block { idx, data, timestamp, prev_hash, nonce, hash }
     }
@@ -302,31 +303,39 @@ impl std::fmt::Display for NextBlockErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
-                write!(f, "Block {}'s hash {} does not meet the difficulty target {}.", block_idx, hash_binary, difficulty_prefix)
+                write!(f, "Block {}'s hash {} does not meet the difficulty target {}."
+                , block_idx, hash_binary, difficulty_prefix)
             }
             NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
-                write!(f, "Block {}'s stored hash {} does not match its computed hash {}.", block_idx, block_hash, computed_hash)
+                write!(f, "Block {}'s stored hash {} does not match its computed hash {}."
+                , block_idx, pretty_hex(block_hash), pretty_hex(computed_hash))
             }
             NextBlockErr::InvalidIndex { block_idx, expected_idx } => {
-                write!(f, "Block {} has invalid index, whereas we expected index {}.", block_idx, expected_idx)
+                write!(f, "Block {} has invalid index, whereas we expected index {}."
+                , block_idx, expected_idx)
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
-                write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}.", block_idx, block_prev_hash, parent_block_idx, parent_block_hash)
+                write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}."
+                , block_idx, pretty_hex(block_prev_hash), parent_block_idx, pretty_hex(parent_block_hash))
             }
             NextBlockErr::MissingParent { block_parent_idx, block_parent_hash } => {
-                write!(f, "Block {} is missing its parent {} with hash {} in the chain or forks.", block_parent_idx + 1, block_parent_idx, pretty_hex(block_parent_hash))
+                write!(f, "Block {} is missing its parent {} with hash {} in the main chain or forks."
+                , block_parent_idx + 1, block_parent_idx, pretty_hex(block_parent_hash))
             }
             NextBlockErr::Duplicate {block_idx, block_hash} => {
-                write!(f, "Block {} with hash {} is a duplicate, already stored in the main chain or forks.", block_idx, block_hash)
+                write!(f, "Block {} with hash {} is a duplicate already stored in the main chain, forks, or orphans."
+                , block_idx, pretty_hex(block_hash))
             }
             NextBlockErr::UnrelatedGenesis {genesis_hash} => {
-                write!(f, "Block(s) belong to a chain with a different genesis, {}.", pretty_hex(genesis_hash))
+                write!(f, "Block belongs to a chain with a different genesis, {}."
+                , pretty_hex(genesis_hash))
             }
             NextBlockErr::NoBlocks => {
-                write!(f, "Chain or fork is empty.")
+                write!(f, "Encountered an empty chain or fork.")
             }
             NextBlockErr::StrayParent { block_idx, block_hash } => {
-                write!(f, "Block {} with hash {} represents a missing parent that we have no use for.", block_idx, block_hash)
+                write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
+                , block_idx, pretty_hex(block_hash))
             }
         }
     }

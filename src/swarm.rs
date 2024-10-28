@@ -76,19 +76,29 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                     info!("Received {:?} from {:?}", message, propagation_source);
                     if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
                         match pow_msg {
-                                  PowMessage::ChainResponse { ref transmit_type, .. }
-                                | PowMessage::ChainRequest { ref transmit_type, .. }
-                                | PowMessage::BlockResponse { ref transmit_type, .. }
-                                | PowMessage::BlockRequest { ref transmit_type, .. }
-                                | PowMessage::NewBlock { ref transmit_type, .. } =>
-                                    match transmit_type {
-                                        TransmitType::ToOne(target_peer_id) if *target_peer_id == LOCAL_PEER_ID.to_string()
-                                            => send_local_peer(&self.pow_sender, pow_msg),
-                                        TransmitType::ToAll
-                                            => send_local_peer(&self.pow_sender, pow_msg),
-                                        _   => info!("Ignoring received message -- not for us.")
-                                    }
+                            PowMessage::ChainRequest { ref target, .. }
+                            | PowMessage::BlockRequest { ref target, .. } => {
+                                match target {
+                                    Some(target) if *target == LOCAL_PEER_ID.to_string() =>
+                                        send_local_peer(&self.pow_sender, pow_msg),
+                                    None =>
+                                        send_local_peer(&self.pow_sender, pow_msg),
+                                    _ => info!("Ignoring request. Not for us.")
+                                }
+                            },
+                            PowMessage::ChainResponse { ref target, .. }
+                            | PowMessage::BlockResponse { ref target, .. } => {
+                                if *target == LOCAL_PEER_ID.to_string() {
+                                    send_local_peer(&self.pow_sender, pow_msg)
+                                }
+                                else {
+                                    info!("Ignoring response. Not for us.")
+                                }
+                            },
+                            PowMessage::NewBlock {  .. } => {
+                                send_local_peer(&self.pow_sender, pow_msg)
                             }
+                        }
                     }
                     else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
                         send_local_peer(&self.txn_sender, txn_msg)
