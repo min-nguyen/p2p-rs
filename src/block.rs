@@ -206,25 +206,6 @@ impl std::fmt::Display for Block {
             self.prev_hash,
             self.hash,
         )
-        // write!(
-        //     f,
-        //     "\
-        //     ================================================\n\
-        //     Block:\n\
-        //     Index:           {}\n\
-        //     Timestamp:       {}\n\
-        //     Data:            {}\n\
-        //     Nonce:           {}\n\
-        //     Previous Hash:   {}\n\
-        //     Hash:            {}\n\
-        //     ================================================",
-        //     self.idx,
-        //     DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
-        //     self.data,
-        //     self.nonce,
-        //     self.prev_hash,
-        //     self.hash,
-        // )
     }
 }
 
@@ -247,9 +228,6 @@ pub enum NextBlockResult {
         end_idx: usize,
         end_hash: String,
     }
-    /* To-Do:
-    Duplicate Block
-    */
 }
 
 impl std::fmt::Display for NextBlockResult {
@@ -274,9 +252,6 @@ impl std::fmt::Display for NextBlockResult {
                             fork_idx, pretty_hex(fork_hash), end_idx, pretty_hex(end_hash)
                 )
             }
-            // NextBlockErr::Duplicate { block_idx, block_hash,data } => {
-            //     write!(f, "Block {} with hash {} and data {} already exists.", block_idx, block_hash, data)
-            // }
         }
     }
 }
@@ -314,7 +289,7 @@ pub enum NextBlockErr {
     StrayParent {
         block_idx: usize,
         block_hash: String,
-    }, // Block represents a missing parent that but connecting to any orphaned branches,
+    }, // Block represents a missing parent that doesn't prepend to any orphaned branches,
     Duplicate {
         block_idx: usize,
         block_hash: String,
@@ -351,7 +326,7 @@ impl std::fmt::Display for NextBlockErr {
                 write!(f, "Chain or fork is empty.")
             }
             NextBlockErr::StrayParent { block_idx, block_hash } => {
-                write!(f, "Block {} with hash {} represents a missing parent but has no children in the orphans.", block_idx, block_hash)
+                write!(f, "Block {} with hash {} represents a missing parent that we have no use for.", block_idx, block_hash)
             }
         }
     }

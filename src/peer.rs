@@ -89,8 +89,7 @@ impl Peer {
     }
     // Blockchain event.
     fn handle_pow_event(&mut self, msg: PowMessage) {
-        info!("Received the following message:\n\
-                  {}", msg);
+        println!("Received a {}", msg);
         match msg {
             PowMessage::ChainRequest { sender_peer_id, .. } => {
                 let resp = PowMessage::ChainResponse {
@@ -117,10 +116,7 @@ impl Peer {
                             block: b.clone()
                         };
                         swarm::publish_pow_msg(resp, &mut self.swarm);
-                        println!("Sent BlockResponse with target:\n\
-                                 \t{}\n\
-                                 broadcasted to connected peers:\n\
-                                \t{:?}", sender_peer_id, swarm::connected_peers(&mut self.swarm));
+                        println!("Broadcasted a block response to PeerId({}):", pretty_hex(&sender_peer_id));
                 }
                 else {
                     info!("Couldn't lookup a BlockRequest in the main chain for hash:\n\t\"{}\"", block_hash);

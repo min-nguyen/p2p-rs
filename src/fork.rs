@@ -1,9 +1,12 @@
 /*
-    *Fork*: Auxiliary helpers for managing forks, independent of a chain.
+    *Forks and orphans*: Auxiliary helpers for managing forks and orphans, independent of a chain.
 */
 
 use super::block::{Block::{self}, NextBlockErr};
 use std::collections::HashMap;
+
+// Forks are represented as a set of forkpoints (from the main chain) from which various branches arise.
+// Branches coming from the same forkpoint can share common prefixes of blocks.
 
 // <fork point, <fork end hash, forked blocks>>
 pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
@@ -96,6 +99,10 @@ pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<F
     Block::push_end(&mut fork, block);
     insert_nonempty_fork(forks, fork)
 }
+
+// Orphan branches are represented as a disjoint set of chains that are constructed backwards.
+// Each orphan branch has no blocks in common. That is, we are not immediately interested in their possible forks; these
+// are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork, which other forks can then connect to.
 
 // <fork point, orphaned branch>
 pub type Orphans = HashMap<String, Vec<Block>>;

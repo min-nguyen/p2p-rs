@@ -6,19 +6,20 @@
 
 use serde::{Deserialize, Serialize};
 use crate::chain::abbreviate_chain;
+use crate::cryptutil::pretty_hex;
 
 use super::block;
 use super::chain;
 use super::transaction;
 
 // Messages can be intended for (1) all peers or (2) a specific peer.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransmitType {
     ToAll,
     ToOne(String) // receiving peer id
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PowMessage {
     ChainRequest {                    // ToOne or ToAll
         transmit_type : TransmitType,
@@ -50,13 +51,13 @@ impl std::fmt::Display for PowMessage {
             PowMessage::ChainRequest {  sender_peer_id , ..} =>
                 write!(f, "Chain request from {}", sender_peer_id),
             PowMessage::ChainResponse { chain, .. } =>
-                write!(f, "Chain response {} ", abbreviate_chain(chain)),
-            PowMessage::NewBlock { transmit_type, block } =>
-                write!(f, "NewBlock {{\n Transmit Type: {:?},\n Block: {} }}", transmit_type, block),
-            PowMessage::BlockRequest { transmit_type, block_idx, block_hash, sender_peer_id } =>
-                write!(f, "BlockRequest {{\n Transmit Type: {:?}, Block Idx {}, Block Hash: {}, Sender Peer Id: {} }}", transmit_type, block_idx, block_hash, sender_peer_id),
-            PowMessage::BlockResponse { transmit_type, block } =>
-                write!(f, "BlockResponse {{\n Transmit Type: {:?}, Block: {} }}", transmit_type, block),
+                write!(f, "Chain response that has length {} ", chain.len()),
+            PowMessage::NewBlock {  block , ..} =>
+                write!(f, "New block with idx {} }}", block.idx),
+            PowMessage::BlockRequest {  block_idx, block_hash, sender_peer_id, .. } =>
+                write!(f, "Block request for idx {} with hash {} from PeerId({}) ", block_idx, pretty_hex(block_hash), pretty_hex(sender_peer_id)),
+            PowMessage::BlockResponse {  block, .. } =>
+                write!(f, "Block response for idx {} with hash {}", block.idx, pretty_hex(&block.hash)),
         }
     }
 }
