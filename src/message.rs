@@ -11,30 +11,29 @@ use super::block;
 use super::chain;
 use super::transaction;
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PowMessage {
     ChainRequest {
-        target : Option<String>,      // ToOne or ToAll
+        target : Option<String>,      // either to a specific peer (Some) or all peers (None)
         source : String
     },
     ChainResponse {
-        target : String,
+        target : String,              // always to the specific requesting peer
         source : String,
         chain : chain::Chain
     },
     BlockRequest {
-        target: Option<String>,       // ToOne or ToAll
+        target: Option<String>,       // either to a specific peer (Some) or all peers (None)
         source : String,
         block_idx: usize,
         block_hash : String
     },
     BlockResponse {
-        target : String,
+        target : String,              // always to the specific requesting peer
         source : String,
         block : block::Block,
     },
-    NewBlock {                         // ToAll
+    NewBlock {                        // always to all peers
         source : String,
         block : block::Block,
     },

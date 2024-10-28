@@ -102,12 +102,11 @@ pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<F
 
 // Orphan branches are represented as a disjoint set of chains that are constructed backwards.
 // Each orphan branch has no blocks in common. That is, we are not immediately interested in their possible forks; these
-// are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork, which other forks can then connect to.
+// are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork.
 
 // <fork point, orphaned branch>
 pub type Orphans = HashMap<String, Vec<Block>>;
-
-pub type OrphanId = String; // fork point, i.e., the previous hash of the first block in an orphan
+pub type OrphanId = String; // fork hash
 
 pub fn identify_orphan(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
     if orphan.is_empty() {

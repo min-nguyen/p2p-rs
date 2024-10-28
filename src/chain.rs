@@ -6,10 +6,8 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::{cryptutil::trace, fork::{insert_orphan, ForkId, OrphanId, Orphans}};
-
 use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
-use super::fork::{self, Forks};
+use super::fork::{self, Forks, insert_orphan, ForkId, OrphanId, Orphans};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
