@@ -5,33 +5,26 @@
 */
 
 use serde::{Deserialize, Serialize};
-use crate::chain::abbreviate_chain;
 use crate::cryptutil::pretty_hex;
 
 use super::block;
 use super::chain;
 use super::transaction;
 
-// Messages can be intended for (1) all peers or (2) a specific peer.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum TransmitType {
-    ToAll,
-    ToOne(String) // receiving peer id
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PowMessage {
-    ChainRequest {                    // ToOne or ToAll
-        target : Option<String>,
+    ChainRequest {
+        target : Option<String>,      // ToOne or ToAll
         source : String
     },
-    ChainResponse {                   // always ToOne
+    ChainResponse {
         target : String,
         source : String,
         chain : chain::Chain
     },
     BlockRequest {
-        target: Option<String>,
+        target: Option<String>,       // ToOne or ToAll
         source : String,
         block_idx: usize,
         block_hash : String
@@ -41,7 +34,7 @@ pub enum PowMessage {
         source : String,
         block : block::Block,
     },
-    NewBlock {
+    NewBlock {                         // ToAll
         source : String,
         block : block::Block,
     },

@@ -103,7 +103,6 @@ impl Chain {
             }
         }
         else {
-            // Shouldn't happen
             Err(NextBlockErr::StrayParent { block_idx: block.idx, block_hash: block.hash })
         }
     }

@@ -38,7 +38,7 @@ impl Block {
     // Construct a genesis block
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
-          = (0, "genesis".to_string(), 0 //1730051971
+          = (0, "genesis".to_string(), 1730051971
           , cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
       let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
       Block { idx, data, timestamp, prev_hash, nonce, hash }
