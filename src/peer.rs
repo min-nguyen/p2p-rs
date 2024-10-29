@@ -8,7 +8,7 @@
 
 use super::{
     file,
-    crypt::pretty_hex,
+    util::abbrev,
     block::{Block, NextBlockResult, NextBlockErr},
     chain::{self, Chain},
     transaction::Transaction,
@@ -83,7 +83,7 @@ impl Peer {
     }
     // Blockchain event.
     fn handle_pow_event(&mut self, msg: PowMessage) {
-        println!("Received a {} from PeerId({})", msg, pretty_hex(msg.source()));
+        received!("\"{}\" from PeerId({})", msg, abbrev(msg.source()));
         match msg.clone() {
             PowMessage::ChainRequest {  .. } => {
                 let resp: PowMessage = PowMessage::ChainResponse {
@@ -92,14 +92,14 @@ impl Peer {
                     chain: self.chain.clone(),
                 };
                 swarm::publish_pow_msg(resp.clone(), &mut  self.swarm);
-                log_event!("Broadcasted a {} to PeerId({})",  resp, pretty_hex(msg.source()));
+                responded!("\"{}\" to PeerId({})",  resp, abbrev(msg.source()));
             },
             PowMessage::ChainResponse{ chain , ..} => {
                 match self.chain.sync_to_chain(chain){
                     Ok(res) =>
-                        log_event!("{}", res),
+                        update!("{}", res),
                     Err(e) =>
-                        log_no_event!("Remote chain couldn't be validated due to ``{}''", e)
+                        update!("Remote chain couldn't be validated due to \"{}\"", e)
                 }
             },
             PowMessage::BlockRequest { block_hash, .. } => {
@@ -110,10 +110,10 @@ impl Peer {
                             block: block.clone()
                         };
                         swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
-                        log_event!("Broadcasted a {} to PeerId({}):", resp, pretty_hex(&msg.source()));
+                        responded!("\"{}\" to PeerId({}):", resp, abbrev(&msg.source()));
                 }
                 else {
-                    log_no_event!("Block not found on the main chain.");
+                    update!("Block not found on the main chain.");
                 }
             }
             PowMessage::BlockResponse { block, .. } => self.handle_block(block, Chain::store_orphan_block),
@@ -123,15 +123,14 @@ impl Peer {
 
     fn handle_block<F>(&mut self, block: Block, store_block: F)
     where
-        F: FnOnce(&mut Chain, Block) -> Result<NextBlockResult, NextBlockErr>,
-    {    // Validate transaction inside the block, if any, and return early if invalid
-        if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data) {
+        F: FnOnce(&mut Chain, Block) -> Result<NextBlockResult, NextBlockErr>
+    {   if let Ok(txn) = serde_json::from_str::<Transaction>(&block.data) {
             match Transaction::validate_transaction(&txn) {
                 Ok(()) => {
-                    info!("Successfully validated transaction in block.")
+                    update!("Processed transaction in block as valid.")
                 },
                 Err(e) => {
-                    log_no_event!("Couldn't validate transaction in block due to\n\t``{}''", e);
+                    update!("Processed transaction in block as invalid due to\n\t\"{}\"", e);
                     return;
                 }
             }
@@ -139,20 +138,20 @@ impl Peer {
 
         match store_block(&mut self.chain, block.clone()) {
             Ok(res) => {
-                log_event!("Block resulted in update.\n\t\"{}\"", res);
+                update!("Block resulted in update:\n\t\"{}\"", res);
                 if remove_from_pool(&mut self.txns, &block) {
-                    log_event!("Deleted mined transaction from the local pool.");
+                    update!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
                 match self.chain.handle_block_result(res) {
                     Ok(res) => {
-                        log_event!("{}", res);
+                        update!("{}", res);
                     }
                     _ => {}
                 }
             }
             Err(e) => {
-                log_no_event!("Block resulted in no update to chain or forks\n\t\"{}\"", e);
+                update!("Block resulted in no update to chain or forks:\n\t\"{}\"", e);
                 if let NextBlockErr::MissingParent { block_parent_hash, block_parent_idx } = e {
                     let req = PowMessage::BlockRequest {
                         target: None,
@@ -161,7 +160,7 @@ impl Peer {
                         block_hash: block_parent_hash.clone(),
                     };
                     swarm::publish_pow_msg(req.clone(), &mut self.swarm);
-                    log_event!("Broadcasted a {} to all connected peers.", req);
+                    responded!("\"{}\" to all connected peers.", req);
                 }
             }
         }
@@ -169,16 +168,16 @@ impl Peer {
 
     // Transaction event.
     fn handle_txn_event(&mut self, msg: TxnMessage) {
-        println!("Received a {} from PeerId({})", msg, pretty_hex(msg.source()));
+        received!("\"{}\" from PeerId({})", msg, abbrev(msg.source()));
         match msg {
             TxnMessage::NewTransaction { txn, .. } => {
                 match Transaction::validate_transaction(&txn) {
                     Ok (()) => {
                         self.txns.insert(txn);
-                        log_event!("Added new transaction to pool.");
+                        update!("Added new transaction to pool.");
                     }
                     Err (e) => {
-                        log_no_event!("Couldn't validate new transaction, due to:\n\t\"{}\"", e);
+                        update!("Processed transaction as invalid:\n\t\"{}\"", e);
                     }
                 }
             }
@@ -240,10 +239,10 @@ impl Peer {
         else {
             let txn: Transaction = Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
             self.txns.insert(txn.clone());
-            log_event!("Added a new transaction to pool:\n{}", txn);
+            update!("Added a new transaction to pool:\n{}", txn);
             let txn_msg: TxnMessage = TxnMessage::NewTransaction { txn, source: self.swarm.local_peer_id().to_string() };
             swarm::publish_txn_msg(txn_msg.clone(), &mut self.swarm);
-            log_event!("Broadcasted a {} to all connected peers.", txn_msg);
+            responded!("Broadcasted \"{}\" to all connected peers.", txn_msg);
         }
     }
     async fn handle_cmd_load(&mut self, file_name: &str){
@@ -251,7 +250,7 @@ impl Peer {
         match file::read_chain(file_name).await {
             Ok(chain) => {
                 self.chain = chain;
-                println!("Loaded chain from local file \"{}\"", file_name)
+                update!("Loaded chain from local file \"{}\"", file_name)
             }
             Err(e) => eprintln!("Error loading chain from local file:\n\
                                                 \"{}\"", e),
@@ -260,13 +259,13 @@ impl Peer {
     async fn handle_cmd_save(&mut self, file_name: &str){
         let file_name = if file_name.is_empty() { DEFAULT_FILE_PATH } else { &file_name };
         match file::write_chain(&self.chain, file_name).await {
-            Ok(()) => log_event!("Saved chain to local file \"{}\"", file_name),
-            Err(e) => eprintln!("Error saving chain to local file:\"{}\"", e),
+            Ok(()) => update!("Saved chain to local file \"{}\"", file_name),
+            Err(e) => update!("Error saving chain to local file:\"{}\"", e),
         }
     }
     fn handle_cmd_reset(&mut self) {
         self.chain = chain::Chain::genesis();
-        log_event!("Main chain reset to a single genesis block. Forks emptied.")
+        update!("Main chain reset to a single genesis block. Forks emptied.")
     }
     fn handle_cmd_mine(&mut self, args: &str) {
         let opt_data: Option<String> =
@@ -275,7 +274,7 @@ impl Peer {
                 extract_from_pool(&mut self.txns)
                 .map(|txn|
                     {   // assuming we can always safely serialize a transaction (which should be the case)..
-                        log_event!("Retrieved and transaction with hash {} from the pool.", txn.hash);
+                        update!("Retrieved and transaction with hash {} from the pool.", txn.hash);
                         serde_json::to_string(&txn).unwrap()
                     }
                 )
@@ -285,18 +284,18 @@ impl Peer {
             };
         match opt_data {
             None => {
-                log_no_event!("No action taken. No transactions in the pool to mine for.")
+                update!("No transactions in the pool to mine for.")
             },
             Some(data) => {
                 self.chain.mine_block(&data);
-                log_event!("Mined and pushed the following new block to chain:\n\
+                update!("Mined and pushed the following new block to chain:\n\
                          {}", self.chain.last());
                 let msg: PowMessage = PowMessage::NewBlock {
                                             source: self.swarm.local_peer_id().to_string(),
                                             block: self.chain.last().clone()
                                         };
                 swarm::publish_pow_msg(msg.clone(), &mut self.swarm);
-                log_event!("Broadcasted {} to all connected peers", msg);
+                responded!("\"{}\" to all connected peers", msg);
             }
         }
     }
@@ -310,7 +309,7 @@ impl Peer {
                     target: None,
                     source: self.swarm.local_peer_id().to_string(),
                 };
-                log_event!("Broadcasted {} to all connected peers.", req);
+                responded!("\"{}\" to all connected peers.", req);
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
             target => {
@@ -318,7 +317,7 @@ impl Peer {
                     target: Some(target.to_string()),
                     source: self.swarm.local_peer_id().to_string(),
                 };
-                log_event!("Broadcasted {} to PeerId({}).", req, pretty_hex(&target.to_string()));
+                responded!("\"{}\" to PeerId({}).", req, abbrev(&target.to_string()));
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
@@ -374,15 +373,13 @@ impl Peer {
     fn handle_swarm_event<E : std::fmt::Debug>(swarm_event: SwarmEvent<(), E>) {
         match swarm_event {
             SwarmEvent::ConnectionEstablished { peer_id, .. }
-                => println!("Connection established with: \n\
-                            \t{:?}", peer_id),
+                => update!("Connection established with PeerId({})", abbrev(&peer_id.to_string())),
             SwarmEvent::ConnectionClosed { peer_id, .. }
-                => println!("Connection closed with: \n\
-                            \t{:?}", peer_id),
+                => update!("Connection closed with PeerId({})", abbrev(&peer_id.to_string())),
             SwarmEvent::NewListenAddr { listener_id, address, .. }
                 => info!("SwarmEvent: {:?} listening on {}", listener_id, address),
             SwarmEvent::Dialing(peer_id)
-                => info!("SwarmEvent: dialling {:?} ", peer_id),
+                => info!("SwarmEvent: dialling PeerId({})", abbrev(&peer_id.to_string())),
             SwarmEvent::IncomingConnection { local_addr, send_back_addr }
                 => info!("SwarmEvent: incoming connection on addr {:?} with send-back addr {}", local_addr, send_back_addr),
             _

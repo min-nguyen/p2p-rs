@@ -8,7 +8,7 @@ use super::{
     block,
     chain,
     transaction,
-    crypt::pretty_hex
+    util::abbrev
 };
 use serde::{Deserialize, Serialize};
 
@@ -62,9 +62,9 @@ impl std::fmt::Display for PowMessage {
             PowMessage::NewBlock {  block , ..} =>
                 write!(f, "New block with idx {}", block.idx),
             PowMessage::BlockRequest {  block_idx, block_hash, .. } =>
-                write!(f, "Block request for idx {} with hash {}", block_idx, pretty_hex(block_hash)),
+                write!(f, "Block request for idx {} with hash {}", block_idx, abbrev(block_hash)),
             PowMessage::BlockResponse {  block, .. } =>
-                write!(f, "Block response for idx {} with hash {}", block.idx, pretty_hex(&block.hash)),
+                write!(f, "Block response for idx {} with hash {}", block.idx, abbrev(&block.hash)),
         }
     }
 }

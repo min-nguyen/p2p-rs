@@ -5,8 +5,10 @@
     - Result and error types from handling new blocks.
 */
 
-use super::
-    crypt::{self, pretty_hex};
+use super::{
+    crypt,
+    util::abbrev
+};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
@@ -236,12 +238,12 @@ impl std::fmt::Display for NextBlockResult {
         match self {
             NextBlockResult::ExtendedMain { end_idx, end_hash } => {
                 write!(f, "Extended the main chain.\n\
-                           \tIts endpoint is ({}, {})", end_idx, pretty_hex(end_hash))
+                           \tIts endpoint is ({}, {})", end_idx, abbrev(end_hash))
             }
             NextBlockResult::ExtendedFork { fork_idx, fork_hash, end_idx,  end_hash} => {
                 write!(f,  "Extended an existing fork from the main chain.\n\
                             \tIts forkpoint is ({}, {}) and endpoint is ({}, {}).",
-                            fork_idx, pretty_hex(fork_hash), end_idx, pretty_hex(end_hash)
+                            fork_idx, abbrev(fork_hash), end_idx, abbrev(end_hash)
                 )
             }
             NextBlockResult::NewFork { fork_idx, fork_hash, end_idx,  end_hash} => {
@@ -250,7 +252,7 @@ impl std::fmt::Display for NextBlockResult {
                     _ => writeln!(f, "Added a new fork that branches off an existing fork from the main chain.")
                 }?;
                 write!( f, "\tIts forkpoint is ({}, {}) and endpoint is ({}, {}).",
-                            fork_idx, pretty_hex(fork_hash), end_idx, pretty_hex(end_hash)
+                            fork_idx, abbrev(fork_hash), end_idx, abbrev(end_hash)
                 )
             }
         }
@@ -308,7 +310,7 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
                 write!(f, "Block {}'s stored hash {} does not match its computed hash {}."
-                , block_idx, pretty_hex(block_hash), pretty_hex(computed_hash))
+                , block_idx, abbrev(block_hash), abbrev(computed_hash))
             }
             NextBlockErr::InvalidIndex { block_idx, expected_idx } => {
                 write!(f, "Block {} has invalid index, whereas we expected index {}."
@@ -316,26 +318,26 @@ impl std::fmt::Display for NextBlockErr {
             }
             NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}."
-                , block_idx, pretty_hex(block_prev_hash), parent_block_idx, pretty_hex(parent_block_hash))
+                , block_idx, abbrev(block_prev_hash), parent_block_idx, abbrev(parent_block_hash))
             }
             NextBlockErr::MissingParent { block_parent_idx, block_parent_hash } => {
                 write!(f, "Block {} is missing its parent {} with hash {} in the main chain or forks."
-                , block_parent_idx + 1, block_parent_idx, pretty_hex(block_parent_hash))
+                , block_parent_idx + 1, block_parent_idx, abbrev(block_parent_hash))
             }
             NextBlockErr::Duplicate {block_idx, block_hash} => {
                 write!(f, "Block {} with hash {} is a duplicate already stored in the main chain, forks, or orphans."
-                , block_idx, pretty_hex(block_hash))
+                , block_idx, abbrev(block_hash))
             }
             NextBlockErr::UnrelatedGenesis {genesis_hash} => {
                 write!(f, "Block belongs to a chain with a different genesis, {}."
-                , pretty_hex(genesis_hash))
+                , abbrev(genesis_hash))
             }
             NextBlockErr::NoBlocks => {
                 write!(f, "Encountered an empty chain or fork.")
             }
             NextBlockErr::StrayParent { block_idx, block_hash } => {
                 write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
-                , block_idx, pretty_hex(block_hash))
+                , block_idx, abbrev(block_hash))
             }
         }
     }

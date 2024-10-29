@@ -1,9 +1,13 @@
-pub fn log_no_event(msg: std::fmt::Arguments) {
-    println!("No event performed. {}", msg);
+pub fn update(msg: std::fmt::Arguments) {
+    println!("[Internal update]:\n{}", msg);
 }
 
-pub fn log_event(msg: std::fmt::Arguments) {
-    println!("Event performed. {}", msg);
+pub fn received(msg: std::fmt::Arguments) {
+    println!("[Received message]:\n{}", msg);
+}
+
+pub fn responded(msg: std::fmt::Arguments) {
+    println!("[Broadcasted message]:\n{}", msg);
 }
 
 pub fn trace<T:std::fmt::Debug>(x : T) -> T{
@@ -11,15 +15,30 @@ pub fn trace<T:std::fmt::Debug>(x : T) -> T{
     x
 }
 
+pub fn abbrev(hex : &String) -> String {
+    let mut s: String = hex.clone();
+    if hex.len() > 20 {
+        s.truncate(16);
+        s.push_str("...");
+    }
+    s
+}
+
 #[macro_export]
-macro_rules! log_no_event {
+macro_rules! update {
     ($msg:expr $(, $args:expr)*) => {
-        $crate::util::log_no_event(format_args!($msg $(, $args)*))
+        $crate::util::update(format_args!($msg $(, $args)*))
     };
 }
 #[macro_export]
-macro_rules! log_event {
+macro_rules! received {
     ($msg:expr $(, $args:expr)*) => {
-        $crate::util::log_event(format_args!($msg $(, $args)*))
+        $crate::util::received(format_args!($msg $(, $args)*))
+    };
+}
+#[macro_export]
+macro_rules! responded {
+    ($msg:expr $(, $args:expr)*) => {
+        $crate::util::responded(format_args!($msg $(, $args)*))
     };
 }

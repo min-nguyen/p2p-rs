@@ -4,6 +4,9 @@
     - Methods for generating and validating transactions.
 */
 
+use super::
+    crypt::{HexDecodeErr, encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes, random_string};
+
 use core::panic;
 use std::fmt;
 use log::error;
@@ -11,10 +14,6 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
-use crate::crypt;
-
-use super
-    ::crypt::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
 
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
@@ -22,10 +21,10 @@ const SIG_U8S_LEN : usize = 64;
 #[derive(Debug)]
 pub enum TransactionErr {
     PubKeyDecodeErr {
-        e: crypt::HexDecodeErr
+        e: HexDecodeErr
     },
     SigDecodeError {
-        e: crypt::HexDecodeErr
+        e: HexDecodeErr
     },
     HashMismatch {
         stored_hash: String,
@@ -48,16 +47,12 @@ impl fmt::Display for TransactionErr {
                 write!(f, "Signature Decode Error: {}", e)
             }
             TransactionErr::HashMismatch { stored_hash, computed_hash } => {
-                write!(
-                    f,
-                    "Hash Mismatch: stored hash ({}) does not match computed hash ({})",
+                write!(f, "Hash Mismatch: stored hash ({}) does not match computed hash ({})",
                     stored_hash, computed_hash
                 )
             }
             TransactionErr::SigInvalid { pubk, hash, sig } => {
-                write!(
-                    f,
-                    "Signature Invalid: public key ({}), hash ({}), signature ({})",
+                write!(f, "Signature Invalid: public key ({}), hash ({}), signature ({})",
                     pubk, hash, sig
                 )
             }
@@ -158,14 +153,4 @@ impl Transaction {
         }
         Ok (())
     }
-}
-
-fn random_string(len: usize) -> String {
-    use rand::distributions::Alphanumeric;
-    use rand::Rng;
-    let rng = rand::thread_rng();
-    rng.sample_iter(&Alphanumeric)
-        .take(len)
-        .map(char::from)
-        .collect()
 }
