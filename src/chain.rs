@@ -86,13 +86,14 @@ impl Chain {
             Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
         // Search for parent block in the main chain.
-        else if let Some(parent_block)
+        else if let Some(parent)
                 = self.find(|b| is_parent(b)){
 
             // See if we can append the block to the main chain
-            if self.last_block().hash == parent_block.hash {
+            if self.last_block().hash == parent.hash {
                 Block::push_end(&mut self.main, block);
-                Ok(NextBlockResult::ExtendedMain { end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
+                Ok(NextBlockResult::ExtendedMain {
+                    end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -182,7 +183,7 @@ impl Chain {
         if let Some(..) = self.find(|b| is_parent(b)) {
             Ok (())
         }
-        // catch when the forkpoint is from the genesis block
+        // catch when the fork has extended all the way to the genesis block (should generally not happen)
         else if first_block.idx == 0 {
             if first_block.hash == self.main.first().unwrap().hash {
                 Ok (())

@@ -76,7 +76,7 @@ impl Forks {
     }
 
     pub fn insert(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
-        let fork_id = Self::validate(&fork)?;
+        let fork_id = Forks::validate(&fork)?;
 
         self.0.entry(fork_id.fork_hash.clone())
                     .or_insert(HashMap::new())
@@ -147,7 +147,7 @@ impl Orphans {
     }
 
     pub fn insert(&mut self, orphan: Vec<Block>) -> Result<OrphanId, NextBlockErr> {
-        let fork_id = Self::validate(&orphan)?;
+        let fork_id = Orphans::validate(&orphan)?;
         self.0.insert(fork_id.clone(), orphan);
         Ok(fork_id)
     }
