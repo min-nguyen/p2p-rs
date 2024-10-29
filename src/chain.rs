@@ -6,10 +6,9 @@
 
 use super::{
     block::{Block, NextBlockResult, NextBlockErr},
-    fork::{self, Forks, ForkId, OrphanId, Orphans}
+    fork::{Forks, ForkId, OrphanId, Orphans}
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain {
@@ -40,16 +39,18 @@ impl Chain {
 
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
+
+        let is_duplicate = |b: &Block| {b.hash == block.hash};
+
         // Search for block in the orphans.
-        if let Some(..) = self.orphans.find(|b| b.hash == block.hash){
-            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
+        if let Some(..) = self.orphans.find(|b| is_duplicate(b)){
+            Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
-        // Search for child block at the head of the orphans.
-        else if let Some( orphan) = self.orphans.get_mut(&block.hash) {
+        // Search for child block only at the head of the orphans.
+        else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
             Block::validate_child(&block, &orphan.first().unwrap())?;
-            let orphan_id: OrphanId    = self.orphans.prepend_orphan(block)?;
-            let upd_orphan: Vec<Block> = self.orphans.get(&orphan_id).unwrap().clone();
-            match self.connect_orphan_as_fork(upd_orphan) {
+            let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
+            match self.connect_orphan_as_fork(&orphan_id) {
                 Ok(fork_id) => {
                     Ok(NextBlockResult::NewFork {
                         fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
@@ -60,35 +61,33 @@ impl Chain {
             }
         }
         else {
-            Err(NextBlockErr::StrayParent { block_idx: block.idx, block_hash: block.hash })
+            Err(NextBlockErr::StrayParent { idx: block.idx, hash: block.hash })
         }
     }
 
-    // Connect a fork not currently in the fork pool
-    pub fn connect_orphan_as_fork(&mut self, orphan: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+    // Try to connect an orphan branch as a fork from the main chain
+    pub fn connect_orphan_as_fork(&mut self, orphan: &OrphanId) -> Result<ForkId, NextBlockErr>{
+        let orphan = self.orphans.get(orphan).unwrap();
         Self::validate_fork(&self, &orphan)?;
-        self.orphans.remove_entry(&Orphans::identify(&orphan)?);
-        self.forks.insert(orphan)
+        let fork_id = self.forks.insert(orphan.clone())?;
+        self.orphans.remove_entry(&Orphans::validate(&orphan)?);
+        Ok(fork_id)
     }
 
     pub fn store_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
         Block::validate_block(&block)?;
 
         let is_duplicate = |b: &Block| {b.hash == block.hash};
-        let is_parent = |b: &Block| {b.hash == block.prev_hash};
+        let is_parent = |b: &Block| { Block::validate_child(b, &block).is_ok()};
 
-        // Search for block in the main chain.
-        if let Some(..) = Block::find(&self.main, |b| is_duplicate(&b)) {
-            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
+        // Search for block in the main chain and forks
+        if            self.find(|b| is_duplicate(b)).is_some()
+            ||  self.forks.find(|b| is_duplicate(b)).is_some()  {
+            Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
-        // Search for block in the forks.
-        else if let Some(..) = self.forks.find(|b| is_duplicate(&b)) {
-            Err(NextBlockErr::Duplicate { block_idx: block.idx, block_hash: block.hash })
-        }
-        // Search for parent block in the forks.
-        else if let Some(parent_block) = Block::find(&self.main, |b| is_parent(&b)){
-
-            Block::validate_child(parent_block, &block)?;
+        // Search for parent block in the main chain.
+        else if let Some(parent_block)
+                = self.find(|b| is_parent(b)){
 
             // See if we can append the block to the main chain
             if self.last_block().hash == parent_block.hash {
@@ -104,21 +103,20 @@ impl Chain {
             }
         }
         // Search for parent block in the forks.
-        else if let Some((fork_id, fork)) = self.forks.find(|parent| parent.hash == block.prev_hash) {
-            let parent = Block::find(fork, |b| is_parent(&b)).unwrap();
-            Block::validate_child(parent, &block)?;
+        else if let Some((ForkId {fork_hash, end_hash, ..}, _, parent))
+                 = self.forks.find(|b| is_parent(b)) {
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
-            if *fork_id.end_hash == parent.hash {
+            if  parent.hash == end_hash {
                 let ForkId { fork_idx, fork_hash, end_idx, end_hash}
-                    = self.forks.extend_fork(&fork_id.fork_hash, &fork_id.end_hash, block)?;
+                    = self.forks.extend_fork(&fork_hash, &end_hash, block)?;
 
                 Ok(NextBlockResult::ExtendedFork {fork_idx, fork_hash, end_idx, end_hash })
             }
             // Otherwise create a new fork from the main chain that clones the prefix of an existing fork
             else {
                 let ForkId { fork_idx, fork_hash, end_idx, end_hash}
-                    = self.forks.nest_fork(&fork_id.fork_hash, &fork_id.end_hash, block)?;
+                    = self.forks.nest_fork(&fork_hash, &end_hash, block)?;
 
                 Ok(NextBlockResult::NewFork {fork_idx, fork_hash, end_idx, end_hash })
             }
@@ -129,8 +127,8 @@ impl Chain {
                 // Insert as a single-block orphan
                 self.orphans.insert(vec![block.clone()])?;
                 Err(NextBlockErr::MissingParent {
-                        block_parent_idx: block.idx - 1,
-                        block_parent_hash: block.prev_hash
+                        parent_idx: block.idx - 1,
+                        parent_hash: block.prev_hash
                 })
             }
             else { // block.idx == 0 && not in main chain or forks
@@ -146,21 +144,22 @@ impl Chain {
     }
 
     // Validate chain, expecting its first block to begin at idx 0
-    pub fn validate_chain(&self) -> Result<(), NextBlockErr> {
+    pub fn validate(&self) -> Result<(), NextBlockErr> {
         Block::validate_blocks(&self.main)?;
         let first_block = self.main.first().unwrap();
         if first_block.idx == 0 {
             Ok(())
         }
         else {
-            Err( NextBlockErr::InvalidIndex { block_idx: first_block.idx, expected_idx: 0 })
+            Err( NextBlockErr::InvalidIndex { idx: first_block.idx, expected_idx: 0 })
         }
     }
 
     // Swap the main chain to a remote chain if valid and longer.
     pub fn sync_to_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
-        Self::validate_chain(&other)?;
-        let (main_genesis, other_genesis) = (self.main.first().unwrap().hash.clone(), other.main.first().unwrap().hash.clone());
+        Chain::validate(&other)?;
+        let (main_genesis, other_genesis)
+            = (self.main.first().unwrap().hash.clone(), other.main.first().unwrap().hash.clone());
         if main_genesis != other_genesis {
             return Err (NextBlockErr::UnrelatedGenesis { genesis_hash: other_genesis  })
         }
@@ -173,19 +172,29 @@ impl Chain {
         }
     }
 
-    // Validate fork, expecting its prev block to be in the main chain
+    // Validate fork as a branch off the main chain
     pub fn validate_fork(&self, fork: &Vec<Block>) -> Result<(), NextBlockErr> {
-        Block::validate_blocks(fork)?;
+        Forks::validate(fork)?;
+
         let first_block = fork.first().unwrap();
-        if first_block.idx == 0 {
-            return Err(NextBlockErr::UnrelatedGenesis { genesis_hash: first_block.hash.clone() })
-        }
-        if let Some(forkpoint) = self.lookup_block_hash( &first_block.prev_hash) {
-            Block::validate_child(forkpoint, first_block)?;
+        let is_parent = |b: &Block| { Block::validate_child(b, &first_block).is_ok()};
+
+        if let Some(..) = self.find(|b| is_parent(b)) {
             Ok (())
         }
+        // catch when the forkpoint is from the genesis block
+        else if first_block.idx == 0 {
+            if first_block.hash == self.main.first().unwrap().hash {
+                Ok (())
+            }
+            else {
+                Err(NextBlockErr::UnrelatedGenesis { genesis_hash: first_block.hash.clone() })
+            }
+        }
         else {
-            Err(NextBlockErr::MissingParent { block_parent_idx: first_block.idx - 1, block_parent_hash: first_block.prev_hash.clone()})
+            Err(NextBlockErr::MissingParent {
+                parent_idx: first_block.idx - 1,
+                parent_hash: first_block.prev_hash.clone()})
         }
     }
 
@@ -223,7 +232,7 @@ impl Chain {
 impl Chain {
     pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
         let chain = Chain{main : blocks, forks: Forks::new(), orphans: Orphans::new()};
-        Self::validate_chain(&chain)?;
+        Self::validate(&chain)?;
         Ok(chain)
     }
 
@@ -231,28 +240,21 @@ impl Chain {
         self.main.clone()
     }
 
-    pub fn forks<'a>(&'a self) -> &'a Forks {
-        &self.forks
-    }
-
-    pub fn orphans<'a>(&'a self) -> &'a Orphans {
-        &self.orphans
-    }
-
     pub fn len(&self) -> usize {
         self.main.len()
     }
 
-    pub fn last_block(&self) -> &Block {
-        self.main.last().expect("Chain should always be non-empty")
+    pub fn find<'a, P> (&'a self, prop: P) -> Option<&'a Block>
+    where P: Fn(&Block) -> bool{
+        Block::find(&self.main, |block| prop(block))
     }
 
-    pub fn lookup_block_idx(&self, idx: usize) -> Option<&Block> {
+    pub fn idx(&self, idx: usize) -> Option<&Block> {
         self.main.get(idx)
     }
 
-    pub fn lookup_block_hash(&self, hash: &String) -> Option<&Block> {
-        Block::find(&self.main, |block| block.hash == *hash)
+    pub fn last_block(&self) -> &Block {
+        self.main.last().expect("Chain should always be non-empty")
     }
 
     // Safe split off that ensures the main chain is always non-empty
@@ -266,8 +268,20 @@ impl Chain {
         }
     }
 
+    pub fn forks<'a>(&'a self) -> &'a Forks {
+        &self.forks
+    }
+
+    pub fn insert_fork(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+        self.forks.insert(fork)
+    }
+
     pub fn print_forks(&self){
         self.forks.print()
+    }
+
+    pub fn orphans<'a>(&'a self) -> &'a Orphans {
+        &self.orphans
     }
 
     pub fn print_orphans(&self){

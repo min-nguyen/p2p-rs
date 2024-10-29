@@ -24,23 +24,20 @@ impl Forks {
         Forks(HashMap::new())
     }
 
-    pub fn identify(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
-        if fork.is_empty() {
-            Err(NextBlockErr::NoBlocks)
-        }
-        else {
-            let ((fork_hash, fork_idx), (end_hash, end_idx))
-                = ( {let first_block = fork.first().unwrap();
-                        (first_block.prev_hash.clone(), first_block.idx - 1)
-                    },
-                    { let end_block = fork.last().unwrap();
-                        (end_block.hash.clone(), end_block.idx)
-                    });
-            Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx})
-        }
+    pub fn validate(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
+        Block::validate_blocks(fork)?;
+        let ((fork_hash, fork_idx), (end_hash, end_idx))
+            = ( {let first_block = fork.first().unwrap();
+                    (first_block.prev_hash.clone(), first_block.idx - 1)
+                },
+                { let end_block = fork.last().unwrap();
+                    (end_block.hash.clone(), end_block.idx)
+                });
+        Ok (ForkId {fork_hash, fork_idx, end_hash, end_idx})
+
     }
 
-    pub fn find<'a, P>(&'a self, prop: P) -> Option<(ForkId, &'a Vec<Block>)>
+    pub fn find<'a, P>(&'a self, prop: P) -> Option<(ForkId, &'a Vec<Block>, &'a Block)>
     where
     P: Fn(&Block) -> bool  {
         // iterate through fork points
@@ -48,9 +45,9 @@ impl Forks {
             // iterate through forks from the fork point
             for (_, fork) in forks_from {
                 // iterate through blocks in the fork
-                if let Some(_) = Block::find(&fork, &prop) {
-                    let fork_id = Self::identify(fork).unwrap();
-                    return Some((fork_id, &fork))
+                if let Some(b) = Block::find(&fork, &prop) {
+                    let fork_id = Self::validate(fork).unwrap();
+                    return Some((fork_id, &fork, &b))
                 }
             }
         }
@@ -66,7 +63,7 @@ impl Forks {
             .and_then(|forks| {
                 forks.get_mut(endpoint)
                     .map(|fork| {
-                        let fork_id = Self::identify(fork);
+                        let fork_id = Self::validate(fork);
                         (fork, fork_id.unwrap())
                     }
             )})
@@ -79,7 +76,7 @@ impl Forks {
     }
 
     pub fn insert(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
-        let fork_id = Self::identify(&fork)?;
+        let fork_id = Self::validate(&fork)?;
 
         self.0.entry(fork_id.fork_hash.clone())
                     .or_insert(HashMap::new())
@@ -125,21 +122,17 @@ impl Orphans {
         Orphans(HashMap::new())
     }
 
-    pub fn identify(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
-        if orphan.is_empty() {
-            Err(NextBlockErr::NoBlocks)
-        }
-        else {
-            Ok(orphan.first().unwrap().prev_hash.clone())
-        }
+    pub fn validate(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
+        Block::validate_blocks(orphan)?;
+        Ok(orphan.first().unwrap().prev_hash.clone())
     }
 
-    pub fn find<'a, P>(&'a self, prop: P) -> Option<(OrphanId, &'a Vec<Block>)>
+    pub fn find<'a, P>(&'a self, prop: P) -> Option<(OrphanId, &'a Vec<Block>, &'a Block)>
         where
         P: Fn(&Block) -> bool  {
             for (forkpoint, orphan) in self.0.iter() {
-                if let Some(_) = Block::find(&orphan, &prop) {
-                    return Some((forkpoint.clone(), &orphan))
+                if let Some(b) = Block::find(&orphan, &prop) {
+                    return Some((forkpoint.clone(), &orphan, &b))
                 }
             }
         None
@@ -154,7 +147,7 @@ impl Orphans {
     }
 
     pub fn insert(&mut self, orphan: Vec<Block>) -> Result<OrphanId, NextBlockErr> {
-        let fork_id = Self::identify(&orphan)?;
+        let fork_id = Self::validate(&orphan)?;
         self.0.insert(fork_id.clone(), orphan);
         Ok(fork_id)
     }
@@ -163,7 +156,7 @@ impl Orphans {
         self.0.remove_entry(forkpoint).map(|res| res.1)
     }
 
-    pub fn prepend_orphan(&mut self, block : Block) -> Result<OrphanId, NextBlockErr>  {
+    pub fn extend_orphan(&mut self, block : Block) -> Result<OrphanId, NextBlockErr>  {
         let mut orphan: Vec<Block> = self.remove_entry(&block.hash).unwrap();
         Block::push_front(&mut orphan, block.clone());
         self.insert(orphan)

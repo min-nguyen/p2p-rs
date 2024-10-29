@@ -78,14 +78,14 @@ impl Block {
         let mut hasher: Sha256 = Sha256::new();
 
         // translate the block from a json value -> string -> byte array &[u8], used as input data to the hasher
-        let block_json: serde_json::Value = serde_json::json!({
+        let json: serde_json::Value = serde_json::json!({
             "idx": idx,
             "data": data,
             "timestamp": timestamp,
             "prev_hash": prev_hash,
             "nonce": nonce
         });
-        hasher.update(block_json.to_string().as_bytes());
+        hasher.update(json.to_string().as_bytes());
 
         // retrieve hash result
         let hash : [u8; 32] = hasher
@@ -102,8 +102,8 @@ impl Block {
         if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
             if block.idx != 0 { // ignore the genesis block
                 return Err(NextBlockErr::DifficultyCheckFailed {
-                    block_idx:block.idx,
-                    hash_binary,
+                    idx: block.idx,
+                    hash: block.hash.clone(),
                     difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
                 })
             }
@@ -112,8 +112,8 @@ impl Block {
         let computed_hash = Self::compute_hash(block.idx, &block.data, block.timestamp, &block.prev_hash,  block.nonce);
         if block.hash != computed_hash {
             return Err(NextBlockErr::InconsistentHash {
-                block_idx: block.idx,
-                block_hash: block.hash.clone(),
+                idx: block.idx,
+                hash: block.hash.clone(),
                 computed_hash,
             });
         }
@@ -125,10 +125,10 @@ impl Block {
     pub fn validate_child(parent: &Block, child: &Block) -> Result<(), NextBlockErr>  {
         if parent.hash != child.prev_hash || parent.idx + 1 != child.idx {
             return Err(NextBlockErr::InvalidChild  {
-                block_idx: child.idx,
-                block_prev_hash: child.prev_hash.to_string(),
-                parent_block_idx: parent.idx,
-                parent_block_hash: parent.hash.to_string()
+                idx: child.idx,
+                prev_hash: child.prev_hash.to_string(),
+                parent_idx: parent.idx,
+                parent_hash: parent.hash.to_string()
             });
         }
         Ok(())
@@ -261,39 +261,39 @@ impl std::fmt::Display for NextBlockResult {
 #[derive(Debug, Clone)]
 pub enum NextBlockErr {
     DifficultyCheckFailed {
-        block_idx: usize,
-        hash_binary: String,
+        idx: usize,
+        hash: String,
         difficulty_prefix: String,
     },
     InconsistentHash {
-        block_idx: usize,
-        block_hash: String,
+        idx: usize,
+        hash: String,
         computed_hash: String,
     },
     InvalidIndex {
-        block_idx: usize,
+        idx: usize,
         expected_idx: usize
     },
     InvalidChild {
-        block_idx: usize,
-        block_prev_hash: String,
-        parent_block_idx: usize,
-        parent_block_hash: String,
+        idx: usize,
+        prev_hash: String,
+        parent_idx: usize,
+        parent_hash: String,
     }, // Block has an inconsistent prev_hash and/or index with a specified parent
     UnrelatedGenesis {
         genesis_hash: String
     },  // Block belongs to a chain with a different genesis root
     MissingParent {
-        block_parent_idx: usize,
-        block_parent_hash: String
+        parent_idx: usize,
+        parent_hash: String
     },  // Block is missing a parent that connects it to the main chain or forks
     StrayParent {
-        block_idx: usize,
-        block_hash: String,
+        idx: usize,
+        hash: String,
     }, // Block represents a missing parent that doesn't prepend to any orphaned branches,
     Duplicate {
-        block_idx: usize,
-        block_hash: String,
+        idx: usize,
+        hash: String,
     }, // Block exists in the main chain, forks, or orphans
     NoBlocks
        // Block used in a context with an empty chain or fork
@@ -302,29 +302,29 @@ pub enum NextBlockErr {
 impl std::fmt::Display for NextBlockErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            NextBlockErr::DifficultyCheckFailed { block_idx, hash_binary, difficulty_prefix } => {
-                write!(f, "Block {}'s hash {} does not meet the difficulty target {}."
-                , block_idx, hash_binary, difficulty_prefix)
+            NextBlockErr::DifficultyCheckFailed { idx, hash, difficulty_prefix } => {
+                write!(f, "Block {}'s hash binary {} does not meet the difficulty target {}."
+                , idx, BinaryString::from_hex(&hash).expect("can convert hex string to binary"), difficulty_prefix)
             }
-            NextBlockErr::InconsistentHash { block_idx, block_hash, computed_hash } => {
+            NextBlockErr::InconsistentHash { idx, hash, computed_hash } => {
                 write!(f, "Block {}'s stored hash {} does not match its computed hash {}."
-                , block_idx, abbrev(block_hash), abbrev(computed_hash))
+                , idx, abbrev(hash), abbrev(computed_hash))
             }
-            NextBlockErr::InvalidIndex { block_idx, expected_idx } => {
+            NextBlockErr::InvalidIndex { idx, expected_idx } => {
                 write!(f, "Block {} has invalid index, whereas we expected index {}."
-                , block_idx, expected_idx)
+                , idx, expected_idx)
             }
-            NextBlockErr::InvalidChild { block_idx, block_prev_hash, parent_block_idx, parent_block_hash } => {
+            NextBlockErr::InvalidChild { idx, prev_hash, parent_idx, parent_hash } => {
                 write!(f, "Block {} with prev_hash {} should not be a child of Block {} with hash {}."
-                , block_idx, abbrev(block_prev_hash), parent_block_idx, abbrev(parent_block_hash))
+                , idx, abbrev(prev_hash), parent_idx, abbrev(parent_hash))
             }
-            NextBlockErr::MissingParent { block_parent_idx, block_parent_hash } => {
+            NextBlockErr::MissingParent { parent_idx, parent_hash } => {
                 write!(f, "Block {} is missing its parent {} with hash {} in the main chain or forks."
-                , block_parent_idx + 1, block_parent_idx, abbrev(block_parent_hash))
+                , parent_idx + 1, parent_idx, abbrev(parent_hash))
             }
-            NextBlockErr::Duplicate {block_idx, block_hash} => {
+            NextBlockErr::Duplicate {idx, hash} => {
                 write!(f, "Block {} with hash {} is a duplicate already stored in the main chain, forks, or orphans."
-                , block_idx, abbrev(block_hash))
+                , idx, abbrev(hash))
             }
             NextBlockErr::UnrelatedGenesis {genesis_hash} => {
                 write!(f, "Block belongs to a chain with a different genesis, {}."
@@ -333,9 +333,9 @@ impl std::fmt::Display for NextBlockErr {
             NextBlockErr::NoBlocks => {
                 write!(f, "Encountered an empty chain or fork.")
             }
-            NextBlockErr::StrayParent { block_idx, block_hash } => {
+            NextBlockErr::StrayParent { idx, hash } => {
                 write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
-                , block_idx, abbrev(block_hash))
+                , idx, abbrev(hash))
             }
         }
     }

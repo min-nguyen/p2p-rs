@@ -24,19 +24,19 @@ pub enum PowMessage {
         chain : chain::Chain
     },
     BlockRequest {
+        idx : usize,
+        hash : String,
         target: Option<String>,       // either to a specific peer (Some) or all peers (None)
         source : String,
-        block_idx: usize,
-        block_hash : String
     },
     BlockResponse {
+        block : block::Block,
         target : String,              // always to the specific requesting peer
         source : String,
-        block : block::Block,
     },
     NewBlock {                        // always to all peers
-        source : String,
         block : block::Block,
+        source : String,
     },
 }
 
@@ -61,8 +61,8 @@ impl std::fmt::Display for PowMessage {
                 write!(f, "Chain response that has length {}", chain.len()),
             PowMessage::NewBlock {  block , ..} =>
                 write!(f, "New block with idx {}", block.idx),
-            PowMessage::BlockRequest {  block_idx, block_hash, .. } =>
-                write!(f, "Block request for idx {} with hash {}", block_idx, abbrev(block_hash)),
+            PowMessage::BlockRequest {  idx, hash, .. } =>
+                write!(f, "Block request for idx {} with hash {}", idx, abbrev(hash)),
             PowMessage::BlockResponse {  block, .. } =>
                 write!(f, "Block response for idx {} with hash {}", block.idx, abbrev(&block.hash)),
         }

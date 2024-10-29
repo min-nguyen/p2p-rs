@@ -102,8 +102,8 @@ impl Peer {
                         update!("Remote chain couldn't be validated due to \"{}\"", e)
                 }
             },
-            PowMessage::BlockRequest { block_hash, .. } => {
-                if let Some(block)= self.chain.lookup_block_hash(&block_hash){
+            PowMessage::BlockRequest { hash, .. } => {
+                if let Some(block)= self.chain.find(|b| b.hash == hash){
                         let resp: PowMessage = PowMessage::BlockResponse {
                             target: msg.source().clone(),
                             source: self.swarm.local_peer_id().to_string(),
@@ -152,12 +152,12 @@ impl Peer {
             }
             Err(e) => {
                 update!("Block resulted in no update to chain or forks:\n\t\"{}\"", e);
-                if let NextBlockErr::MissingParent { block_parent_hash, block_parent_idx } = e {
+                if let NextBlockErr::MissingParent { parent_hash, parent_idx } = e {
                     let req = PowMessage::BlockRequest {
                         target: None,
                         source: self.swarm.local_peer_id().to_string(),
-                        block_idx: block_parent_idx,
-                        block_hash: block_parent_hash.clone(),
+                        idx: parent_idx,
+                        hash: parent_hash.clone(),
                     };
                     swarm::publish_pow_msg(req.clone(), &mut self.swarm);
                     responded!("\"{}\" to all connected peers.", req);

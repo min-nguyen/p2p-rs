@@ -6,8 +6,7 @@ mod chain_tests {
     use crate::{
         block::{Block, NextBlockErr, NextBlockResult},
         chain::{Chain, ChooseChainResult},
-        util::trace,
-        fork
+        util::trace
     };
 
     const CHAIN_LEN : usize = 5;
@@ -43,7 +42,7 @@ mod chain_tests {
         let blocks: Vec<Block> = init_chain(CHAIN_LEN).split_off(FORK_PREFIX_LEN).unwrap();
         assert!(matches!(
             trace(Chain::from_vec(blocks)),
-            Err(NextBlockErr::InvalidIndex { block_idx : 3, expected_idx: 0 })));
+            Err(NextBlockErr::InvalidIndex { idx : 3, expected_idx: 0 })));
     }
     /*****************************
      * Tests for handling new blocks *
@@ -72,7 +71,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
             trace(chain.store_new_block(dup_chain.last_block().clone())),
-            Err(NextBlockErr::MissingParent { block_parent_idx:5, .. })
+            Err(NextBlockErr::MissingParent { parent_idx:5, .. })
         ));
     }
 
@@ -83,12 +82,12 @@ mod chain_tests {
             chain.mine_block(&format!("block {}", i))
         }
         // handle an old block from the current chain that is one block older than the tip
-        let out_of_date_block: Block = chain.lookup_block_idx(chain.last_block().idx - 1).unwrap().clone();
+        let out_of_date_block: Block = chain.idx(chain.last_block().idx - 1).unwrap().clone();
         // chain: [0]---[1]---[2]---[3]---[4]
         //                     |---[*3*]
         assert!(matches!(
             trace(chain.store_new_block(out_of_date_block)),
-            Err( NextBlockErr::Duplicate { block_idx: 3, .. } )   // to-do: implement Duplicateblock
+            Err( NextBlockErr::Duplicate { idx: 3, .. } )   // to-do: implement Duplicateblock
         ));
     }
 
@@ -263,7 +262,7 @@ mod chain_tests {
         //                     |----[3]---[4]---[5]---[6]
         let res
             = main_chain
-                .connect_orphan_as_fork(fork)
+                .insert_fork(fork)
                 .and_then(|fork_id|
                     main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
 
@@ -310,7 +309,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         let res
             = main_chain
-                .connect_orphan_as_fork(fork)
+                .insert_fork(fork)
                 .and_then(|fork_id| main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
 
         assert!(matches!(
