@@ -6,44 +6,22 @@
     - Manages a local Transaction pool (which it may mine new blocks for).
 */
 
-use libp2p::{
-    PeerId,
-    futures::StreamExt,
-    swarm::{Swarm, SwarmEvent},
+use super::{
+    file,
+    crypt::pretty_hex,
+    block::{Block, NextBlockResult, NextBlockErr},
+    chain::{self, Chain},
+    transaction::Transaction,
+    message::{PowMessage, TxnMessage},
+    swarm::{self as swarm, BlockchainBehaviour},
 };
+use libp2p::{PeerId, futures::StreamExt, swarm::{Swarm, SwarmEvent}};
 use log::info;
 use tokio::{io::AsyncBufReadExt, sync::mpsc::{self, UnboundedReceiver}};
 use std::collections::HashSet;
 
-use super::file;
-use super::cryptutil::pretty_hex;
-use super::block::{Block, NextBlockResult, NextBlockErr};
-use super::chain::{self, Chain};
-use super::transaction::Transaction;
-use super::message::{PowMessage, TxnMessage};
-use super::swarm::{self as swarm, BlockchainBehaviour};
-
 const DEFAULT_FILE_PATH: &str = "blocks.json";
 
-#[macro_export]
-macro_rules! log_event {
-    ($msg:expr $(, $args:expr)*) => {
-        log_event(format_args!($msg $(, $args)*))
-    };
-}
-#[macro_export]
-macro_rules! log_no_event {
-    ($msg:expr $(, $args:expr)*) => {
-        log_no_event(format_args!($msg $(, $args)*))
-    };
-}
-
-pub fn log_event(msg: std::fmt::Arguments) {
-    println!("Event performed. {}", msg);
-}
-pub fn log_no_event(msg: std::fmt::Arguments) {
-    println!("No event performed. {}", msg);
-}
 /* Events for the peer to handle, either:
     (1) Local inputs from the terminal
     (2) Remote chain messages from miners in the network

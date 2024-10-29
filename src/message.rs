@@ -4,12 +4,13 @@
     - Messages for broadcasting new transactions.
 */
 
+use super::{
+    block,
+    chain,
+    transaction,
+    crypt::pretty_hex
+};
 use serde::{Deserialize, Serialize};
-use crate::cryptutil::pretty_hex;
-
-use super::block;
-use super::chain;
-use super::transaction;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum PowMessage {

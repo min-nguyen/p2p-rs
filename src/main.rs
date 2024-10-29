@@ -1,4 +1,6 @@
-pub mod cryptutil;
+#[macro_use]
+pub mod util;
+pub mod crypt;
 pub mod file;
 pub mod peer;
 pub mod block;

@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
 use chrono::{Utc, DateTime};
 use libp2p::{PeerId, identity::{Keypair, PublicKey}};
-use crate::cryptutil;
+use crate::crypt;
 
-use super::cryptutil::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
+use super
+    ::crypt::{encode_pubk_to_hex, decode_hex_to_pubk, encode_bytes_to_hex, decode_hex_to_bytes};
 
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
@@ -21,10 +22,10 @@ const SIG_U8S_LEN : usize = 64;
 #[derive(Debug)]
 pub enum TransactionErr {
     PubKeyDecodeErr {
-        e: cryptutil::HexDecodeErr
+        e: crypt::HexDecodeErr
     },
     SigDecodeError {
-        e: cryptutil::HexDecodeErr
+        e: crypt::HexDecodeErr
     },
     HashMismatch {
         stored_hash: String,

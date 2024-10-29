@@ -6,6 +6,9 @@
     - Sets up Swarm (that executes the NetworkBehaviour).
 */
 
+use super::
+    message::{PowMessage, TxnMessage};
+
 use libp2p::{
     gossipsub::{self, Gossipsub, GossipsubConfig, GossipsubConfigBuilder, GossipsubEvent, GossipsubMessage, IdentTopic, MessageAuthenticity, MessageId, Topic, ValidationMode},
     mplex, noise,
@@ -16,15 +19,12 @@ use libp2p::{
     swarm::{NetworkBehaviourEventProcess, Swarm, SwarmBuilder},
     tcp::TokioTcpConfig
 };
-
 use once_cell::sync::Lazy;
 use serde::Serialize;
 use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}};
 use tokio::sync::mpsc::{self, UnboundedSender};
 use log::{debug, error, info, warn};
 use std::time::Duration;
-
-use super::message::{PowMessage, TxnMessage};
 
 pub static LOCAL_KEYS: Lazy<Keypair> = Lazy::new(|| Keypair::generate_ed25519());
 static LOCAL_PEER_ID: Lazy<PeerId> = Lazy::new(|| PeerId::from(LOCAL_KEYS.public()));

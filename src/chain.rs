@@ -4,10 +4,11 @@
     - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
 */
 
+use super::{
+    block::{Block, NextBlockResult, NextBlockErr},
+    fork::{self, Forks, insert_orphan, ForkId, OrphanId, Orphans}
+};
 use serde::{Deserialize, Serialize};
-
-use super::block::{Block::{self}, NextBlockResult, NextBlockErr};
-use super::fork::{self, Forks, insert_orphan, ForkId, OrphanId, Orphans};
 use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

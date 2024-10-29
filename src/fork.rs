@@ -2,7 +2,8 @@
     *Forks and orphans*: Auxiliary helpers for managing forks and orphans, independent of a chain.
 */
 
-use super::block::{Block::{self}, NextBlockErr};
+use super::
+    block::{Block, NextBlockErr};
 use std::collections::HashMap;
 
 // Forks are represented as a set of forkpoints (from the main chain) from which various branches arise.

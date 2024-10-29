@@ -6,7 +6,9 @@
 mod block_tests {
     use crate::{
         block::{Block, NextBlockErr},
-        cryptutil::{trace, encode_bytes_to_hex, ZERO_U32}};
+        crypt::{encode_bytes_to_hex, ZERO_U32},
+        util::trace
+    };
 
     #[test]
     fn test_invalid_block_difficulty_check() {

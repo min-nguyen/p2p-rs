@@ -5,8 +5,11 @@
 #[cfg(test)]
 mod transaction_tests {
     use libp2p::identity;
-    use crate::cryptutil::{trace, encode_bytes_to_hex, encode_pubk_to_hex, ZERO_U32, ZERO_U64};
-    use crate::transaction::{Transaction, TransactionErr};
+    use crate::{
+      crypt::{encode_bytes_to_hex, encode_pubk_to_hex, ZERO_U32, ZERO_U64},
+      util::trace,
+      transaction::{Transaction, TransactionErr}
+    };
 
     /* transaction tests */
     #[test]

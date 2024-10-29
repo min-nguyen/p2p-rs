@@ -5,12 +5,12 @@
     - Result and error types from handling new blocks.
 */
 
+use super::
+    crypt::{self, pretty_hex};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 use log::info;
-
-use super::cryptutil::{self, pretty_hex};
 
 // number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
@@ -39,7 +39,7 @@ impl Block {
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
           = (0, "genesis".to_string(), 1730051971
-          , cryptutil::encode_bytes_to_hex(&cryptutil::ZERO_U32), 0);
+          , crypt::encode_bytes_to_hex(&crypt::ZERO_U32), 0);
       let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
       Block { idx, data, timestamp, prev_hash, nonce, hash }
     }
@@ -134,7 +134,7 @@ impl Block {
         .finalize() // Sha256 -> GenericArray<u8, U32>
         .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        cryptutil::encode_bytes_to_hex(&hash)
+        crypt::encode_bytes_to_hex(&hash)
     }
 
     // Validate a block as its own entity
