@@ -254,8 +254,8 @@ mod chain_tests {
         // Assert initial state of chain and its stored forks
         let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), None));
-        assert!(matches!(trace(fork::lookup_fork(forks,&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), None));
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
         // Then synchronise:
@@ -276,8 +276,8 @@ mod chain_tests {
         // Assert final state of the chain and its stored forks
         let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 7));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), Some(..)));
-        assert!(matches!(trace(fork::lookup_fork(forks,&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), Some(..)));
+        assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), None));
     }
 
     #[test]
@@ -301,8 +301,8 @@ mod chain_tests {
         // Assert initial state of chain and its stored forks
         let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), None));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), None));
 
         println!("Chain: {}\n\nFork: {:?}\n", main_chain, fork);
 
@@ -322,8 +322,8 @@ mod chain_tests {
         // Assert final state of the chain and its stored forks
         let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 5));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &main_endpoint)), None));
-        assert!(matches!(trace(fork::lookup_fork(forks, &forkpoint, &endpoint)), Some(..)));
+        assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), None));
+        assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), Some(..)));
     }
 
     #[test]
