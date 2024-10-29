@@ -6,11 +6,9 @@ use super::
     block::{Block, NextBlockErr};
 use std::collections::HashMap;
 
-// Forks are represented as a set of forkpoints (from the main chain) from which various branches arise.
-// Branches coming from the same forkpoint can share common prefixes of blocks.
-
-// <fork point, <fork end hash, forked blocks>>
-pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>;
+// Forks are represented as a set of forkpoints (from the main chain) from which various branches arise and
+// share common prefixes of blocks.
+pub type Forks = HashMap<String, HashMap<String, Vec<Block>>>; // <fork point, <fork end hash, forked blocks>>
 
 #[derive(Clone, Debug)]
 pub struct ForkId {
@@ -20,7 +18,6 @@ pub struct ForkId {
     pub end_idx: usize,
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<( ForkId, &'a Vec<Block>)>
     where
     P: Fn(&Block) -> bool  {
@@ -38,7 +35,6 @@ pub fn find_fork<'a, P>(forks: &'a Forks, prop: P) -> Option<( ForkId, &'a Vec<B
     None
 }
 
-// Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
 pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
     if fork.is_empty() {
         Err(NextBlockErr::NoBlocks)
@@ -55,12 +51,10 @@ pub fn identify_fork(fork: &Vec<Block>) -> Result<ForkId, NextBlockErr>{
     }
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn lookup_fork<'a>(forks: &'a Forks, forkpoint: &String, endpoint: &String) -> Option<&'a  Vec<Block>>{
     forks.get(forkpoint).and_then(|forks| forks.get(endpoint))
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn lookup_fork_mut<'a>(forks: &'a mut Forks, forkpoint: &String, endpoint: &String) -> Option<(&'a mut Vec<Block>, ForkId)>{
     forks.get_mut(forkpoint)
         .and_then(|forks| {
@@ -72,12 +66,10 @@ pub fn lookup_fork_mut<'a>(forks: &'a mut Forks, forkpoint: &String, endpoint: &
         )})
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn remove_fork<'a>(forks: &mut Forks,  forkpoint: &String, endpoint: &String) -> Option<Vec<Block>>{
     forks.get_mut(forkpoint).and_then(|forks| forks.remove_entry(endpoint).map(|res| res.1))
 }
 
-// Store a valid fork (replacing any existing one), returning its forkpoint, endpoint, and last block's index
 pub fn insert_nonempty_fork(forks: &mut Forks, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
     let fork_id = identify_fork(&fork)?;
 
@@ -102,11 +94,10 @@ pub fn nest_fork(forks: &mut Forks, fork_id: &ForkId, block : Block) -> Result<F
 }
 
 // Orphan branches are represented as a disjoint set of chains that are constructed backwards.
-// Each orphan branch has no blocks in common. That is, we are not immediately interested in their possible forks; these
-// are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork.
+// We do not track whether each orphan branch has blocks in common i.e. are forks of each other;
+// they are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork.
 
-// <fork point, orphaned branch>
-pub type Orphans = HashMap<String, Vec<Block>>;
+pub type Orphans = HashMap<String, Vec<Block>>; // <fork point, orphaned branch>
 pub type OrphanId = String; // fork hash
 
 pub fn identify_orphan(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
@@ -118,12 +109,10 @@ pub fn identify_orphan(orphan: &Vec<Block>) -> Result<OrphanId, NextBlockErr>{
     }
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn find_orphan<'a, P>(orphans: &'a Orphans, prop: P) -> Option<(OrphanId, &'a Vec<Block>)>
     where
     P: Fn(&Block) -> bool  {
         for (forkpoint, orphan) in orphans {
-            // iterate through blocks in the fork
             if let Some(_) = Block::find(&orphan, &prop) {
                 return Some((forkpoint.clone(), &orphan))
             }
@@ -131,7 +120,6 @@ pub fn find_orphan<'a, P>(orphans: &'a Orphans, prop: P) -> Option<(OrphanId, &'
     None
 }
 
-// Check if block is in any fork, returning the fork point, end hash, and fork
 pub fn lookup_orphan<'a>(orphans: &'a HashMap<String, Vec<Block>>, forkpoint: &String) -> Option<&'a Vec<Block>>{
     orphans.get(forkpoint)
 }

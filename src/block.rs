@@ -14,12 +14,8 @@ use serde::{Deserialize, Serialize};
 use to_binary::BinaryString;
 use log::info;
 
-// number of leading zeros required for the hashed block for the block to be valid.
 const DIFFICULTY_PREFIX: &str = "00";
 
-/* Block
-  Records some or all of the most recent data not yet validated by the network.
-*/
 #[derive(Clone, Debug, Serialize, Deserialize, Hash, PartialEq, Eq)]
 pub struct Block {
     // position in the chain
@@ -36,54 +32,14 @@ pub struct Block {
     pub hash: String,
 }
 
+/* Block core operations */
 impl Block {
     // Construct a genesis block
     pub fn genesis() -> Block {
       let (idx, data, timestamp, prev_hash, nonce)
-          = (0, "genesis".to_string(), 1730051971
-          , crypt::encode_bytes_to_hex(&crypt::ZERO_U32), 0);
+          = (0, "genesis".to_string(), 1730051971, crypt::encode_bytes_to_hex(&crypt::ZERO_U32), 0);
       let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
       Block { idx, data, timestamp, prev_hash, nonce, hash }
-    }
-
-    // Unsafe push
-    pub fn push_end(blocks: &mut Vec<Block>, new_block: Block){
-        blocks.push(new_block.clone());
-    }
-
-    // Unsafe push
-    pub fn push_front(blocks: &mut Vec<Block>, new_block: Block){
-        blocks.insert(0, new_block.clone());
-    }
-
-    // Unsafe append
-    pub fn append(blocks_pref: &mut Vec<Block>,  blocks_suff: &mut Vec<Block>){
-        blocks_pref.append(blocks_suff);
-    }
-
-    // Unsafe splitoff
-    pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
-        blocks.split_off(len)
-    }
-
-    // Unsafe splitoff until
-    pub fn split_off_until<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
-    where
-        P: Fn(&Block) -> bool,
-    {
-        if let Some(idx) = blocks.iter().position(|block| prop(&block)){
-            blocks.split_off(idx + 1)
-        }
-        else {
-            vec![]
-        }
-    }
-
-    pub fn find<'a, P>(blocks: &'a Vec<Block>, prop: P) -> Option<&'a Block>
-    where
-        P: Fn(&Block) -> bool,
-    {
-        blocks.iter().find(|block|  prop(&block))
     }
 
     // Find a valid nonce and hash to construct a new block
@@ -190,7 +146,49 @@ impl Block {
         }
         Ok(())
     }
+}
 
+/* Block auxiliary functions */
+impl Block {
+    // Unsafe push
+    pub fn push_end(blocks: &mut Vec<Block>, new_block: Block){
+        blocks.push(new_block.clone());
+    }
+
+    // Unsafe push
+    pub fn push_front(blocks: &mut Vec<Block>, new_block: Block){
+        blocks.insert(0, new_block.clone());
+    }
+
+    // Unsafe append
+    pub fn append(blocks_pref: &mut Vec<Block>,  blocks_suff: &mut Vec<Block>){
+        blocks_pref.append(blocks_suff);
+    }
+
+    // Unsafe splitoff
+    pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
+        blocks.split_off(len)
+    }
+
+    // Unsafe splitoff until
+    pub fn split_off_until<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        if let Some(idx) = blocks.iter().position(|block| prop(&block)){
+            blocks.split_off(idx + 1)
+        }
+        else {
+            vec![]
+        }
+    }
+
+    pub fn find<'a, P>(blocks: &'a Vec<Block>, prop: P) -> Option<&'a Block>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        blocks.iter().find(|block|  prop(&block))
+    }
 }
 
 impl std::fmt::Display for Block {
@@ -342,7 +340,6 @@ impl std::fmt::Display for NextBlockErr {
         }
     }
 }
-
 
 impl std::error::Error for NextBlockErr {}
 

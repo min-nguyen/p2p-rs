@@ -13,60 +13,18 @@ use std::collections::HashMap;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain {
-    main : Vec<Block>,
+    main: Vec<Block>,
     forks: Forks,
     orphans: Orphans
 }
 
+/* Chain core operations */
 impl Chain {
-    // New chain with a single genesis block
     pub fn genesis() -> Self {
         Self { main : vec![Block::genesis()], forks : HashMap::new(), orphans : HashMap::new() }
     }
 
-    // Safely construct a chain from a vector of blocks
-    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
-        let chain = Chain{main : blocks, forks : HashMap::new(), orphans :  HashMap::new()};
-        Self::validate_chain(&chain)?;
-        Ok(chain)
-    }
-
-    pub fn to_vec(&self) -> Vec<Block> {
-        self.main.clone()
-    }
-
-    pub fn forks<'a>(&'a self) -> &'a Forks {
-        &self.forks
-    }
-
-    pub fn last(&self) -> &Block {
-        self.main.last().expect("Chain should always be non-empty")
-    }
-
-    pub fn len(&self) -> usize {
-        self.main.len()
-    }
-
-    pub fn lookup_block_idx(&self, idx: usize) -> Option<&Block> {
-        self.main.get(idx)
-    }
-
-    pub fn lookup_block_hash(&self, hash: &String) -> Option<&Block> {
-        Block::find(&self.main, |block| block.hash == *hash)
-    }
-
-    // Safe split off that ensures the main chain is always non-empty
-    pub fn split_off(&mut self, len: usize) -> Option<Vec<Block>> {
-        if len == 0 {
-            None
-        }
-        else {
-            let main_chain_len = self.len();
-            Some(Block::split_off(&mut self.main, std::cmp::min(main_chain_len, len)))
-        }
-    }
-
-    pub fn handle_block_result(&mut self, res : NextBlockResult) -> Result<ChooseChainResult, NextBlockErr>{
+    pub fn handle_block_result(&mut self, res: NextBlockResult) -> Result<ChooseChainResult, NextBlockErr>{
         match res {
             NextBlockResult::ExtendedFork { fork_hash,end_hash, .. } => {
                 self.sync_to_fork(fork_hash, end_hash)
@@ -130,9 +88,9 @@ impl Chain {
             Block::validate_child(parent_block, &block)?;
 
             // See if we can append the block to the main chain
-            if self.last().hash == parent_block.hash {
+            if self.last_block().hash == parent_block.hash {
                 Block::push_end(&mut self.main, block);
-                Ok(NextBlockResult::ExtendedMain { end_idx: self.last().idx, end_hash: self.last().hash.clone() })
+                Ok(NextBlockResult::ExtendedMain { end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -180,8 +138,7 @@ impl Chain {
 
     // Mine a new valid block from given data
     pub fn mine_block(&mut self, data: &str) {
-        let last_block: &Block = self.last();
-        let new_block = Block::mine_block(last_block, data);
+        let new_block = Block::mine_block(self.last_block(), data);
         Block::push_end(&mut self.main, new_block)
     }
 
@@ -204,7 +161,7 @@ impl Chain {
         if main_genesis != other_genesis {
             return Err (NextBlockErr::UnrelatedGenesis { genesis_hash: other_genesis  })
         }
-        let (main_len, other_len) = (self.last().idx + 1, other.last().idx + 1);
+        let (main_len, other_len) = (self.last_block().idx + 1, other.last_block().idx + 1);
         if main_len < other_len {
             *self = other.clone();
             Ok(ChooseChainResult::ChooseOther { main_len, other_len })
@@ -232,7 +189,7 @@ impl Chain {
     // Swap the main chain to a fork in the pool if longer
     pub fn sync_to_fork(&mut self, fork_hash: String, end_hash: String) -> Result<ChooseChainResult, NextBlockErr>{
         if let Some((_, fork_id)) = fork::lookup_fork_mut(&mut self.forks, &fork_hash, &end_hash) {
-            let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
+            let (main_len, other_len) = (self.last_block().idx + 1, fork_id.end_idx + 1);
             if main_len < other_len {
                 // remove the fork from the fork pool
                 let mut fork
@@ -255,6 +212,67 @@ impl Chain {
             }
         }
         Ok(ChooseChainResult::KeepMain { main_len: self.len(), other_len: None })
+    }
+}
+
+/* Chain auxiliary functions */
+impl Chain {
+    pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
+        let chain = Chain{main : blocks, forks : HashMap::new(), orphans :  HashMap::new()};
+        Self::validate_chain(&chain)?;
+        Ok(chain)
+    }
+
+    pub fn to_vec(&self) -> Vec<Block> {
+        self.main.clone()
+    }
+
+    pub fn forks<'a>(&'a self) -> &'a Forks {
+        &self.forks
+    }
+
+    pub fn orphans<'a>(&'a self) -> &'a Orphans {
+        &self.orphans
+    }
+
+    pub fn len(&self) -> usize {
+        self.main.len()
+    }
+
+    pub fn last_block(&self) -> &Block {
+        self.main.last().expect("Chain should always be non-empty")
+    }
+
+    pub fn lookup_block_idx(&self, idx: usize) -> Option<&Block> {
+        self.main.get(idx)
+    }
+
+    pub fn lookup_block_hash(&self, hash: &String) -> Option<&Block> {
+        Block::find(&self.main, |block| block.hash == *hash)
+    }
+    // Safe split off that ensures the main chain is always non-empty
+    pub fn split_off(&mut self, len: usize) -> Option<Vec<Block>> {
+        if len == 0 {
+            None
+        }
+        else {
+            let main_chain_len = self.len();
+            Some(Block::split_off(&mut self.main, std::cmp::min(main_chain_len, len)))
+        }
+    }
+    pub fn print_forks(&self){
+        for (forkpoint, forks_from) in self.forks.iter(){
+            println!("Forks from {}", forkpoint);
+            for (i, (_, fork)) in forks_from.iter().enumerate(){
+                println!("Fork {}:", i);
+                fork.iter().for_each(|block| println!("{}", block));
+            }
+        }
+    }
+    pub fn print_orphans(&self){
+        for (i, orphan) in self.orphans.iter().enumerate(){
+            println!("Orphaned branch {}:\n\t{:?}\n", i, orphan.1);
+        }
     }
 }
 
@@ -296,25 +314,6 @@ impl std::fmt::Display for ChooseChainResult {
     }
 }
 
-pub fn show_forks(chain : &Chain){
-    for (forkpoint, forks_from) in chain.forks.iter(){
-        println!("Forks from {}", forkpoint);
-        for (i, (_, fork)) in forks_from.iter().enumerate(){
-            println!("Fork {}:", i);
-            fork.iter().for_each(|block| println!("{}", block));
-        }
-    }
-}
-
-pub fn show_orphans(chain : &Chain){
-    for (i, orphan) in chain.orphans.iter().enumerate(){
-        println!("Orphaned branch {}:\n\t{:?}\n", i, orphan.1);
-    }
-}
-
-pub fn abbreviate_chain(chain: &Chain) -> String {
-    format!("... [idx: {}, hash: {}]", chain.last().idx, chain.last().hash)
-}
 
 // // Return a reference to the longest stored fork
 // pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{

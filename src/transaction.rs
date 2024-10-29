@@ -18,48 +18,6 @@ use libp2p::{PeerId, identity::{Keypair, PublicKey}};
 const PUBK_U8S_LEN : usize = 36;
 const SIG_U8S_LEN : usize = 64;
 
-#[derive(Debug)]
-pub enum TransactionErr {
-    PubKeyDecodeErr {
-        e: HexDecodeErr
-    },
-    SigDecodeError {
-        e: HexDecodeErr
-    },
-    HashMismatch {
-        stored_hash: String,
-        computed_hash: String,
-    },
-    SigInvalid {
-        pubk : String,
-        hash : String,
-        sig  : String
-    }
-}
-
-impl fmt::Display for TransactionErr {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            TransactionErr::PubKeyDecodeErr { e } => {
-                write!(f, "Public Key Decode Error: {}", e)
-            }
-            TransactionErr::SigDecodeError { e } => {
-                write!(f, "Signature Decode Error: {}", e)
-            }
-            TransactionErr::HashMismatch { stored_hash, computed_hash } => {
-                write!(f, "Hash Mismatch: stored hash ({}) does not match computed hash ({})",
-                    stored_hash, computed_hash
-                )
-            }
-            TransactionErr::SigInvalid { pubk, hash, sig } => {
-                write!(f, "Signature Invalid: public key ({}), hash ({}), signature ({})",
-                    pubk, hash, sig
-                )
-            }
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 pub struct Transaction {
     pub sender: String,          // peer id of the sender
@@ -70,32 +28,6 @@ pub struct Transaction {
 
     pub hash: String,            // 32-byte hash of the above data, assuming sha256
     pub sig: String,             // 32-byte signature of the hash, assuming ed25519
-}
-
-impl std::fmt::Display for Transaction {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "\
-            ================================================\n\
-            Transaction:\n\
-            Sender:          {}\n\
-            Sender PubKey:   {}\n\
-            Receiver:        {}\n\
-            Amount:          {}\n\
-            Timestamp:       {}\n\
-            Hash:            {}\n\
-            Signature:       {}\n\
-            ================================================",
-            self.sender,
-            self.sender_pubk,
-            self.receiver,
-            self.amount,
-            DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
-            self.hash,
-            self.sig
-        )
-    }
 }
 
 impl Transaction {
@@ -152,5 +84,74 @@ impl Transaction {
             return Err (TransactionErr::SigInvalid { pubk : txn.sender_pubk.clone(), sig : txn.sig.clone(), hash: txn.hash.clone()})
         }
         Ok (())
+    }
+}
+
+
+impl std::fmt::Display for Transaction {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "\
+            ================================================\n\
+            Transaction:\n\
+            Sender:          {}\n\
+            Sender PubKey:   {}\n\
+            Receiver:        {}\n\
+            Amount:          {}\n\
+            Timestamp:       {}\n\
+            Hash:            {}\n\
+            Signature:       {}\n\
+            ================================================",
+            self.sender,
+            self.sender_pubk,
+            self.receiver,
+            self.amount,
+            DateTime::from_timestamp(self.timestamp, 0).expect("can convert timestamp"),
+            self.hash,
+            self.sig
+        )
+    }
+}
+
+#[derive(Debug)]
+pub enum TransactionErr {
+    PubKeyDecodeErr {
+        e: HexDecodeErr
+    },
+    SigDecodeError {
+        e: HexDecodeErr
+    },
+    HashMismatch {
+        stored_hash: String,
+        computed_hash: String,
+    },
+    SigInvalid {
+        pubk : String,
+        hash : String,
+        sig  : String
+    }
+}
+
+impl fmt::Display for TransactionErr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TransactionErr::PubKeyDecodeErr { e } => {
+                write!(f, "Public Key Decode Error: {}", e)
+            }
+            TransactionErr::SigDecodeError { e } => {
+                write!(f, "Signature Decode Error: {}", e)
+            }
+            TransactionErr::HashMismatch { stored_hash, computed_hash } => {
+                write!(f, "Hash Mismatch: stored hash ({}) does not match computed hash ({})",
+                    stored_hash, computed_hash
+                )
+            }
+            TransactionErr::SigInvalid { pubk, hash, sig } => {
+                write!(f, "Signature Invalid: public key ({}), hash ({}), signature ({})",
+                    pubk, hash, sig
+                )
+            }
+        }
     }
 }

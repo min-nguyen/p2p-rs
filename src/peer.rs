@@ -288,11 +288,10 @@ impl Peer {
             },
             Some(data) => {
                 self.chain.mine_block(&data);
-                update!("Mined and pushed the following new block to chain:\n\
-                         {}", self.chain.last());
+                update!("Mined and pushed a new block to main chain:\n{}", self.chain.last_block());
                 let msg: PowMessage = PowMessage::NewBlock {
                                             source: self.swarm.local_peer_id().to_string(),
-                                            block: self.chain.last().clone()
+                                            block: self.chain.last_block().clone()
                                         };
                 swarm::publish_pow_msg(msg.clone(), &mut self.swarm);
                 responded!("\"{}\" to all connected peers", msg);
@@ -333,11 +332,11 @@ impl Peer {
             }
             "forks"   => {
                 println!("Current forks:\n");
-                chain::show_forks(&self.chain);
+                self.chain.print_forks();
             }
             "orphans"   => {
                 println!("Current orphans:\n");
-                chain::show_orphans(&self.chain);
+                self.chain.print_orphans();
             }
             "peers"   => {
                 let (dscv_peers, conn_peers): (Vec<PeerId>, Vec<PeerId>)
