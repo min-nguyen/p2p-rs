@@ -48,7 +48,7 @@ impl Chain {
         }
         // Lookup the block as the forkpoint for any orphan branches
         else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
-            Block::validate_parent(&block, &orphan.first().unwrap())?;
+            Block::validate_parent(&block, &orphan.first())?;
             let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
             self.connect_orphan_as_fork(&orphan_id)
                 .map(|fork_id| fork_id.into_new_fork_result())
@@ -59,11 +59,11 @@ impl Chain {
     }
 
     // Try to connect an orphan branch as a fork from the main chain
-    pub fn connect_orphan_as_fork(&mut self, orphan: &OrphanId) -> Result<ForkId, NextBlockErr>{
-        let orphan = self.orphans.get(orphan).unwrap();
-        Self::validate_fork(&self, &orphan)?;
-        let fork_id = self.forks.insert(orphan.clone())?;
-        self.orphans.remove_entry(&Orphans::validate(&orphan)?);
+    pub fn connect_orphan_as_fork(&mut self, orphan_id: &OrphanId) -> Result<ForkId, NextBlockErr>{
+        let orphan = self.orphans.get(orphan_id).unwrap();
+        Self::validate_fork(&self, orphan)?;
+        let fork_id = self.forks.insert(orphan.clone());
+        self.orphans.remove_entry(orphan_id);
         Ok(fork_id)
     }
 
@@ -74,13 +74,13 @@ impl Chain {
         let is_parent = |b: &Block| { Block::validate_parent(b, &block).is_ok()};
 
         // Search for block in the main chain and forks
-        if            self.find(is_duplicate).is_some()
-            ||  self.forks.find(is_duplicate).is_some()  {
+        if            self.find(&is_duplicate).is_some()
+            ||  self.forks.find(&is_duplicate).is_some()  {
             Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
         // Search for parent block in the main chain.
         else if let Some(parent)
-                = self.find(is_parent){
+                = self.find(&is_parent){
 
             // See if we can append the block to the main chain
             if &self.last().hash == &parent.hash {
@@ -89,13 +89,13 @@ impl Chain {
             }
             // Otherwise attach a single-block fork to the main chain
             else {
-                let fork_id = self.forks.insert(vec![block.clone()])?;
+                let fork_id = self.forks.insert(Blocks::from_vec(vec![block.clone()])?);
                 Ok(fork_id.into_new_fork_result())
             }
         }
         // Search for parent block in the forks.
         else if let Some((ForkId {fork_hash, end_hash, ..}, _, parent))
-                 = self.forks.find(is_parent) {
+                 = self.forks.find(&is_parent) {
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
             if  parent.hash == end_hash {
@@ -112,7 +112,7 @@ impl Chain {
         else {
             if block.idx > 0 {
                 // Insert as a single-block orphan
-                self.orphans.insert(vec![block.clone()])?;
+                self.orphans.insert(Blocks::from_vec(vec![block.clone()])?);
                 Err(NextBlockErr::MissingParent {
                         parent_idx: block.idx - 1,
                         parent_hash: block.prev_hash
@@ -158,13 +158,11 @@ impl Chain {
     }
 
     // Validate fork as a branch off the main chain
-    pub fn validate_fork(&self, fork: &Vec<Block>) -> Result<(), NextBlockErr> {
-        Forks::validate(fork)?;
-
-        let first_block = fork.first().unwrap();
+    pub fn validate_fork(&self, fork: &Blocks) -> Result<(), NextBlockErr> {
+        let first_block = fork.first();
         let is_parent = |b: &Block| { Block::validate_parent(b, &first_block).is_ok()};
 
-        if let Some(..) = self.find(|b| is_parent(b)) {
+        if let Some(..) = self.find(&is_parent) {
             Ok (())
         }
         // catch when the fork has extended all the way to the genesis block (should generally not happen)
@@ -197,10 +195,10 @@ impl Chain {
                     = self.main.split_off_until( |b| b.hash == *fork_id.fork_hash);
                 // if the removed suffix is non-empty, insert it as a fork
                 if let Some(suffix) = main_suffix {
-                    self.forks.insert(suffix)?;
+                    self.forks.insert(suffix);
                 }
                 // append the fork to the truncated main chain
-                Blocks::append(&mut self.main, Blocks::from_vec(fork)?);
+                Blocks::append(&mut self.main, fork)?;
 
                 return Ok(ChooseChainResult::ChooseOther { main_len, other_len })
             }
@@ -230,7 +228,7 @@ impl Chain {
         self.main.len()
     }
 
-    pub fn find<'a, P> (&'a self, prop: P) -> Option<&'a Block>
+    pub fn find<'a, P> (&'a self, prop: &P) -> Option<&'a Block>
     where P: Fn(&Block) -> bool{
         self.main.find(prop)
     }
@@ -251,7 +249,7 @@ impl Chain {
         &self.forks
     }
 
-    pub fn insert_fork(&mut self, fork: Vec<Block>) -> Result<ForkId, NextBlockErr>{
+    pub fn insert_fork(&mut self, fork: Blocks) -> ForkId {
         self.forks.insert(fork)
     }
 

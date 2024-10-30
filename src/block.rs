@@ -273,6 +273,15 @@ impl Blocks {
     }
 }
 
+impl std::fmt::Display for Blocks {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        for (_, block) in self.iter().enumerate() {
+            writeln!(f, "{}", block )?;
+        };
+        Ok(())
+    }
+}
+
 // The result of adding a new block to a blockchain network
 #[derive(Debug)]
 pub enum NextBlockResult {

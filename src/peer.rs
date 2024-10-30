@@ -103,7 +103,7 @@ impl Peer {
                 }
             },
             PowMessage::BlockRequest { hash, .. } => {
-                if let Some(block)= self.chain.find(|b| b.hash == hash){
+                if let Some(block)= self.chain.find(&|b| {b.hash == hash}){
                         let resp: PowMessage = PowMessage::BlockResponse {
                             target: msg.source().clone(),
                             source: self.swarm.local_peer_id().to_string(),
@@ -288,10 +288,10 @@ impl Peer {
             },
             Some(data) => {
                 self.chain.mine_block(&data);
-                update!("Mined and pushed a new block to main chain:\n{}", self.chain.last_block());
+                update!("Mined and pushed a new block to main chain:\n{}", self.chain.last());
                 let msg: PowMessage = PowMessage::NewBlock {
                                             source: self.swarm.local_peer_id().to_string(),
-                                            block: self.chain.last_block().clone()
+                                            block: self.chain.last().clone()
                                         };
                 swarm::publish_pow_msg(msg.clone(), &mut self.swarm);
                 responded!("\"{}\" to all connected peers", msg);

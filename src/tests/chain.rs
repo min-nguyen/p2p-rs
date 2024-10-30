@@ -187,7 +187,7 @@ mod chain_tests {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
         let main_chain: Chain = init_chain(CHAIN_LEN);
-        let fork: Vec<Block> = {
+        let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
             for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
@@ -203,22 +203,11 @@ mod chain_tests {
         ));
     }
     #[test]
-    fn test_validate_fork_empty(){
-        // chain: [0]---[1]---[2]---[3]---[4]
-        // fork:
-        let main_chain: Chain = init_chain(CHAIN_LEN);
-        let fork: Vec<Block> = vec![];
-        assert!(matches!(
-            trace(Chain::validate_fork(&main_chain, &fork)),
-            Err(NextBlockErr::NoBlocks)
-        ));
-    }
-    #[test]
     fn test_validate_fork_missing_parent(){
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[*4*]
         let main_chain: Chain = init_chain(CHAIN_LEN);
-        let fork: Vec<Block> = {
+        let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
             for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
@@ -240,7 +229,7 @@ mod chain_tests {
         // Make a forked_chain that is 2 blocks longer than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
-        let fork: Vec<Block> = {
+        let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
             for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) + 2 {
@@ -248,7 +237,7 @@ mod chain_tests {
             }
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
-        let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+        let (forkpoint, endpoint) = (fork.first().prev_hash.clone(), fork.last().hash.clone());
 
         // Assert initial state of chain and its stored forks
         let forks = main_chain.forks();
@@ -260,11 +249,8 @@ mod chain_tests {
         // Then synchronise:
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
-        let res
-            = main_chain
-                .insert_fork(fork)
-                .and_then(|fork_id|
-                    main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
+        let fork_id = main_chain.insert_fork(fork);
+        let res = main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash);
 
         assert!(matches!(
             trace(res),
@@ -287,7 +273,7 @@ mod chain_tests {
         // Make a forked_chain that is 1 block shorter than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]
-        let fork: Vec<Block> = {
+        let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
             for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) - 1 {
@@ -295,7 +281,7 @@ mod chain_tests {
             }
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
-        let (forkpoint, endpoint) = (fork.first().unwrap().prev_hash.clone(), fork.last().unwrap().hash.clone());
+        let (forkpoint, endpoint) = (fork.first().prev_hash.clone(), fork.last().hash.clone());
 
         // Assert initial state of chain and its stored forks
         let forks = main_chain.forks();
@@ -307,10 +293,8 @@ mod chain_tests {
 
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]
-        let res
-            = main_chain
-                .insert_fork(fork)
-                .and_then(|fork_id| main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash) );
+        let fork_id = main_chain.insert_fork(fork);
+        let res = main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash);
 
         assert!(matches!(
             trace(res),
