@@ -43,16 +43,16 @@ impl Chain {
         let is_duplicate = |b: &Block| {b.hash == block.hash};
 
         // Search for block in the orphans.
-        if let Some(..) = self.orphans.find(|b| is_duplicate(b)){
+        if let Some(..) = self.orphans.find(is_duplicate){
             Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
-        // Search for child block only at the head of the orphans.
+        // Lookup the block as the forkpoint for any orphan branches
         else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
             Block::validate_child(&block, &orphan.first().unwrap())?;
             let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
             match self.connect_orphan_as_fork(&orphan_id) {
                 Ok(fork_id) => {
-                    Ok(NextBlockResult::NewFork {
+                    Ok(NextBlockResult::NewFork { // ForkId as NewFork? (cast)
                         fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
                         end_idx:  fork_id.end_idx, end_hash:  fork_id.end_hash,
                     })
@@ -81,13 +81,13 @@ impl Chain {
         let is_parent = |b: &Block| { Block::validate_child(b, &block).is_ok()};
 
         // Search for block in the main chain and forks
-        if            self.find(|b| is_duplicate(b)).is_some()
-            ||  self.forks.find(|b| is_duplicate(b)).is_some()  {
+        if            self.find(is_duplicate).is_some()
+            ||  self.forks.find(is_duplicate).is_some()  {
             Err(NextBlockErr::Duplicate { idx: block.idx, hash: block.hash })
         }
         // Search for parent block in the main chain.
         else if let Some(parent)
-                = self.find(|b| is_parent(b)){
+                = self.find(is_parent){
 
             // See if we can append the block to the main chain
             if self.last_block().hash == parent.hash {
@@ -105,7 +105,7 @@ impl Chain {
         }
         // Search for parent block in the forks.
         else if let Some((ForkId {fork_hash, end_hash, ..}, _, parent))
-                 = self.forks.find(|b| is_parent(b)) {
+                 = self.forks.find(is_parent) {
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
             if  parent.hash == end_hash {
@@ -247,7 +247,7 @@ impl Chain {
 
     pub fn find<'a, P> (&'a self, prop: P) -> Option<&'a Block>
     where P: Fn(&Block) -> bool{
-        Block::find(&self.main, |block| prop(block))
+        Block::find(&self.main, prop)
     }
 
     pub fn idx(&self, idx: usize) -> Option<&Block> {
