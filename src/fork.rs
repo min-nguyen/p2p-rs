@@ -3,7 +3,7 @@
 */
 
 use super::
-    block::{Block, NextBlockErr};
+    block::{Block, NextBlockResult, NextBlockErr};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -12,13 +12,6 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Forks(HashMap<String, HashMap<String, Vec<Block>>>); // <fork point, <fork end hash, forked blocks>>
 
-#[derive(Clone, Debug)]
-pub struct ForkId {
-    pub fork_hash: String,
-    pub fork_idx: usize,
-    pub end_hash: String,
-    pub end_idx: usize,
-}
 impl Forks {
     pub fn new() -> Self {
         Forks(HashMap::new())
@@ -105,6 +98,34 @@ impl Forks {
                 println!("Fork {}:", i);
                 fork.iter().for_each(|block| println!("{}", block));
             }
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ForkId {
+    pub fork_hash: String,
+    pub fork_idx: usize,
+    pub end_hash: String,
+    pub end_idx: usize,
+}
+
+impl ForkId {
+    pub fn into_extended_fork_result(self) -> NextBlockResult {
+        NextBlockResult::ExtendedFork {
+            fork_idx: self.fork_idx,
+            fork_hash: self.fork_hash,
+            end_idx: self.end_idx,
+            end_hash: self.end_hash,
+        }
+    }
+
+    pub fn into_new_fork_result(self) -> NextBlockResult {
+        NextBlockResult::NewFork {
+            fork_idx: self.fork_idx,
+            fork_hash: self.fork_hash,
+            end_idx: self.end_idx,
+            end_hash: self.end_hash,
         }
     }
 }

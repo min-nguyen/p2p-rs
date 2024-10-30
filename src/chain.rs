@@ -50,15 +50,8 @@ impl Chain {
         else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
             Block::validate_child(&block, &orphan.first().unwrap())?;
             let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
-            match self.connect_orphan_as_fork(&orphan_id) {
-                Ok(fork_id) => {
-                    Ok(NextBlockResult::NewFork { // ForkId as NewFork? (cast)
-                        fork_idx: fork_id.fork_idx, fork_hash: fork_id.fork_hash,
-                        end_idx:  fork_id.end_idx, end_hash:  fork_id.end_hash,
-                    })
-                },
-                Err(e) => Err(e),
-            }
+            self.connect_orphan_as_fork(&orphan_id)
+                .map(|fork_id| fork_id.into_new_fork_result())
         }
         else {
             Err(NextBlockErr::StrayParent { idx: block.idx, hash: block.hash })
@@ -90,17 +83,14 @@ impl Chain {
                 = self.find(is_parent){
 
             // See if we can append the block to the main chain
-            if self.last_block().hash == parent.hash {
+            if &self.last_block().hash == &parent.hash {
                 Block::push_end(&mut self.main, block);
-                Ok(NextBlockResult::ExtendedMain {
-                    end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
+                Ok(NextBlockResult::ExtendedMain { end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
-                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
-                    = self.forks.insert(vec![block.clone()])?;
-
-                Ok(NextBlockResult::NewFork {fork_idx, fork_hash, end_idx, end_hash })
+                let fork_id = self.forks.insert(vec![block.clone()])?;
+                Ok(fork_id.into_new_fork_result())
             }
         }
         // Search for parent block in the forks.
@@ -109,17 +99,13 @@ impl Chain {
 
             // If its parent was the last block in the fork, append the block and update the endpoint key
             if  parent.hash == end_hash {
-                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
-                    = self.forks.extend_fork(&fork_hash, &end_hash, block)?;
-
-                Ok(NextBlockResult::ExtendedFork {fork_idx, fork_hash, end_idx, end_hash })
+                let fork_id: ForkId = self.forks.extend_fork(&fork_hash, &end_hash, block)?;
+                Ok(fork_id.into_extended_fork_result())
             }
             // Otherwise create a new fork from the main chain that clones the prefix of an existing fork
             else {
-                let ForkId { fork_idx, fork_hash, end_idx, end_hash}
-                    = self.forks.nest_fork(&fork_hash, &end_hash, block)?;
-
-                Ok(NextBlockResult::NewFork {fork_idx, fork_hash, end_idx, end_hash })
+                let fork_id: ForkId = self.forks.nest_fork(&fork_hash, &end_hash, block)?;
+                Ok(fork_id.into_new_fork_result())
             }
         }
         // Otherwise, report a missing block that connects it to the current network
