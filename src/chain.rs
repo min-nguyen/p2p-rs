@@ -5,14 +5,14 @@
 */
 
 use super::{
-    block::{Block, NextBlockResult, NextBlockErr},
+    block::{Block, Blocks, NextBlockResult, NextBlockErr},
     fork::{Forks, ForkId, OrphanId, Orphans}
 };
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Chain {
-    main: Vec<Block>,
+    main: Blocks,
     forks: Forks,
     orphans: Orphans
 }
@@ -20,7 +20,7 @@ pub struct Chain {
 /* Chain core operations */
 impl Chain {
     pub fn genesis() -> Self {
-        Self { main : vec![Block::genesis()], forks : Forks::new(), orphans : Orphans::new()}
+        Self { main : Blocks::genesis(), forks : Forks::new(), orphans : Orphans::new()}
     }
 
     pub fn handle_block_result(&mut self, res: NextBlockResult) -> Result<ChooseChainResult, NextBlockErr>{
@@ -38,7 +38,7 @@ impl Chain {
     }
 
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
-        Block::validate_block(&block)?;
+        Block::validate(&block)?;
 
         let is_duplicate = |b: &Block| {b.hash == block.hash};
 
@@ -48,7 +48,7 @@ impl Chain {
         }
         // Lookup the block as the forkpoint for any orphan branches
         else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
-            Block::validate_child(&block, &orphan.first().unwrap())?;
+            Block::validate_parent(&block, &orphan.first().unwrap())?;
             let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
             self.connect_orphan_as_fork(&orphan_id)
                 .map(|fork_id| fork_id.into_new_fork_result())
@@ -68,10 +68,10 @@ impl Chain {
     }
 
     pub fn store_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr>{
-        Block::validate_block(&block)?;
+        Block::validate(&block)?;
 
         let is_duplicate = |b: &Block| {b.hash == block.hash};
-        let is_parent = |b: &Block| { Block::validate_child(b, &block).is_ok()};
+        let is_parent = |b: &Block| { Block::validate_parent(b, &block).is_ok()};
 
         // Search for block in the main chain and forks
         if            self.find(is_duplicate).is_some()
@@ -83,9 +83,9 @@ impl Chain {
                 = self.find(is_parent){
 
             // See if we can append the block to the main chain
-            if &self.last_block().hash == &parent.hash {
-                Block::push_end(&mut self.main, block);
-                Ok(NextBlockResult::ExtendedMain { end_idx: self.last_block().idx, end_hash: self.last_block().hash.clone() })
+            if &self.last().hash == &parent.hash {
+                Blocks::push_end(&mut self.main, block);
+                Ok(NextBlockResult::ExtendedMain { end_idx: self.last().idx, end_hash: self.last().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
             else {
@@ -126,14 +126,12 @@ impl Chain {
 
     // Mine a new valid block from given data
     pub fn mine_block(&mut self, data: &str) {
-        let new_block = Block::mine_block(self.last_block(), data);
-        Block::push_end(&mut self.main, new_block)
+        self.main.mine_block(data)
     }
 
-    // Validate chain, expecting its first block to begin at idx 0
+    // Validate chain expecting its first block to begin at idx 0
     pub fn validate(&self) -> Result<(), NextBlockErr> {
-        Block::validate_blocks(&self.main)?;
-        let first_block = self.main.first().unwrap();
+        let first_block: &Block = self.main.first();
         if first_block.idx == 0 {
             Ok(())
         }
@@ -146,11 +144,11 @@ impl Chain {
     pub fn sync_to_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
         Chain::validate(&other)?;
         let (main_genesis, other_genesis)
-            = (self.main.first().unwrap().hash.clone(), other.main.first().unwrap().hash.clone());
+            = (self.main.first().hash.clone(), other.main.first().hash.clone());
         if main_genesis != other_genesis {
             return Err (NextBlockErr::UnrelatedGenesis { genesis_hash: other_genesis  })
         }
-        let (main_len, other_len) = (self.last_block().idx + 1, other.last_block().idx + 1);
+        let (main_len, other_len) = (self.last().idx + 1, other.last().idx + 1);
         if main_len < other_len {
             *self = other.clone();
             Ok(ChooseChainResult::ChooseOther { main_len, other_len })
@@ -164,14 +162,14 @@ impl Chain {
         Forks::validate(fork)?;
 
         let first_block = fork.first().unwrap();
-        let is_parent = |b: &Block| { Block::validate_child(b, &first_block).is_ok()};
+        let is_parent = |b: &Block| { Block::validate_parent(b, &first_block).is_ok()};
 
         if let Some(..) = self.find(|b| is_parent(b)) {
             Ok (())
         }
         // catch when the fork has extended all the way to the genesis block (should generally not happen)
         else if first_block.idx == 0 {
-            if first_block.hash == self.main.first().unwrap().hash {
+            if first_block.hash == self.main.first().hash {
                 Ok (())
             }
             else {
@@ -188,22 +186,21 @@ impl Chain {
     // Swap the main chain to a fork in the pool if longer
     pub fn sync_to_fork(&mut self, fork_hash: String, end_hash: String) -> Result<ChooseChainResult, NextBlockErr>{
         if let Some((_, fork_id)) = self.forks.get_mut(&fork_hash, &end_hash) {
-            let (main_len, other_len) = (self.last_block().idx + 1, fork_id.end_idx + 1);
+            let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
             if main_len < other_len {
                 // remove the fork from the fork pool
-                let mut fork
+                let fork
                     = self.forks.remove_entry(&fork_id.fork_hash, &fork_id.end_hash)
                                 .expect("fork definitely exists; we just stored it");
-                // truncate the main chain to the forkpoint, and append the fork to it
-                let main_suffix: Vec<Block>
-                    = Block::split_off_until(&mut self.main, |b| b.hash == *fork_id.fork_hash);
-                Block::append(&mut self.main, &mut fork);
-
-                // insert the removed suffix of the main chain as a new fork if non-empty (i.e., if the fork doesn't directly extend from it)
-                // the only case it is non-empty
-                if !main_suffix.is_empty() {
-                    self.forks.insert(main_suffix)?;
+                // truncate the main chain to include the forkpoint as its last block
+                let main_suffix: Option<Blocks>
+                    = self.main.split_off_until( |b| b.hash == *fork_id.fork_hash);
+                // if the removed suffix is non-empty, insert it as a fork
+                if let Some(suffix) = main_suffix {
+                    self.forks.insert(suffix)?;
                 }
+                // append the fork to the truncated main chain
+                Blocks::append(&mut self.main, Blocks::from_vec(fork)?);
 
                 return Ok(ChooseChainResult::ChooseOther { main_len, other_len })
             }
@@ -217,14 +214,16 @@ impl Chain {
 
 /* Chain auxiliary functions */
 impl Chain {
+    // Constructor
     pub fn from_vec(blocks: Vec<Block>) -> Result<Chain, NextBlockErr> {
-        let chain = Chain{main : blocks, forks: Forks::new(), orphans: Orphans::new()};
-        Self::validate(&chain)?;
+        let chain = Chain{main : Blocks::from_vec(blocks)?, forks: Forks::new(), orphans: Orphans::new()};
+        chain.validate()?;
         Ok(chain)
     }
 
-    pub fn to_vec(&self) -> Vec<Block> {
-        self.main.clone()
+    // Destructor
+    pub fn to_vec(self) -> Vec<Block> {
+        self.main.to_vec()
     }
 
     pub fn len(&self) -> usize {
@@ -233,26 +232,19 @@ impl Chain {
 
     pub fn find<'a, P> (&'a self, prop: P) -> Option<&'a Block>
     where P: Fn(&Block) -> bool{
-        Block::find(&self.main, prop)
+        self.main.find(prop)
     }
 
     pub fn idx(&self, idx: usize) -> Option<&Block> {
         self.main.get(idx)
     }
 
-    pub fn last_block(&self) -> &Block {
-        self.main.last().expect("Chain should always be non-empty")
+    pub fn last(&self) -> &Block {
+        self.main.last()
     }
 
-    // Safe split off that ensures the main chain is always non-empty
-    pub fn split_off(&mut self, len: usize) -> Option<Vec<Block>> {
-        if len == 0 {
-            None
-        }
-        else {
-            let main_chain_len = self.len();
-            Some(Block::split_off(&mut self.main, std::cmp::min(main_chain_len, len)))
-        }
+    pub fn split_off(&mut self, len: usize) -> Option<Blocks> {
+        self.main.split_off(len)
     }
 
     pub fn forks<'a>(&'a self) -> &'a Forks {
@@ -278,10 +270,7 @@ impl Chain {
 
 impl std::fmt::Display for Chain {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for (_, block) in self.main.iter().enumerate() {
-            writeln!(f, "{}", block )?;
-        };
-        Ok(())
+       writeln!(f, "{}", self.main)
     }
 }
 

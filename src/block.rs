@@ -96,7 +96,7 @@ impl Block {
     }
 
     // Validate a block as its own entity
-    pub fn validate_block(block: &Block) -> Result<(), NextBlockErr> {
+    pub fn validate(block: &Block) -> Result<(), NextBlockErr> {
         //   check if block's hash has a valid number of leading zeros
         let BinaryString(hash_binary) = BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
         if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
@@ -122,7 +122,7 @@ impl Block {
     }
 
     // Validate two consecutive blocks
-    pub fn validate_child(parent: &Block, child: &Block) -> Result<(), NextBlockErr>  {
+    pub fn validate_parent(parent: &Block, child: &Block) -> Result<(), NextBlockErr>  {
         if parent.hash != child.prev_hash || parent.idx + 1 != child.idx {
             return Err(NextBlockErr::InvalidChild  {
                 idx: child.idx,
@@ -132,62 +132,6 @@ impl Block {
             });
         }
         Ok(())
-    }
-
-    // Validate a non-empty sequence of blocks (i.e. a subchain)
-    pub fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
-        let mut curr: &Block = blocks.first().ok_or(NextBlockErr::NoBlocks)?;
-        Block::validate_block(curr)?;
-        for i in 0..blocks.len() - 1 {
-            let next = blocks.get(i + 1).unwrap();
-            Block::validate_block(next)?;
-            Block::validate_child(curr, next)?;
-            curr = next;
-        }
-        Ok(())
-    }
-}
-
-/* Block auxiliary functions */
-impl Block {
-    // Unsafe push
-    pub fn push_end(blocks: &mut Vec<Block>, new_block: Block){
-        blocks.push(new_block.clone());
-    }
-
-    // Unsafe push
-    pub fn push_front(blocks: &mut Vec<Block>, new_block: Block){
-        blocks.insert(0, new_block.clone());
-    }
-
-    // Unsafe append
-    pub fn append(blocks_pref: &mut Vec<Block>,  blocks_suff: &mut Vec<Block>){
-        blocks_pref.append(blocks_suff);
-    }
-
-    // Unsafe splitoff
-    pub fn split_off(blocks: &mut Vec<Block>, len: usize) -> Vec<Block>{
-        blocks.split_off(len)
-    }
-
-    // Unsafe splitoff until
-    pub fn split_off_until<P>(blocks: &mut Vec<Block>, prop: P) -> Vec<Block>
-    where
-        P: Fn(&Block) -> bool,
-    {
-        if let Some(idx) = blocks.iter().position(|block| prop(&block)){
-            blocks.split_off(idx + 1)
-        }
-        else {
-            vec![]
-        }
-    }
-
-    pub fn find<'a, P>(blocks: &'a Vec<Block>, prop: P) -> Option<&'a Block>
-    where
-        P: Fn(&Block) -> bool,
-    {
-        blocks.iter().find(|block|  prop(&block))
     }
 }
 
@@ -207,6 +151,125 @@ impl std::fmt::Display for Block {
             self.prev_hash,
             self.hash,
         )
+    }
+}
+
+/* Blocks */
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Blocks(Vec<Block>);
+
+impl Blocks {
+    // Construct a genesis block
+    pub fn genesis() -> Blocks {
+        Blocks(vec![Block::genesis()])
+    }
+
+    // Safe constructor
+    pub fn from_vec(vec: Vec<Block>) -> Result<Blocks, NextBlockErr> {
+        Self::validate_blocks(&vec)?;
+        Ok(Blocks(vec))
+    }
+
+    // Destructor
+    pub fn to_vec(self)  -> Vec<Block> {
+        self.0
+    }
+
+    // Mine a new valid block from given data
+    pub fn mine_block(&mut self, data: &str) {
+        let new_block = Block::mine_block(self.last(), data);
+        self.0.push(new_block)
+    }
+
+    // Validate a non-empty sequence of blocks
+    pub fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
+        let mut curr: &Block = blocks.first().ok_or(NextBlockErr::NoBlocks)?;
+        Block::validate(curr)?;
+        for i in 0..blocks.len() - 1 {
+            let next = blocks.get(i + 1).unwrap();
+            Block::validate(next)?;
+            Block::validate_parent(curr, next)?;
+            curr = next;
+        }
+        Ok(())
+    }
+
+    pub fn get(&self, idx: usize)  -> Option<&Block> {
+        self.0.get(idx)
+    }
+
+    pub fn first(&self) -> &Block {
+        self.0.first().expect("Blocks should always be non-empty")
+    }
+
+    pub fn last(&self) -> &Block {
+        self.0.last().expect("Blocks should always be non-empty")
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    // Safe push
+    pub fn push_end(&mut self, new_block: Block) -> Result<(), NextBlockErr>  {
+        Block::validate_parent(self.last(), &new_block)?;
+        self.0.push(new_block);
+        Ok(())
+    }
+
+    // Safe push
+    pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr>{
+        Block::validate_parent(self.first(), &new_block)?;
+        self.0.insert(0, new_block);
+        Ok(())
+    }
+
+    // Safe append. Performs nothing if the suffix is empty.
+    pub fn append(&mut self, mut suffix: Blocks) -> Result<(), NextBlockErr>{
+        Block::validate_parent(self.last(), suffix.first())?;
+        self.0.append(&mut suffix.0);
+        Ok (())
+    }
+
+    // Splitoff that ensures the resulting Self is always non-empty, and does and returns nothing if len > Self.len().
+    pub fn split_off(&mut self, len: usize) -> Option<Blocks> {
+        if len > 0 {
+            let suffix: Vec<Block> = self.0.split_off(std::cmp::min(self.len(), len));
+            if suffix.len() > 0 {
+                Some(Blocks(suffix))
+            }
+            else {
+                None
+            }
+        }
+        else {
+            panic!("Blocks::splitoff called with unsafe len {} for a vector of length {}", len, self.len());
+        }
+    }
+
+    // Splitoff until that ensures the resulting Self is always non-empty by keeping the block for the property holds,
+    // and does and returns nothing if not able to find that block.
+    pub fn split_off_until<P>( &mut self, prop: P) -> Option<Blocks>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        if let Some(idx) = self.0.iter().position(|block| prop(&block)){
+            self.split_off(idx + 1)
+        }
+        else {
+            None
+        }
+    }
+
+    pub fn find<'a, P>(&'a self, prop: &P) -> Option<&'a Block>
+    where
+        P: Fn(&Block) -> bool,
+    {
+        self.0.iter().find(|block|  prop(block))
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<Block> {
+        self.0.iter()
     }
 }
 
