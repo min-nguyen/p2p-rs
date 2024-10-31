@@ -1,4 +1,3 @@
-
 /******************
       TESTS
 ********************/
@@ -7,7 +6,7 @@ mod block_tests {
     use crate::{
         block::{Block, NextBlockErr},
         crypt::{encode_bytes_to_hex, ZERO_U32},
-        util::trace
+        util::trace,
     };
 
     #[test]
@@ -31,8 +30,7 @@ mod block_tests {
 
         let invalid_hash = Block {
             hash: encode_bytes_to_hex(ZERO_U32),
-            ..
-            valid_block.clone()
+            ..valid_block.clone()
         };
 
         assert!(matches!(
@@ -44,9 +42,6 @@ mod block_tests {
     fn test_valid_block() {
         let valid_block = Block::mine_block(&Block::genesis(), "test");
 
-        assert!(matches!(
-            Block::validate(&valid_block),
-            Ok(())
-        ));
+        assert!(matches!(Block::validate(&valid_block), Ok(())));
     }
 }

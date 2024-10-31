@@ -6,47 +6,53 @@ mod chain_tests {
     use crate::{
         block::{Block, Blocks, NextBlockErr, NextBlockResult},
         chain::{Chain, ChooseChainResult},
-        util::trace
+        util::trace,
     };
 
-    const CHAIN_LEN : usize = 5;
-    const FORK_PREFIX_LEN : usize = 3;
+    const CHAIN_LEN: usize = 5;
+    const FORK_PREFIX_LEN: usize = 3;
 
-    fn init_chain(n : usize) -> Chain {
+    fn init_chain(n: usize) -> Chain {
         let mut chain: Chain = Chain::genesis();
-        for i in 1 .. n {
+        for i in 1..n {
             chain.mine_block(&format!("block {}", i));
-        };
+        }
         chain
     }
 
     /*****************************
      * Tests for valid chains    *
-    *****************************/
+     *****************************/
     #[test]
     fn test_validate_chain() {
         let chain: Chain = init_chain(CHAIN_LEN);
-        assert!(matches!(
-            trace(Chain::from_vec(chain.to_vec())),
-            Ok(_)));
+        assert!(matches!(trace(Chain::from_vec(chain.to_vec())), Ok(_)));
     }
     #[test]
-    fn test_validate_chain_empty(){
+    fn test_validate_chain_empty() {
         let blocks: Vec<Block> = vec![];
         assert!(matches!(
             trace(Chain::from_vec(blocks)),
-            Err(NextBlockErr::NoBlocks)));
+            Err(NextBlockErr::NoBlocks)
+        ));
     }
     #[test]
-    fn test_validate_chain_invalid_idx(){
-        let blocks: Vec<Block> = init_chain(CHAIN_LEN).split_off(FORK_PREFIX_LEN).unwrap().to_vec();
+    fn test_validate_chain_invalid_idx() {
+        let blocks: Vec<Block> = init_chain(CHAIN_LEN)
+            .split_off(FORK_PREFIX_LEN)
+            .unwrap()
+            .to_vec();
         assert!(matches!(
             trace(Chain::from_vec(blocks)),
-            Err(NextBlockErr::InvalidIndex { idx : 3, expected_idx: 0 })));
+            Err(NextBlockErr::InvalidIndex {
+                idx: 3,
+                expected_idx: 0
+            })
+        ));
     }
     /*****************************
      * Tests for handling new blocks *
-    *****************************/
+     *****************************/
     #[test]
     fn test_store_new_block_next() {
         let mut chain: Chain = init_chain(CHAIN_LEN);
@@ -54,8 +60,9 @@ mod chain_tests {
 
         // chain: [0]---[1]---[2]---[3]---[4]----[*5*]
         assert!(matches!(
-            trace(chain.store_new_block(next_block))
-            , Ok( NextBlockResult::ExtendedMain { end_idx: 5, .. } )));
+            trace(chain.store_new_block(next_block)),
+            Ok(NextBlockResult::ExtendedMain { end_idx: 5, .. })
+        ));
     }
 
     #[test]
@@ -71,7 +78,7 @@ mod chain_tests {
         // chain:      [0]---[1]---[2]---[3]---[4]---[?]---[*6*]
         assert!(matches!(
             trace(chain.store_new_block(dup_chain.last().clone())),
-            Err(NextBlockErr::MissingParent { parent_idx:5, .. })
+            Err(NextBlockErr::MissingParent { parent_idx: 5, .. })
         ));
     }
 
@@ -87,7 +94,7 @@ mod chain_tests {
         //                     |---[*3*]
         assert!(matches!(
             trace(chain.store_new_block(out_of_date_block)),
-            Err( NextBlockErr::Duplicate { idx: 3, .. } )   // to-do: implement Duplicateblock
+            Err(NextBlockErr::Duplicate { idx: 3, .. }) // to-do: implement Duplicateblock
         ));
     }
 
@@ -100,7 +107,8 @@ mod chain_tests {
             f
         };
 
-        { // Adding new forks
+        {
+            // Adding new forks
             // chain: [0]---[1]---[2]---[3]---[4]
             // fork:               |----[*3*]
             forked_chain.mine_block(&format!("block {} in fork", 0));
@@ -108,11 +116,16 @@ mod chain_tests {
             let res = main_chain.store_new_block(forked_chain.last().clone());
             assert!(matches!(
                 trace(res),
-                Ok(NextBlockResult::NewFork { fork_idx: 2, end_idx: 3, .. })
+                Ok(NextBlockResult::NewFork {
+                    fork_idx: 2,
+                    end_idx: 3,
+                    ..
+                })
             ));
         }
 
-        { // Extending existing forks
+        {
+            // Extending existing forks
             // chain: [0]---[1]---[2]---[3]---[4]
             // fork:               |----[3]---[*4*]---[*5*]
             for i in 1..3 {
@@ -126,12 +139,13 @@ mod chain_tests {
         }
 
         let mut nested_forked_chain = {
-                let mut f = forked_chain.clone();
-                let _ = f.split_off(f.len() - 1);
-                f
+            let mut f = forked_chain.clone();
+            let _ = f.split_off(f.len() - 1);
+            f
         };
 
-        { // Adding nested forks from existing forks
+        {
+            // Adding nested forks from existing forks
             // chain: [0]---[1]---[2]---[3]---[4]
             // fork:               |----[3]---[4]---[5]
             // nested fork:                    |----[*5*]
@@ -139,11 +153,16 @@ mod chain_tests {
             println!("Nested forked chain {}", nested_forked_chain);
             assert!(matches!(
                 trace(main_chain.store_new_block(nested_forked_chain.last().clone())),
-                Ok(NextBlockResult::NewFork {fork_idx: 2, end_idx: 5, .. })
+                Ok(NextBlockResult::NewFork {
+                    fork_idx: 2,
+                    end_idx: 5,
+                    ..
+                })
             ));
         }
 
-        { // Extending nested forks
+        {
+            // Extending nested forks
             // chain: [0]---[1]---[2]---[3]---[4]
             // fork:               |----[3]---[4]---[5]
             // nested fork:                    |----[5]---[6]---[7]
@@ -171,10 +190,10 @@ mod chain_tests {
         };
         for i in 0..(CHAIN_LEN - FORK_PREFIX_LEN) {
             forked_chain.mine_block(&format!("block {} in fork", i))
-        };
+        }
         assert!(matches!(
             trace(main_chain.store_new_block(forked_chain.last().clone())),
-            Err(NextBlockErr::MissingParent{..})
+            Err(NextBlockErr::MissingParent { .. })
         ));
     }
 
@@ -182,7 +201,7 @@ mod chain_tests {
     //  * Tests for merging forks *
     // *****************************/
     #[test]
-    fn test_validate_fork(){
+    fn test_validate_fork() {
         // Make a competing forked_chain that is 2 blocks longer than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
@@ -203,7 +222,7 @@ mod chain_tests {
         ));
     }
     #[test]
-    fn test_validate_fork_missing_parent(){
+    fn test_validate_fork_missing_parent() {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[*4*]
         let main_chain: Chain = init_chain(CHAIN_LEN);
@@ -217,12 +236,12 @@ mod chain_tests {
         };
         assert!(matches!(
             trace(Chain::validate_fork(&main_chain, &fork)),
-            Err(NextBlockErr::MissingParent{..})
+            Err(NextBlockErr::MissingParent { .. })
         ));
     }
 
     #[test]
-    fn test_sync_to_fork_longer(){
+    fn test_sync_to_fork_longer() {
         let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let main_endpoint = main_chain.last().hash.clone();
 
@@ -254,14 +273,20 @@ mod chain_tests {
 
         assert!(matches!(
             trace(res),
-            Ok(ChooseChainResult::ChooseOther { main_len: 5, other_len: 7 })
+            Ok(ChooseChainResult::ChooseOther {
+                main_len: 5,
+                other_len: 7
+            })
         ));
         println!("Merged chain and fork : {}", main_chain);
 
         // Assert final state of the chain and its stored forks
         let forks = main_chain.forks();
         assert!(matches!(trace(main_chain.len()), 7));
-        assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), Some(..)));
+        assert!(matches!(
+            trace(forks.get(&forkpoint, &main_endpoint)),
+            Some(..)
+        ));
         assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), None));
     }
 
@@ -298,7 +323,10 @@ mod chain_tests {
 
         assert!(matches!(
             trace(res),
-            Ok(ChooseChainResult::KeepMain { main_len: 5, other_len : Some(4)})
+            Ok(ChooseChainResult::KeepMain {
+                main_len: 5,
+                other_len: Some(4)
+            })
         ));
         println!("Merged chain and fork : {}", main_chain);
 
@@ -310,9 +338,7 @@ mod chain_tests {
     }
 
     #[test]
-    fn test_sync_to_fork_local() {
-
-    }
+    fn test_sync_to_fork_local() {}
 
     // /*****************************
     //  * Tests for automating the merging of forks *
@@ -342,5 +368,4 @@ mod chain_tests {
     //         println!("Forked chain {}", forked_chain);
     //     }
     // }
-
 }

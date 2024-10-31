@@ -10,12 +10,12 @@ pub fn responded(msg: std::fmt::Arguments) {
     println!("[Broadcasted message]:\n{}", msg);
 }
 
-pub fn trace<T:std::fmt::Debug>(x : T) -> T{
+pub fn trace<T: std::fmt::Debug>(x: T) -> T {
     println!("{:?}", x);
     x
 }
 
-pub fn abbrev(hex : &String) -> String {
+pub fn abbrev(hex: &String) -> String {
     let mut s: String = hex.clone();
     if hex.len() > 20 {
         s.truncate(16);

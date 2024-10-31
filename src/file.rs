@@ -3,13 +3,9 @@
     - Functions for loading and saving the blockchain state (from `blocks.json`).
 */
 
-use super::{
-    chain::Chain,
-    block::Block,
-};
+use super::{block::Block, chain::Chain};
 use log::info;
 use tokio::fs;
-
 
 // reads all locally stored blocks
 pub async fn read_chain(file_name: &str) -> Result<Chain, Box<dyn std::error::Error>> {
