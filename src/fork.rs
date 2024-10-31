@@ -2,8 +2,9 @@
     *Forks and orphans*: Auxiliary helpers for managing forks and orphans, independent of a chain.
 */
 
-use super::
-    block::{Block, Blocks, NextBlockResult, NextBlockErr};
+use super::{
+    block::{Block, Blocks, NextBlockResult, NextBlockErr},
+    util::abbrev};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -92,10 +93,10 @@ impl Forks {
     }
 
     pub fn print(&self){
-        for (forkpoint, forks_from) in self.0.iter(){
-            println!("Forks from {}", forkpoint);
+        for (_, forks_from) in self.0.iter(){
             for (i, (_, fork)) in forks_from.iter().enumerate(){
-                println!("Fork {}:", i);
+                let id = Self::identify(fork);
+                println!("Fork from (idx: {}, hash: {}) #{}:", id.fork_idx, abbrev(&id.fork_hash), i);
                 fork.iter().for_each(|block| println!("{}", block));
             }
         }
