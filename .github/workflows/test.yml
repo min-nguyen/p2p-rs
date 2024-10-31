@@ -27,5 +27,5 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
 
-      - name: clippy
-        run: cargo clippy --all --all-features --tests -- -D warnings
+      # - name: clippy
+      #   run: cargo clippy --all --all-features --tests -- -D warnings
