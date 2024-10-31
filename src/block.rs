@@ -154,7 +154,7 @@ impl std::fmt::Display for Block {
     }
 }
 
-/* Blocks */
+/* Blocks: Ensures a valid subchain i.e. a non-empty sequence of blocks where each block correctly references the preceding one */
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Blocks(Vec<Block>);
 
@@ -194,44 +194,48 @@ impl Blocks {
         Ok(())
     }
 
-    pub fn get(&self, idx: usize)  -> Option<&Block> {
-        self.0.get(idx)
-    }
 
+    // Safe first
     pub fn first(&self) -> &Block {
         self.0.first().expect("Blocks should always be non-empty")
     }
 
+    // Safe last
     pub fn last(&self) -> &Block {
         self.0.last().expect("Blocks should always be non-empty")
+    }
+
+    pub fn get(&self, idx: usize)  -> Option<&Block> {
+        self.0.get(idx)
     }
 
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    // Safe push
+    // Safe push to tail
     pub fn push_back(&mut self, new_block: Block) -> Result<(), NextBlockErr>  {
         Block::validate_parent(self.last(), &new_block)?;
         self.0.push(new_block);
         Ok(())
     }
 
-    // Safe push
+    // Safe push to head
     pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr>{
         Block::validate_parent(&new_block, self.first())?;
         self.0.insert(0, new_block);
         Ok(())
     }
 
-    // Safe append. Performs nothing if the suffix is empty.
+    // Safe append between two valid subchains
     pub fn append(&mut self, mut suffix: Blocks) -> Result<(), NextBlockErr>{
         Block::validate_parent(self.last(), suffix.first())?;
         self.0.append(&mut suffix.0);
         Ok (())
     }
 
-    // Splitoff that ensures the resulting Self is always non-empty, and does and returns nothing if len > Self.len().
+    // Split off that ensures the resulting Self is always non-empty, by requiring that len > 0;
+    // Does and returns nothing if len > Self.len().
     pub fn split_off(&mut self, len: usize) -> Option<Blocks> {
         if len > 0 {
             let suffix: Vec<Block> = self.0.split_off(std::cmp::min(self.len(), len));
@@ -247,8 +251,8 @@ impl Blocks {
         }
     }
 
-    // Splitoff until that ensures the resulting Self is always non-empty by keeping the block for the property holds,
-    // and does and returns nothing if not able to find that block.
+    // Splitoff_until that ensures the resulting Self is always non-empty by keeping inside it the block for the property holds;
+    // Does and returns nothing if not able to find a block satisfying the property.
     pub fn split_off_until<P>( &mut self, prop: P) -> Option<Blocks>
     where
         P: Fn(&Block) -> bool,

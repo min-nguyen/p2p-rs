@@ -63,7 +63,7 @@ impl Chain {
         let orphan = self.orphans.get(orphan_id).unwrap();
         Self::validate_fork(&self, orphan)?;
         let fork_id = self.forks.insert(orphan.clone());
-        self.orphans.remove_entry(orphan_id);
+        self.orphans.remove(orphan_id);
         Ok(fork_id)
     }
 
@@ -188,7 +188,7 @@ impl Chain {
             if main_len < other_len {
                 // remove the fork from the fork pool
                 let fork
-                    = self.forks.remove_entry(&fork_id.fork_hash, &fork_id.end_hash)
+                    = self.forks.remove(&fork_id.fork_hash, &fork_id.end_hash)
                                 .expect("fork definitely exists; we just stored it");
                 // truncate the main chain to include the forkpoint as its last block
                 let main_suffix: Option<Blocks>

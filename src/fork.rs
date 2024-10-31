@@ -61,10 +61,17 @@ impl Forks {
             )})
     }
 
-    pub fn remove_entry<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks>{
-        self.0.get_mut(forkpoint)
-                .and_then(|forks|
-                    forks.remove_entry(endpoint).map(|res| res.1))
+    pub fn remove<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks>{
+        // Remove the fork matching the (forkpoint, endpoint)
+        let fork = self.0.get_mut(forkpoint)
+                .and_then(|forks| {
+                    forks.remove(endpoint).map(|res| res)
+                });
+        // If there are no remaining forks from the forkpoint, delete that hashmap
+        if let Some(true) = self.0.get(forkpoint).map(|forks| forks.is_empty()){
+            self.0.remove(forkpoint);
+        }
+        fork
     }
 
     pub fn insert(&mut self, fork: Blocks) -> ForkId {
@@ -78,7 +85,7 @@ impl Forks {
     }
 
     pub fn extend_fork(&mut self, forkpoint: &String, endpoint: &String, block : Block) -> Result<ForkId, NextBlockErr> {
-        let mut fork: Blocks = self.remove_entry(forkpoint, endpoint).unwrap();
+        let mut fork: Blocks = self.remove(forkpoint, endpoint).unwrap();
         Blocks::push_back(&mut fork, block)?;
         let fork_id = self.insert(fork);
         Ok(fork_id)
@@ -169,12 +176,12 @@ impl Orphans {
         orphan_id
     }
 
-    pub fn remove_entry<'a>(&mut self, forkpoint : &String) -> Option<Blocks>{
-        self.0.remove_entry(forkpoint).map(|res| res.1)
+    pub fn remove<'a>(&mut self, forkpoint : &String) -> Option<Blocks>{
+        self.0.remove(forkpoint).map(|res| res)
     }
 
     pub fn extend_orphan(&mut self, block : Block) -> Result<OrphanId, NextBlockErr>  {
-        let mut orphan: Blocks = self.remove_entry(&block.hash).unwrap();
+        let mut orphan: Blocks = self.remove(&block.hash).unwrap();
         Blocks::push_front(&mut orphan, block.clone())?;
         Ok(self.insert(orphan))
     }
