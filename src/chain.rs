@@ -27,26 +27,56 @@ impl Chain {
         }
     }
 
-    pub fn handle_block_result(
-        &mut self,
-        res: NextBlockResult,
-    ) -> Result<ChooseChainResult, NextBlockErr> {
-        match res {
-            NextBlockResult::ExtendedFork {
-                fork_hash,
-                end_hash,
-                ..
-            } => self.sync_to_fork(fork_hash, end_hash),
-            NextBlockResult::NewFork {
-                fork_hash,
-                end_hash,
-                ..
-            } => self.sync_to_fork(fork_hash, end_hash),
-            NextBlockResult::ExtendedMain { end_idx, .. } => Ok(ChooseChainResult::KeepMain {
-                main_len: end_idx + 1,
-                other_len: None,
-            }),
+
+    pub fn sync(&mut self) -> Result<ChooseChainResult, NextBlockErr> {
+        if let Some((_, fork_id)) = self.forks.longest(){
+            let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
+            if main_len < other_len {
+                // remove the fork from the fork pool
+                let fork: Blocks = self
+                    .forks
+                    .remove(&fork_id.fork_hash, &fork_id.end_hash)
+                    .expect("fork definitely exists; we just stored it");
+                // truncate the main chain to include the forkpoint as its last block
+                let main_suffix: Option<Blocks> =
+                    self.main.split_off_until(|b| b.hash == *fork_id.fork_hash);
+                // if the removed suffix is non-empty, insert it as a fork
+                if let Some(suffix) = main_suffix {
+                    self.forks.insert(suffix);
+                }
+                // append the fork to the truncated main chain
+                Blocks::append(&mut self.main, fork)?;
+
+                // delete all previous forks that don't fork from the new chain
+                //
+                //
+                ///////
+
+                return Ok(ChooseChainResult::ChooseOther {
+                    main_len,
+                    other_len,
+                });
+            } else {
+                return Ok(ChooseChainResult::KeepMain {
+                    main_len,
+                    other_len: Some(other_len),
+                });
+            }
         }
+        else {
+            Ok(ChooseChainResult::KeepMain {
+                main_len: self.len(),
+                other_len: None,
+            })
+        }
+    }
+
+    // Try to connect an orphan branch as a fork from the main chain
+    fn connect_orphan_as_fork(&mut self, orphan_id: &OrphanId) -> Result<ForkId, NextBlockErr> {
+        let orphan = self.orphans.get(orphan_id).unwrap();
+        let fork_id = self.store_fork(orphan.clone())?;
+        self.orphans.remove(orphan_id);
+        Ok(fork_id)
     }
 
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr> {
@@ -62,9 +92,10 @@ impl Chain {
             })
         }
         // Lookup the block as the forkpoint for any orphan branches
-        else if let Some(orphan) = self.orphans.get_mut(&block.hash) {
-            Block::validate_parent(&block, &orphan.first())?;
+        else if let Some(..) = self.orphans.get_mut(&block.hash) {
+            // Try to extend the orphan from the front
             let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
+            // Try to connect the extended orphan as a fork
             self.connect_orphan_as_fork(&orphan_id)
                 .map(|fork_id| fork_id.into_new_fork_result())
         } else {
@@ -75,12 +106,10 @@ impl Chain {
         }
     }
 
-    // Try to connect an orphan branch as a fork from the main chain
-    pub fn connect_orphan_as_fork(&mut self, orphan_id: &OrphanId) -> Result<ForkId, NextBlockErr> {
-        let orphan = self.orphans.get(orphan_id).unwrap();
-        Self::validate_fork(&self, orphan)?;
-        let fork_id = self.forks.insert(orphan.clone());
-        self.orphans.remove(orphan_id);
+    // Store a fork if valid and forks from the main chain
+    pub fn store_fork(&mut self, fork: Blocks) -> Result<ForkId, NextBlockErr> {
+        self.validate_fork(&fork)?;
+        let fork_id = self.forks.insert(fork);
         Ok(fork_id)
     }
 
@@ -162,7 +191,7 @@ impl Chain {
     pub fn validate(&self) -> Result<(), NextBlockErr> {
         let first_block: &Block = self.main.first();
         if first_block.idx == 0 {
-            Ok(())
+            Blocks::validate(&self.main)
         } else {
             Err(NextBlockErr::InvalidIndex {
                 idx: first_block.idx,
@@ -171,9 +200,37 @@ impl Chain {
         }
     }
 
+    // Validate fork as a branch off the main chain
+    pub fn validate_fork(&self, fork: &Blocks) -> Result<(), NextBlockErr> {
+        fork.validate()?;
+
+        let first_block = fork.first();
+        let is_parent = |b: &Block| Block::validate_parent(b, &first_block).is_ok();
+
+        if let Some(..) = self.find(&is_parent) {
+            Ok(())
+        }
+        // catch when the fork has extended all the way to the genesis block (should only happen when connecting orphans)
+        else if first_block.idx == 0 {
+            if first_block.hash == self.main.first().hash {
+                Ok(())
+            } else {
+                Err(NextBlockErr::UnrelatedGenesis {
+                    genesis_hash: first_block.hash.clone(),
+                })
+            }
+        } else {
+            Err(NextBlockErr::MissingParent {
+                parent_idx: first_block.idx - 1,
+                parent_hash: first_block.prev_hash.clone(),
+            })
+        }
+    }
+
     // Swap the main chain to a remote chain if valid and longer.
-    pub fn sync_to_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
-        Chain::validate(&other)?;
+    pub fn choose_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
+        other.validate()?;
+
         let (main_genesis, other_genesis) = (
             self.main.first().hash.clone(),
             other.main.first().hash.clone(),
@@ -198,71 +255,45 @@ impl Chain {
         }
     }
 
-    // Validate fork as a branch off the main chain
-    pub fn validate_fork(&self, fork: &Blocks) -> Result<(), NextBlockErr> {
-        let first_block = fork.first();
-        let is_parent = |b: &Block| Block::validate_parent(b, &first_block).is_ok();
 
-        if let Some(..) = self.find(&is_parent) {
-            Ok(())
-        }
-        // catch when the fork has extended all the way to the genesis block (should generally not happen)
-        else if first_block.idx == 0 {
-            if first_block.hash == self.main.first().hash {
-                Ok(())
-            } else {
-                Err(NextBlockErr::UnrelatedGenesis {
-                    genesis_hash: first_block.hash.clone(),
-                })
-            }
-        } else {
-            Err(NextBlockErr::MissingParent {
-                parent_idx: first_block.idx - 1,
-                parent_hash: first_block.prev_hash.clone(),
-            })
-        }
-    }
+    // // Swap the main chain to a fork in the pool if longer
+    // fn sync_to_fork(
+    //     &mut self,
+    //     fork_hash: String,
+    //     end_hash: String,
+    // ) -> Result<ChooseChainResult, NextBlockErr> {
+    //     let (_, fork_id) = self.forks.get_mut(&fork_hash, &end_hash).unwrap();
+    //     let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
+    //     if main_len < other_len {
+    //         // remove the fork from the fork pool
+    //         let fork: Blocks = self
+    //             .forks
+    //             .remove(&fork_id.fork_hash, &fork_id.end_hash)
+    //             .expect("fork definitely exists; we just stored it");
+    //         // truncate the main chain to include the forkpoint as its last block
+    //         let main_suffix: Option<Blocks> =
+    //             self.main.split_off_until(|b| b.hash == *fork_id.fork_hash);
+    //         // if the removed suffix is non-empty, insert it as a fork
+    //         if let Some(suffix) = main_suffix {
+    //             self.forks.insert(suffix);
+    //         }
+    //         // append the fork to the truncated main chain
+    //         Blocks::append(&mut self.main, fork)?;
 
-    // Swap the main chain to a fork in the pool if longer
-    pub fn sync_to_fork(
-        &mut self,
-        fork_hash: String,
-        end_hash: String,
-    ) -> Result<ChooseChainResult, NextBlockErr> {
-        if let Some((_, fork_id)) = self.forks.get_mut(&fork_hash, &end_hash) {
-            let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
-            if main_len < other_len {
-                // remove the fork from the fork pool
-                let fork = self
-                    .forks
-                    .remove(&fork_id.fork_hash, &fork_id.end_hash)
-                    .expect("fork definitely exists; we just stored it");
-                // truncate the main chain to include the forkpoint as its last block
-                let main_suffix: Option<Blocks> =
-                    self.main.split_off_until(|b| b.hash == *fork_id.fork_hash);
-                // if the removed suffix is non-empty, insert it as a fork
-                if let Some(suffix) = main_suffix {
-                    self.forks.insert(suffix);
-                }
-                // append the fork to the truncated main chain
-                Blocks::append(&mut self.main, fork)?;
+    //         // delete all previous forks that don't fork from the new chain
 
-                return Ok(ChooseChainResult::ChooseOther {
-                    main_len,
-                    other_len,
-                });
-            } else {
-                return Ok(ChooseChainResult::KeepMain {
-                    main_len,
-                    other_len: Some(other_len),
-                });
-            }
-        }
-        Ok(ChooseChainResult::KeepMain {
-            main_len: self.len(),
-            other_len: None,
-        })
-    }
+    //         return Ok(ChooseChainResult::ChooseOther {
+    //             main_len,
+    //             other_len,
+    //         });
+    //     } else {
+    //         return Ok(ChooseChainResult::KeepMain {
+    //             main_len,
+    //             other_len: Some(other_len),
+    //         });
+    //     }
+    // }
+
 }
 
 /* Chain auxiliary functions */
@@ -308,10 +339,6 @@ impl Chain {
 
     pub fn forks<'a>(&'a self) -> &'a Forks {
         &self.forks
-    }
-
-    pub fn insert_fork(&mut self, fork: Blocks) -> ForkId {
-        self.forks.insert(fork)
     }
 
     pub fn print_forks(&self) {
@@ -369,17 +396,4 @@ impl std::fmt::Display for ChooseChainResult {
     }
 }
 
-// // Return a reference to the longest stored fork
-// pub fn longest_fork<'a>(&'a self) -> Option<&'a Vec<Block>>{
-//     let longest_fork: Option<&'a Vec<Block>> = None;
 
-//     self.forks
-//             .values()
-//             .flat_map(|forks| forks.values())
-//             .fold(longest_fork,
-//                 |longest, current|
-//                 match longest {
-//                     Some(fork) if fork.len() >= current.len() => Some(fork),
-//                     _ => Some(current),
-//                 })
-// }

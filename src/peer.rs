@@ -98,7 +98,7 @@ impl Peer {
                 swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
                 responded!("\"{}\" to PeerId({})", resp, abbrev(msg.source()));
             }
-            PowMessage::ChainResponse { chain, .. } => match self.chain.sync_to_chain(chain) {
+            PowMessage::ChainResponse { chain, .. } => match self.chain.choose_chain(chain) {
                 Ok(res) => update!("{}", res),
                 Err(e) => update!("Remote chain couldn't be validated due to \"{}\"", e),
             },
@@ -148,7 +148,7 @@ impl Peer {
                     update!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
-                match self.chain.handle_block_result(res) {
+                match self.chain.sync() {
                     Ok(res) => {
                         update!("{}", res);
                     }

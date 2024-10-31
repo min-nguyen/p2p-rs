@@ -54,12 +54,14 @@
                         - possibly keep a hashset of all forks' blocks, and represent forks as vectors of references to blocks.
                         - above isnt possible: self-referentiality isnt allowed
                         - idea: keep a hashmap, or slotmap (which is apparently more efficient), of blocks. then represent chain and forks as vectors of strings, each one being a key to the hashmap
-            - [ ] to do: perform all validation of forks, orphans, chains, etc more concisely in a self-contained location, avoiding repeated validation.
+            - [x] to do: perform all validation of forks, orphans, chains, etc more concisely in a self-contained location, avoiding repeated validation.
                         - idea:
                         1. implement a Subchain struct, which can only store non-empty valid vectors of blocks. Instances of subchain are always valid.
                         2. then, use the Subchain as the fields in Chain, Forks, and Orphans.
-
-
+            - [ ] after swapping the main chain, revalidate all forks in the pool and delete nonvalid ones
+            - [ ] make non-public the Chain functions that take an explicit (fork_hash: String,end_hash: String,)
+            - [ ] more modular error messages, moving some out of NextBlockErr (use Dynamic error types)
+            - [ ] implement validate for forks off of any chain
 
 in parallel:
 - [ ] data structure for storing new block proposals and number of validations, before adding it to the chain

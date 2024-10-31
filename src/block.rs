@@ -5,6 +5,8 @@
     - Result and error types from handling new blocks.
 */
 
+use std::ops::Deref;
+
 use super::{crypt, util::abbrev};
 use chrono::{DateTime, Utc};
 use log::info;
@@ -203,14 +205,12 @@ impl Blocks {
         self.0
     }
 
-    // Mine a new valid block from given data
-    pub fn mine_block(&mut self, data: &str) {
-        let new_block = Block::mine_block(self.last(), data);
-        self.0.push(new_block)
+    pub fn validate(&self) -> Result<(), NextBlockErr> {
+        Self::validate_blocks(&self.0)
     }
 
     // Validate a non-empty sequence of blocks
-    pub fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
+    fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
         let mut curr: &Block = blocks.first().ok_or(NextBlockErr::NoBlocks)?;
         Block::validate(curr)?;
         for i in 0..blocks.len() - 1 {
@@ -220,6 +220,12 @@ impl Blocks {
             curr = next;
         }
         Ok(())
+    }
+
+    // Mine a new valid block from given data
+    pub fn mine_block(&mut self, data: &str) {
+        let new_block = Block::mine_block(self.last(), data);
+        self.0.push(new_block)
     }
 
     // Safe first

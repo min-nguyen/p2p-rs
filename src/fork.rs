@@ -73,6 +73,21 @@ impl Forks {
         })
     }
 
+    // Return a reference to the longest stored fork
+    pub fn longest<'a>(&'a self) -> Option<(&'a Blocks, ForkId)>{
+        let longest_fork: Option<(&'a Blocks, ForkId)> = None;
+
+        self.0
+                .values()
+                .flat_map(|forks| forks.values())
+                .fold(longest_fork,
+                    |longest, current|
+                    match longest {
+                        Some(fork) if fork.0.len() >= current.len() => Some(fork),
+                        _ => Some((current, Self::identify(current))),
+                    })
+    }
+
     pub fn remove<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks> {
         // Remove the fork matching the (forkpoint, endpoint)
         let fork = self
@@ -136,6 +151,31 @@ impl Forks {
             }
         }
     }
+
+    // // Validate fork as a branch off any other chain
+    // pub fn validate(main: &Blocks, fork: &Blocks) -> Result<(), NextBlockErr> {
+    //     let first_block = fork.first();
+    //     let is_parent = |b: &Block| Block::validate_parent(b, &first_block).is_ok();
+
+    //     if let Some(..) = main.find(&is_parent) {
+    //         Blocks::validate(fork)
+    //     }
+    //     // catch when the fork has extended all the way to the genesis block (should generally not happen)
+    //     else if first_block.idx == 0 {
+    //         if first_block.hash == main.first().hash {
+    //             Ok(())
+    //         } else {
+    //             Err(NextBlockErr::UnrelatedGenesis {
+    //                 genesis_hash: first_block.hash.clone(),
+    //             })
+    //         }
+    //     } else {
+    //         Err(NextBlockErr::MissingParent {
+    //             parent_idx: first_block.idx - 1,
+    //             parent_hash: first_block.prev_hash.clone(),
+    //         })
+    //     }
+    // }
 }
 
 #[derive(Clone, Debug)]

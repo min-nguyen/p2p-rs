@@ -5,6 +5,7 @@
 mod chain_tests {
     use crate::{
         block::{Block, Blocks, NextBlockErr, NextBlockResult},
+        fork::{Forks},
         chain::{Chain, ChooseChainResult},
         util::trace,
     };
@@ -217,7 +218,7 @@ mod chain_tests {
         };
         println!("Chain : {}\n\nFork : {:?}\n", main_chain, fork);
         assert!(matches!(
-            trace(Chain::validate_fork(&main_chain, &fork)),
+            trace(main_chain.validate_fork(&fork)),
             Ok(())
         ));
     }
@@ -235,7 +236,7 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN + 1).unwrap()
         };
         assert!(matches!(
-            trace(Chain::validate_fork(&main_chain, &fork)),
+            trace(main_chain.validate_fork(&fork)),
             Err(NextBlockErr::MissingParent { .. })
         ));
     }
@@ -268,8 +269,10 @@ mod chain_tests {
         // Then synchronise:
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
-        let fork_id = main_chain.insert_fork(fork);
-        let res = main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash);
+        let fork_id = main_chain.store_fork(fork);
+        assert!(matches!(fork_id, Ok(..)));
+
+        let res = main_chain.sync();
 
         assert!(matches!(
             trace(res),
@@ -318,8 +321,10 @@ mod chain_tests {
 
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]
-        let fork_id = main_chain.insert_fork(fork);
-        let res = main_chain.sync_to_fork(fork_id.fork_hash, fork_id.end_hash);
+        let fork_id = main_chain.store_fork(fork);
+        assert!(matches!(fork_id, Ok(..)));
+
+        let res = main_chain.sync();
 
         assert!(matches!(
             trace(res),
