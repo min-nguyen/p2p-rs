@@ -78,7 +78,7 @@ impl Forks {
 
     pub fn extend_fork(&mut self, forkpoint: &String, endpoint: &String, block : Block) -> Result<ForkId, NextBlockErr> {
         let mut fork: Blocks = self.remove_entry(forkpoint, endpoint).unwrap();
-        Blocks::push_end(&mut fork, block)?;
+        Blocks::push_back(&mut fork, block)?;
         let fork_id = self.insert(fork);
         Ok(fork_id)
     }
@@ -86,7 +86,7 @@ impl Forks {
     pub fn nest_fork(&mut self, forkpoint: &String, endpoint: &String, block: Block) -> Result<ForkId, NextBlockErr> {
         let mut fork_clone: Blocks = self.get(forkpoint, endpoint).unwrap().clone();
         let _ = Blocks::split_off_until(&mut fork_clone, |b| b.hash == block.prev_hash);
-        Blocks::push_end(&mut fork_clone, block)?;
+        Blocks::push_back(&mut fork_clone, block)?;
         let fork_id = self.insert(fork_clone);
         Ok(fork_id)
     }

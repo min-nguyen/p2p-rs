@@ -211,7 +211,7 @@ impl Blocks {
     }
 
     // Safe push
-    pub fn push_end(&mut self, new_block: Block) -> Result<(), NextBlockErr>  {
+    pub fn push_back(&mut self, new_block: Block) -> Result<(), NextBlockErr>  {
         Block::validate_parent(self.last(), &new_block)?;
         self.0.push(new_block);
         Ok(())
@@ -219,7 +219,7 @@ impl Blocks {
 
     // Safe push
     pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr>{
-        Block::validate_parent(self.first(), &new_block)?;
+        Block::validate_parent(&new_block, self.first())?;
         self.0.insert(0, new_block);
         Ok(())
     }

@@ -84,7 +84,7 @@ impl Chain {
 
             // See if we can append the block to the main chain
             if &self.last().hash == &parent.hash {
-                Blocks::push_end(&mut self.main, block);
+                Blocks::push_back(&mut self.main, block)?;
                 Ok(NextBlockResult::ExtendedMain { end_idx: self.last().idx, end_hash: self.last().hash.clone() })
             }
             // Otherwise attach a single-block fork to the main chain
@@ -295,7 +295,8 @@ impl std::fmt::Display for ChooseChainResult {
                 write!(f, ".")
             }
             ChooseChainResult::ChooseOther {  main_len,  other_len } => {
-                write!(f, "Choosing other chain/fork with length {}, previous main chain has length {}.", other_len, main_len)
+                write!(f, "Choosing other chain/fork with length {}, previous main chain has length {}.\n\
+                           Added the previous main chain as new fork.", other_len, main_len)
             }
         }
     }
