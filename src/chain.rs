@@ -71,14 +71,6 @@ impl Chain {
         }
     }
 
-    // Try to connect an orphan branch as a fork from the main chain
-    fn connect_orphan_as_fork(&mut self, orphan_id: &OrphanId) -> Result<ForkId, NextBlockErr> {
-        let orphan = self.orphans.get(orphan_id).unwrap();
-        let fork_id = self.store_fork(orphan.clone())?;
-        self.orphans.remove(orphan_id);
-        Ok(fork_id)
-    }
-
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr> {
         Block::validate(&block)?;
 
@@ -93,11 +85,14 @@ impl Chain {
         }
         // Lookup the block as the forkpoint for any orphan branches
         else if let Some(..) = self.orphans.get_mut(&block.hash) {
-            // Try to extend the orphan from the front
-            let orphan_id: OrphanId = self.orphans.extend_orphan(block)?;
-            // Try to connect the extended orphan as a fork
-            self.connect_orphan_as_fork(&orphan_id)
-                .map(|fork_id| fork_id.into_new_fork_result())
+            // Try to extend the orphan branch from the front
+            let orphan_id = self.orphans.extend_orphan(block)?;
+            let orphan = self.orphans.get(&orphan_id).unwrap();
+            // Try to store the orphan branch as a valid fork from the main chain
+            let fork_id = self.store_fork(orphan.clone())?;
+            // Remove the extended orphan from the pool, and return the new fork
+            self.orphans.remove(&orphan_id);
+            Ok(fork_id.into_new_fork_result())
         } else {
             Err(NextBlockErr::StrayParent {
                 idx: block.idx,
@@ -389,8 +384,8 @@ impl std::fmt::Display for ChooseChainResult {
                 main_len,
                 other_len,
             } => {
-                write!(f, "Choosing other chain/fork with length {}, previous main chain has length {}.\n\
-                           Added the previous main chain as new fork.", other_len, main_len)
+                write!(f, "Choosing other chain with length {}, previous main chain has length {}.\n\
+                           If the other chain forked from the main, then the previous main is now stored as a fork.", other_len, main_len)
             }
         }
     }

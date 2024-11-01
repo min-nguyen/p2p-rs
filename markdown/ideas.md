@@ -59,6 +59,14 @@
                         1. implement a Subchain struct, which can only store non-empty valid vectors of blocks. Instances of subchain are always valid.
                         2. then, use the Subchain as the fields in Chain, Forks, and Orphans.
             - [ ] after swapping the main chain, revalidate all forks in the pool and delete nonvalid ones
+
+                   [1] -[2] -[3] -[4] -[5] -[6] -[14]       Chain 1
+                    |
+                    |          *save at 9*
+                    | -[7] -[8] - [9] -[10]-[11]            Chain 2
+                               |
+                               | -[12]-[13]                 Chain 3
+
             - [ ] make non-public the Chain functions that take an explicit (fork_hash: String,end_hash: String,)
             - [ ] more modular error messages, moving some out of NextBlockErr (use Dynamic error types)
             - [ ] implement validate for forks off of any chain
