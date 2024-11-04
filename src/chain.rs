@@ -211,8 +211,7 @@ impl Chain {
         if let Some(..) = self.find(&is_parent) {
             let fork_id = self.forks.insert(fork);
             Ok(fork_id)
-        }
-        else if first_block.idx > 0 {
+        } else if first_block.idx > 0 {
             Err(NextBlockErr::MissingParent {
                 parent_idx: first_block.idx - 1,
                 parent_hash: first_block.prev_hash.clone(),
@@ -338,8 +337,12 @@ impl std::fmt::Display for ChooseChainResult {
                 main_len,
                 other_len,
             } => {
-                write!(f, "Choosing other chain with length {}, previous main chain has length {}.\n\
-                           If the other chain was a fork, then storing old main as a fork.", other_len, main_len)
+                write!(
+                    f,
+                    "Choosing other chain with length {}, previous main chain has length {}.\n\
+                           If the other chain was a fork, then storing old main as a fork.",
+                    other_len, main_len
+                )
             }
         }
     }
