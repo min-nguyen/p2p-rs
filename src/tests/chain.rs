@@ -5,8 +5,8 @@
 mod chain_tests {
     use crate::{
         block::{Block, Blocks, NextBlockErr, NextBlockResult},
-        fork::{Forks},
         chain::{Chain, ChooseChainResult},
+        fork::Forks,
         util::trace,
     };
 
@@ -217,10 +217,7 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         println!("Chain : {}\n\nFork : {:?}\n", main_chain, fork);
-        assert!(matches!(
-            trace(main_chain.validate_fork(&fork)),
-            Ok(())
-        ));
+        assert!(matches!(trace(main_chain.validate_fork(&fork)), Ok(())));
     }
     #[test]
     fn test_validate_fork_missing_parent() {
@@ -269,10 +266,10 @@ mod chain_tests {
         // Then synchronise:
         // chain: [0]---[1]---[2]
         //                     |----[3]---[4]---[5]---[6]
-        let fork_id = main_chain.store_fork(fork);
+        let fork_id = main_chain.store_new_fork(fork);
         assert!(matches!(fork_id, Ok(..)));
 
-        let res = main_chain.sync();
+        let res = main_chain.choose_fork();
 
         assert!(matches!(
             trace(res),
@@ -321,10 +318,10 @@ mod chain_tests {
 
         // Then synchronise:
         // chain: [0]---[1]---[2]---[3]---[4]
-        let fork_id = main_chain.store_fork(fork);
+        let fork_id = main_chain.store_new_fork(fork);
         assert!(matches!(fork_id, Ok(..)));
 
-        let res = main_chain.sync();
+        let res = main_chain.choose_fork();
 
         assert!(matches!(
             trace(res),
@@ -341,9 +338,6 @@ mod chain_tests {
         assert!(matches!(trace(forks.get(&forkpoint, &main_endpoint)), None));
         assert!(matches!(trace(forks.get(&forkpoint, &endpoint)), Some(..)));
     }
-
-    #[test]
-    fn test_sync_to_fork_local() {}
 
     // /*****************************
     //  * Tests for automating the merging of forks *

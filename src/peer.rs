@@ -148,7 +148,7 @@ impl Peer {
                     update!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
-                match self.chain.sync() {
+                match self.chain.choose_fork() {
                     Ok(res) => {
                         update!("{}", res);
                     }

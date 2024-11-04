@@ -58,7 +58,7 @@
                         - idea:
                         1. implement a Subchain struct, which can only store non-empty valid vectors of blocks. Instances of subchain are always valid.
                         2. then, use the Subchain as the fields in Chain, Forks, and Orphans.
-            - [ ] after swapping the main chain, revalidate all forks in the pool and delete nonvalid ones
+            - [x] after swapping the main chain, revalidate all forks in the pool and delete nonvalid ones
 
                    [1] -[2] -[3] -[4] -[5] -[6] -[14]       Chain 1
                     |

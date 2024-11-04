@@ -74,18 +74,21 @@ impl Forks {
     }
 
     // Return a reference to the longest stored fork
-    pub fn longest<'a>(&'a self) -> Option<(&'a Blocks, ForkId)>{
+    pub fn longest<'a>(&'a self) -> Option<(&'a Blocks, ForkId)> {
         let longest_fork: Option<(&'a Blocks, ForkId)> = None;
 
         self.0
-                .values()
-                .flat_map(|forks| forks.values())
-                .fold(longest_fork,
-                    |longest, current|
-                    match longest {
-                        Some(fork) if fork.0.len() >= current.len() => Some(fork),
-                        _ => Some((current, Self::identify(current))),
-                    })
+            .values()
+            .flat_map(|forks| forks.values())
+            .fold(longest_fork, |longest, current| match longest {
+                Some(fork) if fork.0.len() >= current.len() => Some(fork),
+                _ => Some((current, Self::identify(current))),
+            })
+    }
+
+    pub fn retain_forkpoints<'a>(&'a mut self, forkpoints: &Vec<String>) {
+        // let hashes : Vec<String> = chain.iter().map(|b| b.hash.clone()).collect();
+        self.0.retain(|forkpoint, _| forkpoints.contains(forkpoint));
     }
 
     pub fn remove<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks> {
