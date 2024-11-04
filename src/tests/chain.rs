@@ -202,11 +202,11 @@ mod chain_tests {
     //  * Tests for merging forks *
     // *****************************/
     #[test]
-    fn test_validate_fork() {
+    fn test_store_new_fork() {
         // Make a competing forked_chain that is 2 blocks longer than the current chain
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[3]---[4]---[5]---[6]
-        let main_chain: Chain = init_chain(CHAIN_LEN);
+        let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
@@ -217,13 +217,13 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN).unwrap()
         };
         println!("Chain : {}\n\nFork : {:?}\n", main_chain, fork);
-        assert!(matches!(trace(main_chain.validate_fork(&fork)), Ok(())));
+        assert!(matches!(trace(main_chain.store_new_fork(fork)), Ok(..)));
     }
     #[test]
-    fn test_validate_fork_missing_parent() {
+    fn test_store_new_fork_missing_parent() {
         // chain: [0]---[1]---[2]---[3]---[4]
         // fork:               |----[?]---[*4*]
-        let main_chain: Chain = init_chain(CHAIN_LEN);
+        let mut main_chain: Chain = init_chain(CHAIN_LEN);
         let fork: Blocks = {
             let mut forked_chain = main_chain.clone();
             forked_chain.split_off(FORK_PREFIX_LEN);
@@ -233,7 +233,7 @@ mod chain_tests {
             forked_chain.split_off(FORK_PREFIX_LEN + 1).unwrap()
         };
         assert!(matches!(
-            trace(main_chain.validate_fork(&fork)),
+            trace(main_chain.store_new_fork(fork)),
             Err(NextBlockErr::MissingParent { .. })
         ));
     }
