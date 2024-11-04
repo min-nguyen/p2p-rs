@@ -245,6 +245,7 @@ impl Blocks {
 
     // Safe push to tail
     pub fn push_back(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
+        new_block.validate()?;
         new_block.validate_parent(self.last())?;
         self.0.push(new_block);
         Ok(())
@@ -252,6 +253,7 @@ impl Blocks {
 
     // Safe push to head
     pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
+        new_block.validate()?;
         self.first().validate_parent(&new_block)?;
         self.0.insert(0, new_block);
         Ok(())
@@ -259,6 +261,7 @@ impl Blocks {
 
     // Safe append between two valid subchains
     pub fn append(&mut self, mut suffix: Blocks) -> Result<(), NextBlockErr> {
+        suffix.validate()?;
         suffix.first().validate_parent(self.last())?;
         self.0.append(&mut suffix.0);
         Ok(())
