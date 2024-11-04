@@ -102,10 +102,10 @@ impl Chain {
 
     // Try to store a new block in either the main chain or fork pool
     pub fn store_new_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr> {
-        Block::validate(&block)?;
+        block.validate()?;
 
         let is_duplicate = |b: &Block| b.hash == block.hash;
-        let is_parent = |b: &Block| Block::validate_parent(b, &block).is_ok();
+        let is_parent = |b: &Block| block.validate_parent(b).is_ok();
 
         // Search for block in the main chain and forks
         if self.find(&is_duplicate).is_some() || self.forks.find(&is_duplicate).is_some() {
@@ -172,7 +172,7 @@ impl Chain {
 
     // Try to store a block in an orphan branch to be attached as a new fork
     pub fn store_orphan_block(&mut self, block: Block) -> Result<NextBlockResult, NextBlockErr> {
-        Block::validate(&block)?;
+        block.validate()?;
 
         let is_duplicate = |b: &Block| b.hash == block.hash;
 
@@ -206,7 +206,7 @@ impl Chain {
         fork.validate()?;
 
         let first_block = fork.first();
-        let is_parent = |b: &Block| Block::validate_parent(b, &first_block).is_ok();
+        let is_parent = |b: &Block| first_block.validate_parent(b).is_ok();
 
         if let Some(..) = self.find(&is_parent) {
             let fork_id = self.forks.insert(fork);

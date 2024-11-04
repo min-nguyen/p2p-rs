@@ -121,32 +121,32 @@ impl Block {
     }
 
     // Validate a block as its own entity
-    pub fn validate(block: &Block) -> Result<(), NextBlockErr> {
+    pub fn validate(&self) -> Result<(), NextBlockErr> {
         //   check if block's hash has a valid number of leading zeros
         let BinaryString(hash_binary) =
-            BinaryString::from_hex(&block.hash).expect("Can convert hex string to binary");
+            BinaryString::from_hex(&self.hash).expect("Can convert hex string to binary");
         if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            if block.idx != 0 {
+            if self.idx != 0 {
                 // ignore the genesis block
                 return Err(NextBlockErr::DifficultyCheckFailed {
-                    idx: block.idx,
-                    hash: block.hash.clone(),
+                    idx: self.idx,
+                    hash: self.hash.clone(),
                     difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
                 });
             }
         }
         //  check if block's hash is indeed the correct hash of itself.
         let computed_hash = Self::compute_hash(
-            block.idx,
-            &block.data,
-            block.timestamp,
-            &block.prev_hash,
-            block.nonce,
+            self.idx,
+            &self.data,
+            self.timestamp,
+            &self.prev_hash,
+            self.nonce,
         );
-        if block.hash != computed_hash {
+        if self.hash != computed_hash {
             return Err(NextBlockErr::InconsistentHash {
-                idx: block.idx,
-                hash: block.hash.clone(),
+                idx: self.idx,
+                hash: self.hash.clone(),
                 computed_hash,
             });
         }
@@ -155,11 +155,12 @@ impl Block {
     }
 
     // Validate two consecutive blocks
-    pub fn validate_parent(parent: &Block, child: &Block) -> Result<(), NextBlockErr> {
-        if parent.hash != child.prev_hash || parent.idx + 1 != child.idx {
+    pub fn validate_parent(&self, parent: &Block) -> Result<(), NextBlockErr> {
+        parent.validate()?;
+        if parent.hash != self.prev_hash || parent.idx + 1 != self.idx {
             return Err(NextBlockErr::InvalidChild {
-                idx: child.idx,
-                prev_hash: child.prev_hash.to_string(),
+                idx: self.idx,
+                prev_hash: self.prev_hash.to_string(),
                 parent_idx: parent.idx,
                 parent_hash: parent.hash.to_string(),
             });
@@ -196,8 +197,9 @@ impl Blocks {
 
     // Safe constructor
     pub fn from_vec(vec: Vec<Block>) -> Result<Blocks, NextBlockErr> {
-        Self::validate_blocks(&vec)?;
-        Ok(Blocks(vec))
+        let blocks = Blocks(vec);
+        blocks.validate()?;
+        Ok(blocks)
     }
 
     // Destructor
@@ -206,17 +208,12 @@ impl Blocks {
     }
 
     pub fn validate(&self) -> Result<(), NextBlockErr> {
-        Self::validate_blocks(&self.0)
-    }
-
-    // Validate a non-empty sequence of blocks
-    fn validate_blocks(blocks: &Vec<Block>) -> Result<(), NextBlockErr> {
-        let mut curr: &Block = blocks.first().ok_or(NextBlockErr::NoBlocks)?;
-        Block::validate(curr)?;
-        for i in 0..blocks.len() - 1 {
-            let next = blocks.get(i + 1).unwrap();
-            Block::validate(next)?;
-            Block::validate_parent(curr, next)?;
+        let mut curr: &Block = self.0.first().ok_or(NextBlockErr::NoBlocks)?;
+        curr.validate()?;
+        for i in 0..self.0.len() - 1 {
+            let next = self.0.get(i + 1).unwrap();
+            next.validate()?;
+            next.validate_parent(curr)?;
             curr = next;
         }
         Ok(())
@@ -248,21 +245,21 @@ impl Blocks {
 
     // Safe push to tail
     pub fn push_back(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
-        Block::validate_parent(self.last(), &new_block)?;
+        new_block.validate_parent(self.last())?;
         self.0.push(new_block);
         Ok(())
     }
 
     // Safe push to head
     pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
-        Block::validate_parent(&new_block, self.first())?;
+        self.first().validate_parent(&new_block)?;
         self.0.insert(0, new_block);
         Ok(())
     }
 
     // Safe append between two valid subchains
     pub fn append(&mut self, mut suffix: Blocks) -> Result<(), NextBlockErr> {
-        Block::validate_parent(self.last(), suffix.first())?;
+        suffix.first().validate_parent(self.last())?;
         self.0.append(&mut suffix.0);
         Ok(())
     }

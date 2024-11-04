@@ -20,7 +20,7 @@ mod block_tests {
 
         // Ensure that the block fails due to a difficulty check error
         assert!(matches!(
-            Block::validate(&invalid_difficulty_prefix),
+            invalid_difficulty_prefix.validate(),
             Err(NextBlockErr::DifficultyCheckFailed { .. })
         ));
     }
@@ -34,7 +34,7 @@ mod block_tests {
         };
 
         assert!(matches!(
-            trace(Block::validate(&invalid_hash)),
+            trace(invalid_hash.validate()),
             Err(NextBlockErr::InconsistentHash { .. })
         ));
     }
@@ -42,6 +42,6 @@ mod block_tests {
     fn test_valid_block() {
         let valid_block = Block::mine_block(&Block::genesis(), "test");
 
-        assert!(matches!(Block::validate(&valid_block), Ok(())));
+        assert!(matches!(valid_block.validate(), Ok(())));
     }
 }
