@@ -5,7 +5,7 @@
 mod chain_tests {
     use crate::{
         block::{Block, Blocks, NextBlockErr, NextBlockResult},
-        chain::{Chain, ChooseChainResult},
+        chain::{Chain, ChainStatus},
         fork::Forks,
         util::trace,
     };
@@ -270,7 +270,7 @@ mod chain_tests {
 
         assert!(matches!(
             trace(res),
-            Ok(ChooseChainResult::ChooseOther {
+            Ok(ChainStatus::ChooseOther {
                 main_len: 5,
                 other_len: 7
             })
@@ -322,7 +322,7 @@ mod chain_tests {
 
         assert!(matches!(
             trace(res),
-            Ok(ChooseChainResult::KeepMain {
+            Ok(ChainStatus::KeepMain {
                 main_len: 5,
                 other_len: Some(4)
             })

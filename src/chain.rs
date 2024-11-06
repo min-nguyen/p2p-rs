@@ -6,7 +6,7 @@
 
 use super::{
     block::{Block, Blocks, NextBlockErr, NextBlockResult},
-    fork::{ForkId, Forks, OrphanId, Orphans},
+    fork::{ForkId, Forks, Orphans},
 };
 use serde::{Deserialize, Serialize};
 
@@ -28,7 +28,7 @@ impl Chain {
     }
 
     // Swap the main chain to a local fork if valid and longer.
-    pub fn choose_fork(&mut self) -> Result<ChooseChainResult, NextBlockErr> {
+    pub fn choose_fork(&mut self) -> Result<ChainStatus, NextBlockErr> {
         if let Some((_, fork_id)) = self.forks.longest() {
             let (main_len, other_len) = (self.last().idx + 1, fork_id.end_idx + 1);
             if main_len < other_len {
@@ -50,18 +50,18 @@ impl Chain {
                 let forkpoints: Vec<String> = self.main.iter().map(|b| b.hash.clone()).collect();
                 self.forks.retain_forkpoints(&forkpoints);
 
-                return Ok(ChooseChainResult::ChooseOther {
+                return Ok(ChainStatus::ChooseOther {
                     main_len,
                     other_len,
                 });
             } else {
-                return Ok(ChooseChainResult::KeepMain {
+                return Ok(ChainStatus::KeepMain {
                     main_len,
                     other_len: Some(other_len),
                 });
             }
         } else {
-            Ok(ChooseChainResult::KeepMain {
+            Ok(ChainStatus::KeepMain {
                 main_len: self.len(),
                 other_len: None,
             })
@@ -69,7 +69,7 @@ impl Chain {
     }
 
     // Swap the main chain to a remote chain if valid and longer.
-    pub fn choose_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
+    pub fn choose_chain(&mut self, other: Chain) -> Result<ChainStatus, NextBlockErr> {
         other.validate()?;
 
         let (main_genesis, other_genesis) = (self.main.first(), other.main.first());
@@ -86,12 +86,12 @@ impl Chain {
             let forkpoints: Vec<String> = self.main.iter().map(|b| b.hash.clone()).collect();
             self.forks.retain_forkpoints(&forkpoints);
 
-            Ok(ChooseChainResult::ChooseOther {
+            Ok(ChainStatus::ChooseOther {
                 main_len,
                 other_len,
             })
         } else {
-            Ok(ChooseChainResult::KeepMain {
+            Ok(ChainStatus::KeepMain {
                 main_len,
                 other_len: Some(other_len),
             })
@@ -168,14 +168,14 @@ impl Chain {
     }
 
     // Try to store a fork if valid and forks from the main chain
-    pub fn store_new_fork(&mut self, fork: Blocks) -> Result<ForkId, NextBlockErr> {
-        fork.validate()?;
+    pub fn store_new_fork(&mut self, blocks: Blocks) -> Result<ForkId, NextBlockErr> {
+        blocks.validate()?;
 
-        let first_block = fork.first();
+        let first_block = blocks.first();
         let is_parent = |b: &Block| first_block.validate_parent(b).is_ok();
 
         if let Some(..) = self.find(&is_parent) {
-            let fork_id = self.forks.insert(fork);
+            let fork_id = self.forks.insert(blocks);
             Ok(fork_id)
         }
         // catch when the fork has extended all the way to the genesis block (should only happen when connecting orphans)
@@ -307,7 +307,7 @@ impl std::fmt::Display for Chain {
 }
 
 #[derive(Debug)]
-pub enum ChooseChainResult {
+pub enum ChainStatus {
     KeepMain {
         main_len: usize,
         other_len: Option<usize>,
@@ -318,26 +318,32 @@ pub enum ChooseChainResult {
     },
 }
 
-impl std::fmt::Display for ChooseChainResult {
+impl std::fmt::Display for ChainStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ChooseChainResult::KeepMain {
+            ChainStatus::KeepMain {
                 main_len,
                 other_len,
             } => {
-                write!(f, "Keeping current main chain with length {}", main_len)?;
                 if let Some(other_len) = other_len {
-                    write!(f, ". Alternative chain has total length {}.", other_len)?
+                    write!(
+                        f,
+                        "Keeping current main chain with length {}.\n\
+                    Alternative chain or fork that was compared has total length {}.",
+                        main_len, other_len
+                    )
+                } else {
+                    write!(f, "Updated main chain has length {}.", main_len)
                 }
-                write!(f, ".")
             }
-            ChooseChainResult::ChooseOther {
+            ChainStatus::ChooseOther {
                 main_len,
                 other_len,
             } => {
                 write!(
                     f,
-                    "Choosing other chain with length {}, previous main chain has length {}.\n\
+                    "Choosing other chain or fork with length {}. \n\
+                     Old main chain had length {}.\n\
                      Storing old main as a fork if valid.",
                     other_len, main_len
                 )
