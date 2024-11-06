@@ -216,7 +216,7 @@ impl Chain {
             self.orphans.remove(&orphan_id);
             Ok(fork_id.into_new_fork_result())
         } else {
-            Err(NextBlockErr::StrayParent {
+            Err(NextBlockErr::StrayOrphan {
                 idx: block.idx,
                 hash: block.hash,
             })
