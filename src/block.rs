@@ -422,10 +422,10 @@ pub enum NextBlockErr {
         parent_idx: usize,
         parent_hash: String,
     }, // Block is missing a parent that connects it to the main chain or forks
-    StrayParent {
+    StrayOrphan {
         idx: usize,
         hash: String,
-    }, // Block represents a missing parent that doesn't prepend to any orphaned branches,
+    }, // Block represents an orphan block that doesn't prepend to any orphaned branches,
     Duplicate {
         idx: usize,
         hash: String,
@@ -497,8 +497,8 @@ impl std::fmt::Display for NextBlockErr {
                     abbrev(parent_hash)
                 )
             }
-            NextBlockErr::StrayParent { idx, hash } => {
-                write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
+            NextBlockErr::StrayOrphan { idx, hash } => {
+                write!(f, "Block {} with hash {} represents a stray orphan that was already handled or that we have no use for."
                 , idx, abbrev(hash))
             }
             NextBlockErr::Duplicate { idx, hash } => {
