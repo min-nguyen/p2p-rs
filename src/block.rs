@@ -158,7 +158,7 @@ impl Block {
     pub fn validate_parent(&self, parent: &Block) -> Result<(), NextBlockErr> {
         parent.validate()?;
         if parent.hash != self.prev_hash || parent.idx + 1 != self.idx {
-            return Err(NextBlockErr::InvalidChild {
+            return Err(NextBlockErr::InvalidParent {
                 idx: self.idx,
                 prev_hash: self.prev_hash.to_string(),
                 parent_idx: parent.idx,
@@ -408,19 +408,16 @@ pub enum NextBlockErr {
         hash: String,
         computed_hash: String,
     },
-    InvalidIndex {
+    InvalidGenesis {
         idx: usize,
-        expected_idx: usize,
-    },
-    InvalidChild {
+        hash: String,
+    }, // Block is an invalid genesis for the main chain
+    InvalidParent {
         idx: usize,
         prev_hash: String,
         parent_idx: usize,
         parent_hash: String,
     }, // Block has an inconsistent prev_hash and/or index with a specified parent
-    UnrelatedGenesis {
-        genesis_hash: String,
-    }, // Block belongs to a chain with a different genesis root
     MissingParent {
         parent_idx: usize,
         parent_hash: String,
@@ -465,14 +462,15 @@ impl std::fmt::Display for NextBlockErr {
                     abbrev(computed_hash)
                 )
             }
-            NextBlockErr::InvalidIndex { idx, expected_idx } => {
+            NextBlockErr::InvalidGenesis { idx, hash } => {
                 write!(
                     f,
-                    "Block {} has invalid index, whereas we expected index {}.",
-                    idx, expected_idx
+                    "Block {} with hash {} is not a valid genesis for the main chain.",
+                    idx,
+                    abbrev(hash)
                 )
             }
-            NextBlockErr::InvalidChild {
+            NextBlockErr::InvalidParent {
                 idx,
                 prev_hash,
                 parent_idx,
@@ -499,23 +497,16 @@ impl std::fmt::Display for NextBlockErr {
                     abbrev(parent_hash)
                 )
             }
+            NextBlockErr::StrayParent { idx, hash } => {
+                write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
+                , idx, abbrev(hash))
+            }
             NextBlockErr::Duplicate { idx, hash } => {
                 write!(f, "Block {} with hash {} is a duplicate already stored in the main chain, forks, or orphans."
                 , idx, abbrev(hash))
             }
-            NextBlockErr::UnrelatedGenesis { genesis_hash } => {
-                write!(
-                    f,
-                    "Block belongs to a chain with a different genesis, {}.",
-                    abbrev(genesis_hash)
-                )
-            }
             NextBlockErr::NoBlocks => {
                 write!(f, "Encountered an empty chain or fork.")
-            }
-            NextBlockErr::StrayParent { idx, hash } => {
-                write!(f, "Block {} with hash {} represents an out-of-sync missing parent, already handled or that we have no use for."
-                , idx, abbrev(hash))
             }
         }
     }

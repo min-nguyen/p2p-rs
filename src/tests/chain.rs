@@ -45,10 +45,7 @@ mod chain_tests {
             .to_vec();
         assert!(matches!(
             trace(Chain::from_vec(blocks)),
-            Err(NextBlockErr::InvalidIndex {
-                idx: 3,
-                expected_idx: 0
-            })
+            Err(NextBlockErr::InvalidGenesis { idx: 3, .. })
         ));
     }
     /*****************************

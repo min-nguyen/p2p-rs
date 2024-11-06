@@ -72,13 +72,11 @@ impl Chain {
     pub fn choose_chain(&mut self, other: Chain) -> Result<ChooseChainResult, NextBlockErr> {
         other.validate()?;
 
-        let (main_genesis, other_genesis) = (
-            self.main.first().hash.clone(),
-            other.main.first().hash.clone(),
-        );
+        let (main_genesis, other_genesis) = (self.main.first(), other.main.first());
         if main_genesis != other_genesis {
-            return Err(NextBlockErr::UnrelatedGenesis {
-                genesis_hash: other_genesis,
+            return Err(NextBlockErr::InvalidGenesis {
+                idx: other_genesis.idx,
+                hash: other_genesis.hash.clone(),
             });
         }
         let (main_len, other_len) = (self.last().idx + 1, other.last().idx + 1);
@@ -152,21 +150,45 @@ impl Chain {
                 Ok(fork_id.into_new_fork_result())
             }
         }
-        // Otherwise, report a missing block that connects it to the current network
+        // Encountered a genesis block not in the main chain
+        else if block.idx == 0 {
+            Err(NextBlockErr::InvalidGenesis {
+                idx: block.idx,
+                hash: block.hash,
+            })
+        }
+        // Otherwise, insert a new single-block orphan branch, and report a missing block that connects it to the current network
         else {
-            if block.idx > 0 {
-                // Insert as a single-block orphan
-                self.orphans.insert(Blocks::from_vec(vec![block.clone()])?);
-                Err(NextBlockErr::MissingParent {
-                    parent_idx: block.idx - 1,
-                    parent_hash: block.prev_hash,
-                })
-            } else {
-                // block.idx == 0 && not in main chain or forks
-                Err(NextBlockErr::UnrelatedGenesis {
-                    genesis_hash: block.hash,
-                })
-            }
+            self.orphans.insert(Blocks::from_vec(vec![block.clone()])?);
+            Err(NextBlockErr::MissingParent {
+                parent_idx: block.idx - 1,
+                parent_hash: block.prev_hash,
+            })
+        }
+    }
+
+    // Try to store a fork if valid and forks from the main chain
+    pub fn store_new_fork(&mut self, fork: Blocks) -> Result<ForkId, NextBlockErr> {
+        fork.validate()?;
+
+        let first_block = fork.first();
+        let is_parent = |b: &Block| first_block.validate_parent(b).is_ok();
+
+        if let Some(..) = self.find(&is_parent) {
+            let fork_id = self.forks.insert(fork);
+            Ok(fork_id)
+        }
+        // catch when the fork has extended all the way to the genesis block (should only happen when connecting orphans)
+        else if first_block.idx == 0 {
+            Err(NextBlockErr::InvalidGenesis {
+                idx: first_block.idx,
+                hash: first_block.hash.clone(),
+            })
+        } else {
+            Err(NextBlockErr::MissingParent {
+                parent_idx: first_block.idx - 1,
+                parent_hash: first_block.prev_hash.clone(),
+            })
         }
     }
 
@@ -201,30 +223,6 @@ impl Chain {
         }
     }
 
-    // Try to store a fork if valid and forks from the main chain
-    pub fn store_new_fork(&mut self, fork: Blocks) -> Result<ForkId, NextBlockErr> {
-        fork.validate()?;
-
-        let first_block = fork.first();
-        let is_parent = |b: &Block| first_block.validate_parent(b).is_ok();
-
-        if let Some(..) = self.find(&is_parent) {
-            let fork_id = self.forks.insert(fork);
-            Ok(fork_id)
-        } else if first_block.idx > 0 {
-            Err(NextBlockErr::MissingParent {
-                parent_idx: first_block.idx - 1,
-                parent_hash: first_block.prev_hash.clone(),
-            })
-        }
-        // catch when the fork has extended all the way to the genesis block (should only happen when connecting orphans)
-        else {
-            Err(NextBlockErr::UnrelatedGenesis {
-                genesis_hash: first_block.hash.clone(),
-            })
-        }
-    }
-
     // Mine a new valid block from given data
     pub fn mine_block(&mut self, data: &str) {
         self.main.mine_block(data)
@@ -236,9 +234,9 @@ impl Chain {
         if first_block.idx == 0 {
             Blocks::validate(&self.main)
         } else {
-            Err(NextBlockErr::InvalidIndex {
+            Err(NextBlockErr::InvalidGenesis {
                 idx: first_block.idx,
-                expected_idx: 0,
+                hash: first_block.hash.clone(),
             })
         }
     }
@@ -329,7 +327,7 @@ impl std::fmt::Display for ChooseChainResult {
             } => {
                 write!(f, "Keeping current main chain with length {}", main_len)?;
                 if let Some(other_len) = other_len {
-                    write!(f, ", other chain/fork has total length {}.", other_len)?
+                    write!(f, ". Alternative chain has total length {}.", other_len)?
                 }
                 write!(f, ".")
             }
@@ -340,7 +338,7 @@ impl std::fmt::Display for ChooseChainResult {
                 write!(
                     f,
                     "Choosing other chain with length {}, previous main chain has length {}.\n\
-                           If the other chain was a fork, then storing old main as a fork.",
+                     Storing old main as a fork if valid.",
                     other_len, main_len
                 )
             }
