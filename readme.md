@@ -1,6 +1,6 @@
 ##  Interactive Proof-of-Work Blockchain Network in Rust 🦀
 
-An ongoing Rust-based project to build a decentralized Proof-of-Work blockchain network, with a command-line interface for interactions.
+An interactive app for simulating various interactions between peers on an evolving Proof-of-Work blockchain network.
 
 #### Running
 
