@@ -24,11 +24,6 @@ cargo run
 ┌── Description:
 │     • Save the current chain to a specified file name, defaulting to the file name `blocks.json`.
 
-  *Reset blockchain*:
-└── Usage: `reset`
-┌── Description:
-│     • Reset current chain to a single block.
-
   *Create new transaction*:
 └── Usage: `txn [data]`
 ┌── Description:
@@ -55,6 +50,11 @@ cargo run
 │     • `"chain"`   - Show main chain
 │     • `"forks"`   - Show current forks from the main chain
 │     • `"txns"`    - Show transaction pool
+
+  *Reset blockchain*:
+└── Usage: `reset`
+┌── Description:
+│     • Reset current chain to a single block.
 
   *Redial*:
 └── Usage: `redial`
@@ -86,7 +86,7 @@ Contains the network logic using GossipSub as the communication protocol and Mdn
 
 #### `chain.rs`
 Defines the blockchain and Proof-of-Work consensus algorithm.
-- Chain internals, which manages a main chain and a hashmap of forks.
+- Chain internals, which manages a main chain, a hashmap of forks, and orphan branches.
 - Methods for accessing, mining, extending, and validating a chain's blocks with respect to other blocks, chains, or forks.
 
 ```sh
@@ -104,7 +104,7 @@ cargo test block -- --no capture
 ```
 
 #### `fork.rs`
-Auxiliary helpers for identifying and updating a pool of forks.
+Auxiliary helpers for identifying and updating a pool of forks and orphan branches.
 
 #### `transaction.rs`
 Provides the transaction form.
@@ -128,16 +128,13 @@ Provides auxiliary access to local storage.
 
 ### Architecture
 ```rs
-                   ------------------------------> SWARM.rs ---------------------------->
-                   ↑                                                                    |
-                   |                                                                    |
-                req/resp                                                             req/resp
-                   |                                                                    |
-                   |                                                                    ↓
-  STDIN ====>  PEER.rs { chan_out } <=== req/resp ==== { chan_in }  SWARM.rs  <-- event <---   P2P_NETWORK
-                   |                                           (network behaviour)
-                   ↓
-                FILE.rs
+  STDIN ====>     PEER.rs    <=== req/resp ====>  SWARM.rs  <-- pub/sub ---> Remote Network
+               _____↑_____       MESSAGE.rs                                [TOPIC "transactions"]
+               |          |                                                [TOPIC "chain"]
+               ↓          ↓
+            FILE.rs    CHAIN.rs
+                       ↓      ↓
+                    FORK.rs BLOCK.rs
 ```
 
 <!--
