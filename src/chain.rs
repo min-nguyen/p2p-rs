@@ -50,15 +50,15 @@ impl Chain {
                 let forkpoints: Vec<String> = self.main.iter().map(|b| b.hash.clone()).collect();
                 self.forks.retain_forkpoints(&forkpoints);
 
-                return Ok(ChainStatus::ChooseOther {
+                Ok(ChainStatus::ChooseOther {
                     main_len,
                     other_len,
-                });
+                })
             } else {
-                return Ok(ChainStatus::KeepMain {
+                Ok(ChainStatus::KeepMain {
                     main_len,
                     other_len: Some(other_len),
-                });
+                })
             }
         } else {
             Ok(ChainStatus::KeepMain {
@@ -115,7 +115,7 @@ impl Chain {
         // Search for parent block in the main chain.
         else if let Some(parent) = self.find(&is_parent) {
             // See if we can append the block to the main chain
-            if &self.last().hash == &parent.hash {
+            if self.last().hash == parent.hash {
                 Blocks::push_back(&mut self.main, block)?;
                 Ok(NextBlockResult::ExtendedMain {
                     end_idx: self.last().idx,
@@ -174,7 +174,7 @@ impl Chain {
         let first_block = blocks.first();
         let is_parent = |b: &Block| first_block.validate_parent(b).is_ok();
 
-        if let Some(..) = self.find(&is_parent) {
+        if self.find(&is_parent).is_some() {
             let fork_id = self.forks.insert(blocks);
             Ok(fork_id)
         }
@@ -199,14 +199,14 @@ impl Chain {
         let is_duplicate = |b: &Block| b.hash == block.hash;
 
         // Search for block in the orphans.
-        if let Some(..) = self.orphans.find(is_duplicate) {
+        if self.orphans.find(is_duplicate).is_some() {
             Err(NextBlockErr::Duplicate {
                 idx: block.idx,
                 hash: block.hash,
             })
         }
         // Lookup the block as the forkpoint for any orphan branches
-        else if let Some(..) = self.orphans.get_mut(&block.hash) {
+        else if self.orphans.get_mut(&block.hash).is_some() {
             // Try to extend the orphan branch from the front
             let orphan_id = self.orphans.extend_orphan(block)?;
             let orphan = self.orphans.get(&orphan_id).unwrap();

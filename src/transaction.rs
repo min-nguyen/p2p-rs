@@ -44,7 +44,7 @@ impl Transaction {
         let timestamp: i64 = Utc::now().timestamp();
         let hash: String = Self::compute_hash(&sender, &sender_pubk, &receiver, &amount, timestamp);
 
-        let sig: String = match keys.sign(&hash.as_bytes()) {
+        let sig: String = match keys.sign(hash.as_bytes()) {
             Ok(sig_u8s) => encode_bytes_to_hex(sig_u8s),
             Err(e) => {
                 error!(

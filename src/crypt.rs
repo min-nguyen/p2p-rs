@@ -28,7 +28,7 @@ pub fn encode_pubk_to_hex(pubk: PublicKey) -> String {
 }
 
 pub fn decode_hex_to_pubk(pubk_hex: &String, n_bytes: usize) -> Result<PublicKey, HexDecodeErr> {
-    let pubk_u8s: Vec<u8> = decode_hex_to_bytes(&pubk_hex, n_bytes)?;
+    let pubk_u8s: Vec<u8> = decode_hex_to_bytes(pubk_hex, n_bytes)?;
     match PublicKey::from_protobuf_encoding(pubk_u8s.as_slice()) {
         Ok(pubk) => Ok(pubk),
         Err(e) => Err(HexDecodeErr::ToPubk {

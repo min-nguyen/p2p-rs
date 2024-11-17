@@ -76,38 +76,36 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for BlockchainBehaviour {
 }
 impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
     fn inject_event(&mut self, event: GossipsubEvent) {
-        match event {
-            GossipsubEvent::Message {
-                propagation_source,
-                message,
-                ..
-            } => {
-                info!("Received {:?} from {:?}", message, propagation_source);
-                if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
-                    match pow_msg {
-                        PowMessage::ChainRequest { ref target, .. }
-                        | PowMessage::BlockRequest { ref target, .. } => match target {
-                            Some(target) if *target == LOCAL_PEER_ID.to_string() => {
-                                send_local_peer(&self.pow_sender, pow_msg)
-                            }
-                            None => send_local_peer(&self.pow_sender, pow_msg),
-                            _ => info!("Ignoring request. Not for us."),
-                        },
-                        PowMessage::ChainResponse { ref target, .. }
-                        | PowMessage::BlockResponse { ref target, .. } => {
-                            if *target == LOCAL_PEER_ID.to_string() {
-                                send_local_peer(&self.pow_sender, pow_msg)
-                            } else {
-                                info!("Ignoring response. Not for us.")
-                            }
+        if let GossipsubEvent::Message {
+            propagation_source,
+            message,
+            ..
+        } = event
+        {
+            info!("Received {:?} from {:?}", message, propagation_source);
+            if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
+                match pow_msg {
+                    PowMessage::ChainRequest { ref target, .. }
+                    | PowMessage::BlockRequest { ref target, .. } => match target {
+                        Some(target) if *target == LOCAL_PEER_ID.to_string() => {
+                            send_local_peer(&self.pow_sender, pow_msg)
                         }
-                        PowMessage::NewBlock { .. } => send_local_peer(&self.pow_sender, pow_msg),
+                        None => send_local_peer(&self.pow_sender, pow_msg),
+                        _ => info!("Ignoring request. Not for us."),
+                    },
+                    PowMessage::ChainResponse { ref target, .. }
+                    | PowMessage::BlockResponse { ref target, .. } => {
+                        if *target == LOCAL_PEER_ID.to_string() {
+                            send_local_peer(&self.pow_sender, pow_msg)
+                        } else {
+                            info!("Ignoring response. Not for us.")
+                        }
                     }
-                } else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
-                    send_local_peer(&self.txn_sender, txn_msg)
+                    PowMessage::NewBlock { .. } => send_local_peer(&self.pow_sender, pow_msg),
                 }
+            } else if let Ok(txn_msg) = serde_json::from_slice::<TxnMessage>(&message.data) {
+                send_local_peer(&self.txn_sender, txn_msg)
             }
-            _ => (),
         }
     }
 }
@@ -184,7 +182,7 @@ pub async fn set_up_blockchain_swarm(
     };
 
     // Swarm
-    let mut swarm = SwarmBuilder::new(transp, behaviour, LOCAL_PEER_ID.clone())
+    let mut swarm = SwarmBuilder::new(transp, behaviour, *LOCAL_PEER_ID)
         .executor(Box::new(|fut| {
             tokio::spawn(fut);
         }))
@@ -233,7 +231,7 @@ fn publish_msg<T: Serialize>(msg: T, topic: IdentTopic, swarm: &mut Swarm<Blockc
         Ok(json) => json,
         Err(e) => {
             error!("Couldn't jsonify message, {}", e);
-            return ();
+            return;
         }
     };
     let res = swarm.behaviour_mut().gossipsub.publish(topic, s.as_bytes());

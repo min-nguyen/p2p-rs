@@ -35,9 +35,9 @@ const DEFAULT_FILE_PATH: &str = "blocks.json";
     (3) Remote transaction messages from peers in the network
 */
 enum EventType {
-    StdEvent(String),
-    PowEvent(PowMessage),
-    TxnEvent(TxnMessage),
+    Std(String),
+    Pow(PowMessage),
+    Txn(TxnMessage),
 }
 
 /* A Peer consists of:
@@ -66,11 +66,11 @@ impl Peer {
             let evt: Option<EventType> = {
                 tokio::select! {
                     pow_event = self.pow_receiver.recv()
-                        => Some(EventType::PowEvent(pow_event.expect("pow event exists"))),
+                        => Some(EventType::Pow(pow_event.expect("pow event exists"))),
                     txn_event = self.txn_receiver.recv()
-                        => Some(EventType::TxnEvent(txn_event.expect("txn event exists"))),
+                        => Some(EventType::Txn(txn_event.expect("txn event exists"))),
                     std_event = self.from_stdin.next_line()
-                        => Some(EventType::StdEvent(std_event.expect("can get line").expect("can read line from stdin"))),
+                        => Some(EventType::Std(std_event.expect("can get line").expect("can read line from stdin"))),
                     swarm_event = self.swarm.select_next_some()
                         => { Self::handle_swarm_event(swarm_event); None }
                 }
@@ -78,9 +78,9 @@ impl Peer {
             if let Some(event) = evt {
                 println!("{} New Event {}", "-".repeat(40), "-".repeat(40));
                 match event {
-                    EventType::PowEvent(msg) => self.handle_pow_event(msg),
-                    EventType::TxnEvent(msg) => self.handle_txn_event(msg),
-                    EventType::StdEvent(cmd) => self.handle_std_event(&cmd).await,
+                    EventType::Pow(msg) => self.handle_pow_event(msg),
+                    EventType::Txn(msg) => self.handle_txn_event(msg),
+                    EventType::Std(cmd) => self.handle_std_event(&cmd).await,
                 }
             }
         }
@@ -110,7 +110,7 @@ impl Peer {
                         block: block.clone(),
                     };
                     swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
-                    responded!("\"{}\" to PeerId({}):", resp, abbrev(&msg.source()));
+                    responded!("\"{}\" to PeerId({}):", resp, abbrev(msg.source()));
                 } else {
                     update!("Block not found on the main chain.");
                 }
@@ -148,11 +148,8 @@ impl Peer {
                     update!("Deleted mined transaction from the local pool.");
                 }
                 // Update the state of the main chain
-                match self.chain.choose_fork() {
-                    Ok(res) => {
-                        update!("{}", res);
-                    }
-                    _ => {}
+                if let Ok(res) = self.chain.choose_fork() {
+                    update!("{}", res);
                 }
             }
             Err(e) => {
@@ -263,7 +260,7 @@ impl Peer {
         let file_name = if file_name.is_empty() {
             DEFAULT_FILE_PATH
         } else {
-            &file_name
+            file_name
         };
         match file::read_chain(file_name).await {
             Ok(chain) => {
@@ -281,7 +278,7 @@ impl Peer {
         let file_name = if file_name.is_empty() {
             DEFAULT_FILE_PATH
         } else {
-            &file_name
+            file_name
         };
         match file::write_chain(&self.chain, file_name).await {
             Ok(()) => update!("Saved chain to local file \"{}\"", file_name),
@@ -344,7 +341,7 @@ impl Peer {
                     target: Some(target.to_string()),
                     source: self.swarm.local_peer_id().to_string(),
                 };
-                responded!("\"{}\" to PeerId({}).", req, abbrev(&target.to_string()));
+                responded!("\"{}\" to PeerId({}).", req, abbrev(target));
                 swarm::publish_pow_msg(req, &mut self.swarm);
             }
         }
@@ -390,7 +387,7 @@ impl Peer {
         let discovered_peers: Vec<libp2p::PeerId> = swarm::discovered_peers(&mut self.swarm);
         if discovered_peers.is_empty() {
             println!("No discovered peers to dial!");
-            return ();
+            return;
         }
         for peer_id in discovered_peers {
             match self.swarm.dial(&peer_id) {
@@ -469,10 +466,7 @@ pub async fn set_up_peer() -> Peer {
         }
     };
 
-    println!(
-        "\n## Your Peer Id ##\n{}",
-        swarm.local_peer_id().to_string()
-    );
+    println!("\n## Your Peer Id ##\n{}", swarm.local_peer_id());
     Peer {
         from_stdin,
         pow_receiver,

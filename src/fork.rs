@@ -9,6 +9,34 @@ use super::{
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[derive(Clone, Debug)]
+pub struct ForkId {
+    pub fork_hash: String,
+    pub fork_idx: usize,
+    pub end_hash: String,
+    pub end_idx: usize,
+}
+
+impl ForkId {
+    pub fn into_extended_fork_result(self) -> NextBlockResult {
+        NextBlockResult::ExtendedFork {
+            fork_idx: self.fork_idx,
+            fork_hash: self.fork_hash,
+            end_idx: self.end_idx,
+            end_hash: self.end_hash,
+        }
+    }
+
+    pub fn into_new_fork_result(self) -> NextBlockResult {
+        NextBlockResult::NewFork {
+            fork_idx: self.fork_idx,
+            fork_hash: self.fork_hash,
+            end_idx: self.end_idx,
+            end_hash: self.end_hash,
+        }
+    }
+}
+
 // Forks are represented as a set of forkpoints (from the main chain) from which various branches arise and
 // share common prefixes of blocks.
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -43,13 +71,13 @@ impl Forks {
         P: Fn(&Block) -> bool,
     {
         // iterate through fork points
-        for (_, forks_from) in self.0.iter() {
+        for forks_from in self.0.values() {
             // iterate through forks from the fork point
-            for (_, fork) in forks_from {
+            for fork in forks_from.values() {
                 // iterate through blocks in the fork
                 if let Some(b) = fork.find(prop) {
                     let fork_id = Self::identify(fork);
-                    return Some((fork_id, fork, &b));
+                    return Some((fork_id, fork, b));
                 }
             }
         }
@@ -86,17 +114,17 @@ impl Forks {
             })
     }
 
-    pub fn retain_forkpoints<'a>(&'a mut self, forkpoints: &Vec<String>) {
+    pub fn retain_forkpoints(&mut self, forkpoints: &[String]) {
         // let hashes : Vec<String> = chain.iter().map(|b| b.hash.clone()).collect();
         self.0.retain(|forkpoint, _| forkpoints.contains(forkpoint));
     }
 
-    pub fn remove<'a>(&'a mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks> {
+    pub fn remove(&mut self, forkpoint: &String, endpoint: &String) -> Option<Blocks> {
         // Remove the fork matching the (forkpoint, endpoint)
         let fork = self
             .0
             .get_mut(forkpoint)
-            .and_then(|forks| forks.remove(endpoint).map(|res| res));
+            .and_then(|forks| forks.remove(endpoint));
         // If there are no remaining forks from the forkpoint, delete that hashmap
         if let Some(true) = self.0.get(forkpoint).map(|forks| forks.is_empty()) {
             self.0.remove(forkpoint);
@@ -109,7 +137,7 @@ impl Forks {
 
         self.0
             .entry(fork_id.fork_hash.clone())
-            .or_insert(HashMap::new())
+            .or_default()
             .insert(fork_id.end_hash.clone(), fork);
 
         fork_id
@@ -156,31 +184,9 @@ impl Forks {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct ForkId {
-    pub fork_hash: String,
-    pub fork_idx: usize,
-    pub end_hash: String,
-    pub end_idx: usize,
-}
-
-impl ForkId {
-    pub fn into_extended_fork_result(self) -> NextBlockResult {
-        NextBlockResult::ExtendedFork {
-            fork_idx: self.fork_idx,
-            fork_hash: self.fork_hash,
-            end_idx: self.end_idx,
-            end_hash: self.end_hash,
-        }
-    }
-
-    pub fn into_new_fork_result(self) -> NextBlockResult {
-        NextBlockResult::NewFork {
-            fork_idx: self.fork_idx,
-            fork_hash: self.fork_hash,
-            end_idx: self.end_idx,
-            end_hash: self.end_hash,
-        }
+impl Default for Forks {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -202,8 +208,8 @@ impl Orphans {
         P: Fn(&Block) -> bool,
     {
         for (forkpoint, orphan) in self.0.iter() {
-            if let Some(b) = Blocks::find(&orphan, &prop) {
-                return Some((forkpoint.clone(), &orphan, &b));
+            if let Some(b) = Blocks::find(orphan, &prop) {
+                return Some((forkpoint.clone(), orphan, b));
             }
         }
         None
@@ -223,8 +229,8 @@ impl Orphans {
         orphan_id
     }
 
-    pub fn remove<'a>(&mut self, forkpoint: &String) -> Option<Blocks> {
-        self.0.remove(forkpoint).map(|res| res)
+    pub fn remove(&mut self, forkpoint: &String) -> Option<Blocks> {
+        self.0.remove(forkpoint)
     }
 
     pub fn extend_orphan(&mut self, block: Block) -> Result<OrphanId, NextBlockErr> {
@@ -237,5 +243,11 @@ impl Orphans {
         for (i, orphan) in self.0.iter().enumerate() {
             println!("Orphaned branch {}:\n\t{:?}\n", i, orphan.1);
         }
+    }
+}
+
+impl Default for Orphans {
+    fn default() -> Self {
+        Self::new()
     }
 }

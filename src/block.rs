@@ -37,7 +37,7 @@ impl Block {
             0,
             "genesis".to_string(),
             1730051971,
-            crypt::encode_bytes_to_hex(&crypt::ZERO_U32),
+            crypt::encode_bytes_to_hex(crypt::ZERO_U32),
             0,
         );
         let hash: String = Self::compute_hash(idx, &data, timestamp, &prev_hash, nonce);
@@ -115,7 +115,7 @@ impl Block {
             .finalize() // Sha256 -> GenericArray<u8, U32>
             .into(); // GenericArray<u8, U32> -> [u8; 32].
 
-        crypt::encode_bytes_to_hex(&hash)
+        crypt::encode_bytes_to_hex(hash)
     }
 
     // Validate a block as its own entity
@@ -123,15 +123,13 @@ impl Block {
         //   check if block's hash has a valid number of leading zeros
         let BinaryString(hash_binary) =
             BinaryString::from_hex(&self.hash).expect("Can convert hex string to binary");
-        if !hash_binary.starts_with(DIFFICULTY_PREFIX) {
-            if self.idx != 0 {
-                // ignore the genesis block
-                return Err(NextBlockErr::DifficultyCheckFailed {
-                    idx: self.idx,
-                    hash: self.hash.clone(),
-                    difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
-                });
-            }
+        if !hash_binary.starts_with(DIFFICULTY_PREFIX) && self.idx != 0 {
+            // ignore the genesis block
+            return Err(NextBlockErr::DifficultyCheckFailed {
+                idx: self.idx,
+                hash: self.hash.clone(),
+                difficulty_prefix: DIFFICULTY_PREFIX.to_string(),
+            });
         }
         //  check if block's hash is indeed the correct hash of itself.
         let computed_hash = Self::compute_hash(
@@ -270,7 +268,7 @@ impl Blocks {
     pub fn split_off(&mut self, len: usize) -> Option<Blocks> {
         if len > 0 {
             let suffix: Vec<Block> = self.0.split_off(std::cmp::min(self.len(), len));
-            if suffix.len() > 0 {
+            if !suffix.is_empty() {
                 Some(Blocks(suffix))
             } else {
                 None
@@ -290,7 +288,7 @@ impl Blocks {
     where
         P: Fn(&Block) -> bool,
     {
-        if let Some(idx) = self.0.iter().position(|block| prop(&block)) {
+        if let Some(idx) = self.0.iter().position(prop) {
             self.split_off(idx + 1)
         } else {
             None
@@ -311,7 +309,7 @@ impl Blocks {
 
 impl std::fmt::Display for Blocks {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        for (_, block) in self.iter().enumerate() {
+        for block in self.iter() {
             writeln!(f, "{}", block)?;
         }
         Ok(())
@@ -443,7 +441,7 @@ impl std::fmt::Display for NextBlockErr {
                     f,
                     "Block {}'s hash binary {} does not meet the difficulty target {}.",
                     idx,
-                    BinaryString::from_hex(&hash).expect("can convert hex string to binary"),
+                    BinaryString::from_hex(hash).expect("can convert hex string to binary"),
                     difficulty_prefix
                 )
             }
