@@ -15,8 +15,8 @@ pub fn trace<T: std::fmt::Debug>(x: T) -> T {
     x
 }
 
-pub fn abbrev(hex: &String) -> String {
-    let mut s: String = hex.clone();
+pub fn abbrev(hex: &str) -> String {
+    let mut s: String = hex.to_owned();
     if hex.len() > 20 {
         s.truncate(16);
         s.push_str("...");
