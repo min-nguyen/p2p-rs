@@ -245,7 +245,7 @@ impl Peer {
     }
     fn handle_cmd_txn(&mut self, arg: &str) {
         if arg.is_empty() {
-            println!("Command error: `req` missing an argument. Specify \"all\" or [peer_id]");
+            println!("Command error: `req` missing an argument.\nUsage: req <all | [peer_id]>");
         } else {
             let txn: Transaction =
                 Transaction::random_transaction(arg.to_string(), swarm::LOCAL_KEYS.clone());
@@ -329,7 +329,7 @@ impl Peer {
     fn handle_cmd_req(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `req` missing an argument. Specify \"all\" or [peer_id]");
+                println!("Command error: `req` missing an argument.\nUsage: <all | [peer_id]>");
             }
             "all" => {
                 let req: PowMessage = PowMessage::ChainRequest {
@@ -352,7 +352,7 @@ impl Peer {
     fn handle_cmd_show(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {
-                println!("Command error: `show` missing an argument `chain`, `forks`, `peers`, or `txns`")
+                println!("Command error: `show` missing an argument.\nUsage: show <chain | forks | peers | txns>")
             }
             "chain" => {
                 println!(
@@ -382,7 +382,7 @@ impl Peer {
                 self.txns.iter().for_each(|txn| println!("{}", txn))
             }
             _ => {
-                println!("Command error: `show` has unrecognised argument(s). Specify `chain`, `forks`, `peers`, or `txns`")
+                println!("Command error: `show` has unrecognised argument(s).\nUsage: show <chain | forks | peers | txns>")
             }
         }
     }
