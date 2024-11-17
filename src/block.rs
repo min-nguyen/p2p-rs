@@ -5,8 +5,6 @@
     - Result and error types from handling new blocks.
 */
 
-use std::ops::Deref;
-
 use super::{crypt, util::abbrev};
 use chrono::{DateTime, Utc};
 use log::info;

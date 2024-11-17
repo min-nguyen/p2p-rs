@@ -1,11 +1,17 @@
 [package]
-name = "p2p"
+name = "powp2p"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "powp2p"
+path = "src/lib.rs"
+doc = true
+
 [[bin]]
 name = "main"
-path = "./src/main.rs"
+path = "src/main.rs"
+test = false
 
 [dependencies]
 rand = "0.8"
