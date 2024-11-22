@@ -3,6 +3,8 @@
 ********************/
 #[cfg(test)] // cargo test chain -- --nocapture
 mod chain_tests {
+    use std::rc::Rc;
+
     use crate::{
         block::{Block, Blocks, NextBlockErr, NextBlockResult},
         chain::{Chain, ChainStatus},
@@ -39,7 +41,7 @@ mod chain_tests {
     }
     #[test]
     fn test_validate_chain_invalid_idx() {
-        let blocks: Vec<Block> = init_chain(CHAIN_LEN)
+        let blocks: Vec<Block> =init_chain(CHAIN_LEN)
             .split_off(FORK_PREFIX_LEN)
             .unwrap()
             .to_vec();
@@ -87,7 +89,7 @@ mod chain_tests {
             chain.mine_block(&format!("block {}", i))
         }
         // handle an old block from the current chain that is one block older than the tip
-        let out_of_date_block: Block = chain.idx(chain.last().idx - 1).unwrap().clone();
+        let out_of_date_block: Block = (*chain.idx(chain.last().idx - 1).unwrap()).clone();
         // chain: [0]---[1]---[2]---[3]---[4]
         //                     |---[*3*]
         assert!(matches!(

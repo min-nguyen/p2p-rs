@@ -4,13 +4,15 @@
     - Methods for safely constructing, accessing, mining, extending, and validating a chain with respect to other blocks, chains, or forks.
 */
 
+use std::rc::Rc;
+
 use super::{
     block::{Block, Blocks, NextBlockErr, NextBlockResult},
     fork::{ForkId, Forks, Orphans},
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Chain {
     main: Blocks,
     forks: Forks,
@@ -264,14 +266,14 @@ impl Chain {
         self.main.len()
     }
 
-    pub fn find<'a, P>(&'a self, prop: &P) -> Option<&'a Block>
+    pub fn find<'a, P>(&'a self, prop: &P) -> Option<Rc<Block>>
     where
         P: Fn(&Block) -> bool,
     {
         self.main.find(prop)
     }
 
-    pub fn idx(&self, idx: usize) -> Option<&Block> {
+    pub fn idx(&self, idx: usize) -> Option<Rc<Block>> {
         self.main.get(idx)
     }
 

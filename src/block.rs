@@ -5,6 +5,8 @@
     - Result and error types from handling new blocks.
 */
 
+use std::rc::Rc;
+
 use super::{crypt, util::abbrev};
 use chrono::{DateTime, Utc};
 use log::info;
@@ -182,25 +184,36 @@ impl std::fmt::Display for Block {
 }
 
 /* Blocks: Ensures a valid subchain i.e. a non-empty sequence of blocks where each block correctly references the preceding one */
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Blocks(Vec<Block>);
+#[derive(Clone, Debug)]
+pub struct Blocks(Vec<Rc<Block>>);
 
 impl Blocks {
     // Construct a genesis block
     pub fn genesis() -> Blocks {
-        Blocks(vec![Block::genesis()])
+        Blocks(vec![Rc::new(Block::genesis())])
     }
 
     // Safe constructor
     pub fn from_vec(vec: Vec<Block>) -> Result<Blocks, NextBlockErr> {
-        let blocks = Blocks(vec);
+        let mut blocks = Blocks(Vec::new());
+        for block in vec.into_iter() {
+            blocks.0.push(Rc::new(block));
+        }
         blocks.validate()?;
         Ok(blocks)
     }
 
     // Destructor
     pub fn to_vec(self) -> Vec<Block> {
-        self.0
+        self.0.into_iter().map(|rcb: Rc<Block>| {
+            let rcloned: Block = (*rcb).clone();
+            if let Ok(rowned) = Rc::try_unwrap(rcb) {
+                rowned
+            }
+            else {
+                rcloned
+            }
+        }).collect()
     }
 
     pub fn validate(&self) -> Result<(), NextBlockErr> {
@@ -218,7 +231,7 @@ impl Blocks {
     // Mine a new valid block from given data
     pub fn mine_block(&mut self, data: &str) {
         let new_block = Block::mine_block(self.last(), data);
-        self.0.push(new_block)
+        self.0.push(Rc::new(new_block))
     }
 
     // Safe first
@@ -231,8 +244,8 @@ impl Blocks {
         self.0.last().expect("Blocks should always be non-empty")
     }
 
-    pub fn get(&self, idx: usize) -> Option<&Block> {
-        self.0.get(idx)
+    pub fn get(&self, idx: usize) -> Option<Rc<Block>> {
+        self.0.get(idx).map(Rc::clone)
     }
 
     pub fn len(&self) -> usize {
@@ -243,7 +256,7 @@ impl Blocks {
     pub fn push_back(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
         new_block.validate()?;
         new_block.validate_parent(self.last())?;
-        self.0.push(new_block);
+        self.0.push(Rc::new(new_block));
         Ok(())
     }
 
@@ -251,7 +264,7 @@ impl Blocks {
     pub fn push_front(&mut self, new_block: Block) -> Result<(), NextBlockErr> {
         new_block.validate()?;
         self.first().validate_parent(&new_block)?;
-        self.0.insert(0, new_block);
+        self.0.insert(0, Rc::new(new_block));
         Ok(())
     }
 
@@ -267,7 +280,7 @@ impl Blocks {
     // Does and returns nothing if len > Self.len().
     pub fn split_off(&mut self, len: usize) -> Option<Blocks> {
         if len > 0 {
-            let suffix: Vec<Block> = self.0.split_off(std::cmp::min(self.len(), len));
+            let suffix: Vec<Rc<Block>> = self.0.split_off(std::cmp::min(self.len(), len));
             if !suffix.is_empty() {
                 Some(Blocks(suffix))
             } else {
@@ -288,21 +301,21 @@ impl Blocks {
     where
         P: Fn(&Block) -> bool,
     {
-        if let Some(idx) = self.0.iter().position(prop) {
+        if let Some(idx) = self.0.iter().position(|rcblock: &Rc<Block>| prop(&(*rcblock))) {
             self.split_off(idx + 1)
         } else {
             None
         }
     }
 
-    pub fn find<'a, P>(&'a self, prop: &P) -> Option<&'a Block>
+    pub fn find<'a, P>(&'a self, prop: &P) -> Option<Rc<Block>>
     where
         P: Fn(&Block) -> bool,
     {
-        self.0.iter().find(|block| prop(block))
+        self.0.iter().find(|rcblock| prop(&rcblock)).map(Rc::clone)
     }
 
-    pub fn iter(&self) -> std::slice::Iter<Block> {
+    pub fn iter(&self) -> std::slice::Iter<Rc<Block>> {
         self.0.iter()
     }
 }

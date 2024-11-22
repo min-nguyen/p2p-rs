@@ -4,20 +4,22 @@
     - Messages for broadcasting new transactions.
 */
 
-use super::{block, chain, transaction, util::abbrev};
+use crate::transaction;
+
+use super::{block, chain, util::abbrev};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum PowMessage {
-    ChainRequest {
-        target: Option<String>, // either to a specific peer (Some) or all peers (None)
-        source: String,
-    },
-    ChainResponse {
-        target: String, // always to the specific requesting peer
-        source: String,
-        chain: chain::Chain,
-    },
+    // ChainRequest {
+    //     target: Option<String>, // either to a specific peer (Some) or all peers (None)
+    //     source: String,
+    // },
+    // ChainResponse {
+    //     target: String, // always to the specific requesting peer
+    //     source: String,
+    //     // chain: chain::Chain,
+    // },
     BlockRequest {
         idx: usize,
         hash: String,
@@ -39,8 +41,8 @@ pub enum PowMessage {
 impl PowMessage {
     pub fn source(&self) -> &String {
         match self {
-            PowMessage::ChainRequest { source, .. }
-            | PowMessage::ChainResponse { source, .. }
+            // PowMessage::ChainRequest { source, .. }
+            // | PowMessage::ChainResponse { source, .. }
             | PowMessage::BlockRequest { source, .. }
             | PowMessage::BlockResponse { source, .. }
             | PowMessage::NewBlock { source, .. } => source,
@@ -51,10 +53,10 @@ impl PowMessage {
 impl std::fmt::Display for PowMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            PowMessage::ChainRequest { .. } => write!(f, "Chain request"),
-            PowMessage::ChainResponse { chain, .. } => {
-                write!(f, "Chain response that has length {}", chain.len())
-            }
+            // PowMessage::ChainRequest { .. } => write!(f, "Chain request"),
+            // PowMessage::ChainResponse { chain, .. } => {
+            //     write!(f, "Chain response that has length {}", chain.len())
+            // }
             PowMessage::NewBlock { block, .. } => write!(f, "New block with idx {}", block.idx),
             PowMessage::BlockRequest { idx, hash, .. } => write!(
                 f,

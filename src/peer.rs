@@ -89,25 +89,25 @@ impl Peer {
     fn handle_pow_event(&mut self, msg: PowMessage) {
         received!("\"{}\" from PeerId({})", msg, abbrev(msg.source()));
         match msg.clone() {
-            PowMessage::ChainRequest { .. } => {
-                let resp: PowMessage = PowMessage::ChainResponse {
-                    target: msg.source().to_string(),
-                    source: self.swarm.local_peer_id().to_string(),
-                    chain: self.chain.clone(),
-                };
-                swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
-                responded!("\"{}\" to PeerId({})", resp, abbrev(msg.source()));
-            }
-            PowMessage::ChainResponse { chain, .. } => match self.chain.choose_chain(chain) {
-                Ok(res) => update!("{}", res),
-                Err(e) => update!("Remote chain couldn't be validated due to \"{}\"", e),
-            },
+            // PowMessage::ChainRequest { .. } => {
+            //     let resp: PowMessage = PowMessage::ChainResponse {
+            //         target: msg.source().to_string(),
+            //         source: self.swarm.local_peer_id().to_string(),
+            //         chain: self.chain.clone(),
+            //     };
+            //     swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
+            //     responded!("\"{}\" to PeerId({})", resp, abbrev(msg.source()));
+            // }
+            // PowMessage::ChainResponse { chain, .. } => match self.chain.choose_chain(chain) {
+            //     Ok(res) => update!("{}", res),
+            //     Err(e) => update!("Remote chain couldn't be validated due to \"{}\"", e),
+            // },
             PowMessage::BlockRequest { hash, .. } => {
                 if let Some(block) = self.chain.find(&|b| b.hash == hash) {
                     let resp: PowMessage = PowMessage::BlockResponse {
                         target: msg.source().clone(),
                         source: self.swarm.local_peer_id().to_string(),
-                        block: block.clone(),
+                        block: (*block).clone(),
                     };
                     swarm::publish_pow_msg(resp.clone(), &mut self.swarm);
                     responded!("\"{}\" to PeerId({}):", resp, abbrev(msg.source()));
@@ -212,11 +212,11 @@ impl Peer {
             cmd if cmd.starts_with("help") => {
                 print_user_commands();
             }
-            //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
-            cmd if cmd.starts_with("req") => {
-                let arg = cmd.strip_prefix("req").expect("can strip `req`").trim();
-                self.handle_cmd_req(arg)
-            }
+            // //`req <all | [peer_id]>`, requiring us to publish a ChainRequest to the network.
+            // cmd if cmd.starts_with("req") => {
+            //     let arg = cmd.strip_prefix("req").expect("can strip `req`").trim();
+            //     self.handle_cmd_req(arg)
+            // }
             // `mine [data]` makes and writes a new block with the given data (and an incrementing id)
             cmd if cmd.starts_with("mine") => {
                 let arg = cmd.strip_prefix("mine").expect("can strip `mine`").trim();
@@ -323,29 +323,29 @@ impl Peer {
             }
         }
     }
-    fn handle_cmd_req(&mut self, args: &str) {
-        match args {
-            _ if args.is_empty() => {
-                println!("Command error: `req` missing an argument.\nUsage: <all | [peer_id]>");
-            }
-            "all" => {
-                let req: PowMessage = PowMessage::ChainRequest {
-                    target: None,
-                    source: self.swarm.local_peer_id().to_string(),
-                };
-                responded!("\"{}\" to all connected peers.", req);
-                swarm::publish_pow_msg(req, &mut self.swarm);
-            }
-            target => {
-                let req = PowMessage::ChainRequest {
-                    target: Some(target.to_string()),
-                    source: self.swarm.local_peer_id().to_string(),
-                };
-                responded!("\"{}\" to PeerId({}).", req, abbrev(target));
-                swarm::publish_pow_msg(req, &mut self.swarm);
-            }
-        }
-    }
+    // fn handle_cmd_req(&mut self, args: &str) {
+    //     match args {
+    //         _ if args.is_empty() => {
+    //             println!("Command error: `req` missing an argument.\nUsage: <all | [peer_id]>");
+    //         }
+    //         "all" => {
+    //             let req: PowMessage = PowMessage::ChainRequest {
+    //                 target: None,
+    //                 source: self.swarm.local_peer_id().to_string(),
+    //             };
+    //             responded!("\"{}\" to all connected peers.", req);
+    //             swarm::publish_pow_msg(req, &mut self.swarm);
+    //         }
+    //         target => {
+    //             let req = PowMessage::ChainRequest {
+    //                 target: Some(target.to_string()),
+    //                 source: self.swarm.local_peer_id().to_string(),
+    //             };
+    //             responded!("\"{}\" to PeerId({}).", req, abbrev(target));
+    //             swarm::publish_pow_msg(req, &mut self.swarm);
+    //         }
+    //     }
+    // }
     fn handle_cmd_show(&mut self, args: &str) {
         match args {
             _ if args.is_empty() => {

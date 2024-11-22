@@ -7,7 +7,7 @@ use super::{
     util::abbrev,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 #[derive(Clone, Debug)]
 pub struct ForkId {
@@ -39,7 +39,7 @@ impl ForkId {
 
 // Forks are represented as a set of forkpoints (from the main chain) from which various branches arise and
 // share common prefixes of blocks.
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Forks(HashMap<String, HashMap<String, Blocks>>); // <fork point, <fork end hash, forked blocks>>
 
 impl Forks {
@@ -66,7 +66,7 @@ impl Forks {
         }
     }
 
-    pub fn find<'a, P>(&'a self, prop: &P) -> Option<(ForkId, &'a Blocks, &'a Block)>
+    pub fn find<'a, P>(&'a self, prop: &P) -> Option<(ForkId, &'a Blocks, Rc<Block>)>
     where
         P: Fn(&Block) -> bool,
     {
@@ -194,7 +194,7 @@ impl Default for Forks {
 // We do not track whether each orphan branch has blocks in common i.e. are forks of each other;
 // they are used to connect an orphan node back to the main chain as fast as possible, at which point it forms a fork.
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Orphans(HashMap<String, Blocks>); // <fork point, orphaned branch>
 pub type OrphanId = String; // fork hash
 
@@ -203,7 +203,7 @@ impl Orphans {
         Orphans(HashMap::new())
     }
 
-    pub fn find<'a, P>(&'a self, prop: P) -> Option<(OrphanId, &'a Blocks, &'a Block)>
+    pub fn find<'a, P>(&'a self, prop: P) -> Option<(OrphanId, &'a Blocks, Rc<Block>)>
     where
         P: Fn(&Block) -> bool,
     {

@@ -85,7 +85,7 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
             info!("Received {:?} from {:?}", message, propagation_source);
             if let Ok(pow_msg) = serde_json::from_slice::<PowMessage>(&message.data) {
                 match pow_msg {
-                    PowMessage::ChainRequest { ref target, .. }
+                    // PowMessage::ChainRequest { ref target, .. }
                     | PowMessage::BlockRequest { ref target, .. } => match target {
                         Some(target) if *target == LOCAL_PEER_ID.to_string() => {
                             send_local_peer(&self.pow_sender, pow_msg)
@@ -93,7 +93,7 @@ impl NetworkBehaviourEventProcess<GossipsubEvent> for BlockchainBehaviour {
                         None => send_local_peer(&self.pow_sender, pow_msg),
                         _ => info!("Ignoring request. Not for us."),
                     },
-                    PowMessage::ChainResponse { ref target, .. }
+                    // PowMessage::ChainResponse { ref target, .. }
                     | PowMessage::BlockResponse { ref target, .. } => {
                         if *target == LOCAL_PEER_ID.to_string() {
                             send_local_peer(&self.pow_sender, pow_msg)
